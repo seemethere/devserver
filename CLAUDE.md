@@ -52,7 +52,7 @@ devctl ssh mydev
 
 #### DevServer CRD
 ```yaml
-apiVersion: devops.yourcompany.com/v1
+apiVersion: devservers.io/v1
 kind: DevServer
 metadata:
   name: <server-name>
@@ -83,7 +83,7 @@ spec:
 
 #### DevServerFlavor CRD
 ```yaml
-apiVersion: devops.yourcompany.com/v1
+apiVersion: devservers.io/v1
 kind: DevServerFlavor
 metadata:
   name: gpu-large
