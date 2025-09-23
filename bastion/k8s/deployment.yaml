@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bastion
+  namespace: devserver-bastion
+  labels:
+    app: bastion
+    component: bastion
+    phase: "1"
+spec:
+  replicas: 2  # HA setup
+  selector:
+    matchLabels:
+      app: bastion
+  template:
+    metadata:
+      labels:
+        app: bastion
+        component: bastion
+        phase: "1"
+    spec:
+      serviceAccountName: bastion
+      securityContext:
+        fsGroup: 1000
+        # SSH daemon needs to run as root to read host keys and bind to port 22
+        runAsUser: 0
+      
+      containers:
+      - name: bastion
+        image: devserver/bastion:phase1  # Will be built locally
+        imagePullPolicy: Always
+        
+        ports:
+        - containerPort: 22
+          name: ssh
+          protocol: TCP
+        
+        env:
+        - name: CLUSTER_NAME
+          value: "development"
+        - name: BASTION_TEST_USER
+          value: "testuser"
+        - name: BASTION_TEST_UID
+          value: "1000"
+        # Demo SSH key for Phase 1 testing (replaced by deploy script)
+        - name: BASTION_TEST_SSH_KEY
+          value: "DEMO_SSH_KEY_PLACEHOLDER"
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        livenessProbe:
+          tcpSocket:
+            port: 22
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+        
+        readinessProbe:
+          tcpSocket:
+            port: 22
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+        
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      
+      # Anti-affinity to spread bastion pods across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - bastion
+              topologyKey: kubernetes.io/hostname

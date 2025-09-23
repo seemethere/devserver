@@ -1,0 +1,35 @@
+██████╗ ██╗   ██╗████████╗ ██████╗ ██████╗  ██████╗██╗  ██╗
+██╔══██╗╚██╗ ██╔╝╚══██╔══╝██╔═══██╗██╔══██╗██╔════╝██║  ██║
+██████╔╝ ╚████╔╝    ██║   ██║   ██║██████╔╝██║     ███████║
+██╔═══╝   ╚██╔╝     ██║   ██║   ██║██╔══██╗██║     ██╔══██║
+██║        ██║      ██║   ╚██████╔╝██║  ██║╚██████╗██║  ██║
+╚═╝        ╚═╝      ╚═╝    ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
+
+    DEVELOPMENT SERVERS - BASTION (Phase 1)
+
+Welcome to the PyTorch Development Server Platform bastion!
+
+🚀 Phase 1 - Bastion Infrastructure Testing
+   This is a proof-of-concept environment.
+
+📋 Available Commands:
+   devctl status     - Show environment status
+   devctl info       - Show available commands  
+   devctl test-k8s   - Test Kubernetes connectivity
+   devctl --help     - Full command help
+
+🔧 What's Working:
+   ✓ SSH access to bastion
+   ✓ Basic CLI environment
+   ✓ Kubernetes connectivity
+   ✓ User namespace assignment
+
+⚡ Coming in Phase 2:
+   • Server creation (devctl create)
+   • PyTorch development containers
+   • Distributed training support
+   • Full operator with CRDs
+
+📚 Documentation: https://docs.company.com/pytorch-dev-operator
+🐛 Issues: https://github.com/company/pytorch-dev-operator/issues
+

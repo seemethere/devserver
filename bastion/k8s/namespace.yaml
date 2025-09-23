@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: devserver-bastion
+  labels:
+    name: devserver-bastion
+    component: bastion
+    phase: "1"

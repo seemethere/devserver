@@ -1,0 +1,34 @@
+# DevServer Bastion SSH Configuration - Phase 1
+# This file is included by the main sshd_config
+
+# Security settings
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+# Performance and reliability
+ClientAliveInterval 30
+ClientAliveCountMax 3
+MaxAuthTries 3
+MaxSessions 10
+
+# Logging for audit trail
+SyslogFacility AUTH
+LogLevel INFO
+
+# Port forwarding (useful for development)
+AllowTcpForwarding yes
+X11Forwarding no
+
+# Environment setup
+PermitUserEnvironment no
+AcceptEnv LANG LC_* TERM COLORTERM
+
+# Banner and message
+Banner none
+PrintMotd yes
+
+# Restrict to specific users (in production, this would be more sophisticated)
+# For Phase 1, allow all valid users
+AllowUsers *
