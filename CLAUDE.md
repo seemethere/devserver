@@ -1,7 +1,7 @@
 # Kubernetes Operator for PyTorch Development Servers
 
 ## Project Overview
-Build a Kubernetes operator to manage development servers for developers on AWS EKS, supporting both standalone development and distributed PyTorch training. The operator will be built using Ansible Operator SDK and integrated with Kueue for resource quotas.
+Build a Kubernetes operator to manage development servers for developers on AWS EKS, supporting both standalone development and distributed PyTorch training. Users access the platform through a centralized bastion server that provides a secure, audited interface to the Kubernetes cluster. The operator will be built using Ansible Operator SDK and integrated with Kueue for resource quotas.
 
 ## Core Requirements
 
@@ -9,11 +9,11 @@ Build a Kubernetes operator to manage development servers for developers on AWS 
 - **Platform**: AWS EKS
 - **Operator Framework**: Ansible Operator SDK
 - **Resource Management**: Kueue for quotas
+- **Access Method**: Centralized bastion server with SSH access
 - **Storage**:
   - EBS volumes for persistent user home directories (`/home/dev/`)
   - EFS shared volume across user's servers (`/shared`)
 - **ML Framework**: PyTorch only
-- **Access Method**: CLI initially
 
 ### Key Features
 1. **Resource Flavors**: Predefined configurations (GPU types, memory, CPU)
@@ -23,6 +23,30 @@ Build a Kubernetes operator to manage development servers for developers on AWS 
 5. **Persistent Storage**: Home directories preserved across restarts
 
 ## Architecture Design
+
+### Bastion Server Access
+
+Users access the development server platform through a centralized bastion server:
+
+- **SSH Entry Point**: Users SSH to `bastion.devservers.company.com`
+- **Python CLI**: The `devctl` CLI is pre-installed on the bastion server
+- **Namespace Isolation**: Each user is automatically scoped to their `dev-<username>` namespace
+- **No Local kubectl**: Users never receive direct cluster credentials
+- **Audit Trail**: All commands are logged centrally for security and compliance
+
+```bash
+# User workflow
+ssh username@bastion.devservers.company.com
+devctl create mydev gpu-large
+devctl ssh mydev
+```
+
+**Security Benefits:**
+- Single point of access control
+- No kubectl credentials distributed to users
+- Centralized command auditing
+- Network isolation of development servers
+- Automated user namespace management
 
 ### Custom Resource Definitions (CRDs)
 
@@ -94,39 +118,46 @@ spec:
 
 ## Implementation Plan
 
-### Phase 1: MVP (Weeks 1-2)
+### Phase 1: Bastion Infrastructure (Weeks 1-2)
+1. Build bastion container image with Python CLI
+2. Deploy bastion server with HA configuration
+3. Setup SSH authentication and user management
+4. Configure Network Load Balancer and DNS
+5. Test user onboarding and basic CLI access
+
+### Phase 2: MVP Operator (Weeks 3-4)
 1. Setup Ansible Operator SDK project structure
 2. Create basic CRDs (DevServer, DevServerFlavor)
 3. Implement standalone server creation/deletion
 4. EBS/EFS volume provisioning
-5. Basic CLI wrapper for kubectl
+5. Integrate operator with bastion CLI
 
-### Phase 2: Distributed Training (Weeks 3-4)
+### Phase 3: Distributed Training (Weeks 5-6)
 1. Add distributed mode to DevServer CRD
 2. Implement StatefulSet creation for distributed training
 3. Configure PyTorch environment variables
 4. Add headless service for pod discovery
 5. Create PyTorch utility scripts ConfigMap
 
-### Phase 3: User Management (Weeks 5-6)
-1. Implement per-user namespaces
-2. Setup RBAC roles and bindings
-3. CLI authentication with kubeconfig
+### Phase 4: User Management & Security (Weeks 7-8)
+1. Enhanced per-user namespace isolation
+2. Advanced RBAC roles and bindings
+3. SSH key rotation and management
 4. User onboarding automation
 5. Integrate with corporate SSO/OIDC
 
-### Phase 4: Resource Management (Weeks 7-8)
+### Phase 5: Resource Management (Weeks 9-10)
 1. Integrate Kueue for resource quotas
 2. Implement gang scheduling for distributed jobs
-3. Add resource monitoring
-4. Cost tracking per user
-5. Auto-shutdown for idle servers
+3. Add resource monitoring and cost tracking
+4. Auto-shutdown for idle servers
+5. Capacity planning dashboards
 
-### Phase 5: Production Readiness (Weeks 9-10)
+### Phase 6: Production Readiness (Weeks 11-12)
 1. Add comprehensive error handling
 2. Implement health checks and recovery
 3. Setup logging and monitoring (Prometheus/Grafana)
-4. Security hardening
+4. Security hardening and penetration testing
 5. Documentation and training materials
 
 ## Project Structure
@@ -160,16 +191,28 @@ pytorch-dev-operator/
 │       │   └── configmap-pytorch-utils.yaml.j2
 │       └── defaults/
 │           └── main.yml
+├── bastion/
+│   ├── Dockerfile          # Bastion container image
+│   ├── deployment.yaml     # Bastion HA deployment
+│   ├── rbac.yaml          # Bastion service account & permissions
+│   ├── devctl.py          # Python CLI script
+│   ├── profile.d/         # User environment setup
+│   │   └── devserver.sh
+│   └── motd               # Welcome message
 ├── watches.yaml
 ├── requirements.yml
-├── Dockerfile
-└── devctl/
-    └── devctl.sh  # CLI tool
+└── Dockerfile             # Operator image
 ```
 
 ## CLI Commands
 
+Users access the Python CLI through the bastion server via SSH:
+
 ```bash
+# SSH to bastion server
+ssh username@bastion.devservers.company.com
+
+# CLI is pre-installed and configured
 # Create standalone dev server
 devctl create my-dev --flavor gpu-large
 
@@ -214,11 +257,15 @@ devctl delete my-dev
 - Service accounts for CLI authentication
 
 ## Success Metrics
+- Bastion server availability > 99.9%
+- SSH connection time to bastion < 2 seconds
 - Server creation time < 2 minutes
+- Support 100+ concurrent users on bastion
 - Support 100+ concurrent dev servers
 - 99% uptime for persistent storage
 - Distributed training setup < 5 minutes
 - Cost reduction via auto-shutdown > 30%
+- Zero direct kubectl access for end users
 
 ## Future Enhancements
 - Web UI dashboard
@@ -231,16 +278,20 @@ devctl delete my-dev
 
 ## Dependencies
 - AWS EKS cluster with GPU nodes
+- Network Load Balancer for bastion access
 - EBS CSI driver
 - EFS CSI driver
 - Kueue installed
 - Ansible Operator SDK
 - NVIDIA device plugin
-- Container registry for PyTorch images
+- Container registry for PyTorch and bastion images
+- DNS management for bastion endpoint
+- SSH key management system (GitHub/LDAP/IAM)
 
 ## Next Steps
-1. Set up development EKS cluster
-2. Install operator SDK and create project scaffold
-3. Implement Phase 1 MVP
-4. Test with pilot user group
-5. Iterate based on feedback
+1. Set up development EKS cluster with GPU nodes
+2. Build and deploy bastion infrastructure (Phase 1)
+3. Setup DNS and user SSH access
+4. Implement basic operator and CLI integration (Phase 2)
+5. Test with pilot user group
+6. Iterate based on feedback and expand features
