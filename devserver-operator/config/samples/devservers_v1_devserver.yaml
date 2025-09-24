@@ -1,0 +1,17 @@
+apiVersion: apps.devservers.io/v1
+kind: DevServer
+metadata:
+  labels:
+    app.kubernetes.io/name: devserver-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: mydev
+spec:
+  owner: user@company.com
+  flavor: cpu-small
+  image: ubuntu:22.04
+  mode: standalone
+  persistentHomeSize: 10Gi
+  enableSSH: true
+  lifecycle:
+    idleTimeout: 3600
+    autoShutdown: true
