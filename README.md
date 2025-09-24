@@ -44,13 +44,13 @@ The scripts automatically detect your cluster type (k3d, kind, minikube, EKS) an
 
 ```bash
 # Build bastion container
-./scripts/build-bastion.sh
+make -C bastion build
 
 # Deploy with environment auto-detection and SSH key generation
-./scripts/deploy-bastion.sh
+make -C bastion deploy
 
 # Test full end-to-end SSH connectivity and CLI
-./scripts/test-ssh.sh
+make -C bastion test
 ```
 
 **What happens automatically:**
@@ -71,11 +71,11 @@ The scripts automatically detect your cluster type and provide appropriate instr
 k3d cluster create devserver --port "8022:22@loadbalancer"
 
 # 2. Build and deploy (auto-detects k3d, loads image automatically)
-./scripts/build-bastion.sh
-./scripts/deploy-bastion.sh
+make -C bastion build
+make -C bastion deploy
 
 # 3. Test automatically uses port-forward for local clusters
-./scripts/test-ssh.sh
+make -C bastion test
 
 # 4. Manual SSH access (using auto-generated demo key)
 ssh -i .demo-keys/bastion_demo testuser@localhost -p 2222
@@ -87,14 +87,14 @@ ssh -i .demo-keys/bastion_demo testuser@localhost -p 2222
 aws ecr create-repository --repository-name devserver/bastion
 
 # 2. Build and push to ECR
-./scripts/build-bastion.sh
+make -C bastion build
 aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin <account>.dkr.ecr.us-west-2.amazonaws.com
 docker tag devserver/bastion:phase1 <account>.dkr.ecr.us-west-2.amazonaws.com/devserver/bastion:phase1
 docker push <account>.dkr.ecr.us-west-2.amazonaws.com/devserver/bastion:phase1
 
 # 3. Update deployment image URI and deploy
 # Edit bastion/k8s/deployment.yaml to use ECR image
-./scripts/deploy-bastion.sh
+make -C bastion deploy
 
 # 4. Access via AWS NLB (takes 2-3 minutes to provision)
 ssh testuser@<nlb-hostname>
@@ -103,11 +103,11 @@ ssh testuser@<nlb-hostname>
 ### kind/minikube (Local Development)
 ```bash
 # Standard workflow - scripts auto-detect and load images
-./scripts/build-bastion.sh
-./scripts/deploy-bastion.sh
+make -C bastion build
+make -C bastion deploy
 
 # Test handles port-forward automatically
-./scripts/test-ssh.sh
+make -C bastion test
 
 # Manual SSH access (using auto-generated demo key)
 ssh -i .demo-keys/bastion_demo testuser@localhost -p 2222
@@ -169,7 +169,7 @@ ssh -i .demo-keys/bastion_demo testuser@<LOADBALANCER-IP>
 ssh -i .demo-keys/bastion_demo testuser@localhost -p 2222
 
 # Or run the full test suite
-./scripts/test-ssh.sh
+make -C bastion test
 ```
 
 ### 4. Test CLI Inside Bastion
@@ -198,13 +198,13 @@ The deployment automatically generates demo SSH keys for testing. To use your ow
 ```bash
 # Copy your public key to replace the generated one
 cp ~/.ssh/id_rsa.pub .demo-keys/bastion_demo.pub
-./scripts/deploy-bastion.sh  # Redeploy with your key
+make -C bastion deploy  # Redeploy with your key
 ```
 
 **Option 2: Edit deployment directly**
 1. Edit `bastion/k8s/deployment.yaml`
 2. Update the `BASTION_TEST_SSH_KEY` environment variable with your public key
-3. Redeploy: `./scripts/deploy-bastion.sh`
+3. Redeploy: `make -C bastion deploy`
 
 **For production**: SSH keys should come from ConfigMaps/Secrets, not environment variables.
 
@@ -239,7 +239,7 @@ kubectl logs deployment/bastion -n devserver-bastion
 
 ```bash
 # Test basic connectivity
-./scripts/test-ssh.sh
+make -C bastion test
 
 # Check service
 kubectl get service bastion -n devserver-bastion -o wide

@@ -6,7 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # Configuration
 IMAGE_NAME="devserver/bastion:phase2"
@@ -239,7 +239,7 @@ if ! kubectl rollout status deployment/bastion -n "$NAMESPACE" --timeout=300s; t
     kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' | tail -5
     echo
     echo "💡 Common fixes:"
-    echo "  • Image pull issues: Try rebuilding with ./scripts/build-bastion.sh"
+    echo "  • Image pull issues: Try rebuilding with make build"
     echo "  • Stuck resources: Run with --force-cleanup flag"
     echo "  • Check logs: kubectl logs -f deployment/bastion -n $NAMESPACE"
     echo

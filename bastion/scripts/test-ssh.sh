@@ -6,7 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # Configuration
 NAMESPACE="devserver-bastion"
@@ -30,7 +30,7 @@ fi
 # Check if deployment is ready
 echo "🔍 Checking bastion deployment..."
 if ! kubectl get deployment bastion -n "$NAMESPACE" &>/dev/null; then
-    echo "❌ Bastion deployment not found. Please run ./scripts/deploy-bastion.sh first."
+    echo "❌ Bastion deployment not found. Please run make deploy first."
     exit 1
 fi
 
