@@ -258,3 +258,5 @@ docker-compose.local.yml
 # Generated SSH keys for development
 dev-keys/
 test-keys/
+
+.ansible/

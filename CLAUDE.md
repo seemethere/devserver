@@ -31,7 +31,7 @@ Users access the development server platform through a centralized bastion serve
 - **SSH Entry Point**: Users SSH to `bastion.devservers.company.com`
 - **Python CLI**: The `devctl` CLI is pre-installed on the bastion server
 - **Namespace Isolation**: Each user is automatically scoped to their `dev-<username>` namespace
-- **No Local kubectl**: Users never receive direct cluster credentials
+- **Secure kubectl Access**: Users receive namespace-scoped kubectl credentials (limited permissions)
 - **Audit Trail**: All commands are logged centrally for security and compliance
 
 ```bash
@@ -39,14 +39,19 @@ Users access the development server platform through a centralized bastion serve
 ssh username@bastion.devservers.company.com
 devctl create mydev gpu-large
 devctl ssh mydev
+
+# Users also have secure kubectl access
+kubectl get pods -n dev-username    # ✅ Works - user's namespace
+kubectl create namespace test       # ❌ Forbidden - security enforced
 ```
 
 **Security Benefits:**
 - Single point of access control
-- No kubectl credentials distributed to users
+- Namespace-scoped kubectl credentials (limited to `dev-<username>`)
 - Centralized command auditing
 - Network isolation of development servers
 - Automated user namespace management
+- Zero-trust security model (users cannot escalate privileges)
 
 ### Custom Resource Definitions (CRDs)
 
@@ -116,6 +121,118 @@ spec:
 - **PVC (EBS)**: Home directory per pod
 - **PVC (EFS)**: Shared volume across all pods
 
+## Phase 2 Architecture: Secure User Provisioning
+
+### User Controller Sidecar Pattern
+
+Phase 2 implements a secure user provisioning system using a sidecar controller pattern:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bastion
+spec:
+  template:
+    spec:
+      containers:
+      - name: bastion           # SSH server + user registration
+        image: devserver/bastion:phase2
+        volumeMounts:
+        - name: shared-data
+          mountPath: /shared
+      
+      - name: user-controller   # Secure resource provisioning
+        image: devserver/bastion:phase2
+        command: ["python3", "/usr/local/bin/user-controller.py"]
+        volumeMounts:
+        - name: shared-data
+          mountPath: /shared
+      
+      volumes:
+      - name: shared-data
+        emptyDir: {}
+```
+
+### Security Model
+
+**Controller Permissions (Elevated)**:
+- Create namespaces (restricted to `dev-*` pattern)
+- Create ServiceAccounts and RBAC roles
+- Generate user tokens
+
+**User Permissions (Limited)**:
+- Access only their `dev-<username>` namespace
+- Manage pods, services, PVCs within their namespace
+- **Cannot** create namespaces or access cluster-wide resources
+
+### User Provisioning Flow
+
+```mermaid
+sequenceDiagram
+    User->>Bastion: SSH login
+    Bastion->>Registry: Register user (status=pending)
+    Controller->>Registry: Watch for pending users  
+    Controller->>K8s: Create namespace + SA + RBAC
+    Controller->>Tokens: Save user SA token (proper UID)
+    Controller->>Registry: Update status=provisioned
+    Bastion->>Kubeconfig: Generate secure config
+    User->>K8s: kubectl works (namespace-scoped)!
+```
+
+### Resources Created Per User
+
+**Namespace**: `dev-<username>`
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev-<username>
+  labels:
+    devserver.io/user: "<username>"
+    devserver.io/created-by: "user-controller"
+```
+
+**ServiceAccount**: `user-<username>`
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: user-<username>
+  namespace: dev-<username>
+```
+
+**Role**: Namespace-scoped permissions
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dev-user
+  namespace: dev-<username>
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "persistentvolumeclaims", "configmaps", "secrets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets", "replicasets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+```
+
+**User Kubeconfig**: Secure, namespace-scoped access
+```yaml
+apiVersion: v1
+kind: Config
+contexts:
+- context:
+    cluster: default-cluster
+    namespace: dev-<username>
+    user: user-<username>
+users:
+- name: user-<username>
+  user:
+    tokenFile: /shared/user-tokens/<username>/token  # User-owned file
+```
+
 ## Implementation Plan
 
 ### Phase 1: Bastion Infrastructure ✅ COMPLETED
@@ -136,26 +253,43 @@ spec:
 - ✅ Comprehensive error handling and troubleshooting
 - ✅ Repeatable developer experience with one-command workflow
 
-### Phase 2: MVP Operator (Weeks 3-4)
+### Phase 2: Secure User Provisioning ✅ COMPLETED
+**Status**: All objectives completed successfully with enhanced security model
+
+**Completed Deliverables**:
+1. ✅ User Controller Sidecar - Automatic namespace and ServiceAccount provisioning
+2. ✅ Secure kubectl Access - Users get namespace-scoped credentials (no cluster access)
+3. ✅ Zero-Trust Security Model - Users cannot create namespaces or access other namespaces
+4. ✅ Enhanced CLI - Security-appropriate connectivity tests and Phase 2 capabilities
+5. ✅ Comprehensive Testing - Full end-to-end validation with timeout handling
+
+**Security Architecture Implemented**:
+- ✅ **Separated RBAC**: Controller SA (cluster permissions) vs User SA (namespace-scoped)
+- ✅ **Automatic User Provisioning**: `dev-<username>` namespace + `user-<username>` ServiceAccount
+- ✅ **Token Permission Fix**: User-owned token files with proper UID ownership
+- ✅ **Namespace Isolation**: Users can only access their own development namespace
+- ✅ **Sidecar Pattern**: User controller runs alongside bastion for secure provisioning
+
+**Technical Implementation**:
+- ✅ User Controller Python sidecar container
+- ✅ Shared volume communication between bastion and controller
+- ✅ User registry JSON tracking and status management
+- ✅ Enhanced entrypoint with user registration and secure kubeconfig generation
+- ✅ Security-aware devctl CLI with proper connectivity testing
+
+### Phase 3: DevServer Operator & CRDs (Weeks 5-6)
 1. Setup Ansible Operator SDK project structure
 2. Create basic CRDs (DevServer, DevServerFlavor)
 3. Implement standalone server creation/deletion
 4. EBS/EFS volume provisioning
 5. Integrate operator with bastion CLI
 
-### Phase 3: Distributed Training (Weeks 5-6)
+### Phase 4: Distributed Training (Weeks 7-8)
 1. Add distributed mode to DevServer CRD
 2. Implement StatefulSet creation for distributed training
 3. Configure PyTorch environment variables
 4. Add headless service for pod discovery
 5. Create PyTorch utility scripts ConfigMap
-
-### Phase 4: User Management & Security (Weeks 7-8)
-1. Enhanced per-user namespace isolation
-2. Advanced RBAC roles and bindings
-3. SSH key rotation and management
-4. User onboarding automation
-5. Integrate with corporate SSO/OIDC
 
 ### Phase 5: Resource Management (Weeks 9-10)
 1. Integrate Kueue for resource quotas
@@ -174,7 +308,36 @@ spec:
 ## Project Structure
 
 ```
-pytorch-dev-operator/
+devserver/                 # ✅ Phase 1 & 2 COMPLETED
+├── bastion/               # ✅ Phase 2 - Secure User Provisioning
+│   ├── Dockerfile          # Multi-stage container (Phase 2: SSH + user-controller)
+│   ├── entrypoint.sh       # Enhanced: User registration + secure kubeconfig
+│   ├── user-controller.py  # ✅ NEW - Sidecar for secure resource provisioning
+│   ├── config/
+│   │   ├── motd           # Welcome message
+│   │   ├── sshd_config    # SSH security hardening
+│   │   └── profile.d/
+│   │       └── devserver.sh # User environment setup
+│   └── k8s/               # Phase 2 - Enhanced Kubernetes manifests
+│       ├── namespace.yaml  # Isolated namespace
+│       ├── rbac.yaml      # ✅ UPDATED - Separated controller vs user permissions
+│       ├── deployment.yaml # ✅ UPDATED - Sidecar pattern (bastion + user-controller)
+│       └── service.yaml   # LoadBalancer with AWS NLB annotations
+├── cli/                   # ✅ Phase 2 - Enhanced Python CLI
+│   ├── devctl/
+│   │   ├── main.py        # ✅ UPDATED - Security-aware connectivity tests
+│   │   └── __init__.py
+│   └── pyproject.toml     # Modern Python packaging
+├── scripts/               # ✅ Phase 2 - Enhanced automation
+│   ├── build-bastion.sh   # ✅ UPDATED - Phase 2 container build
+│   ├── deploy-bastion.sh  # ✅ UPDATED - Phase 2 deployment
+│   └── test-ssh.sh        # ✅ UPDATED - Comprehensive Phase 2 security testing
+├── demo-keys/             # ✅ Auto-generated SSH keys for testing
+├── CLAUDE.md              # ✅ UPDATED - Phase 2 architecture documentation
+└── README.md
+
+# Future Phases (Planned):
+pytorch-dev-operator/      # Phase 3+ - DevServer CRDs and Operator
 ├── config/
 │   ├── crd/
 │   │   ├── devserver_crd.yaml
@@ -202,28 +365,6 @@ pytorch-dev-operator/
 │       │   └── configmap-pytorch-utils.yaml.j2
 │       └── defaults/
 │           └── main.yml
-├── bastion/               # ✅ COMPLETED - Production ready bastion
-│   ├── Dockerfile          # Multi-stage container with SSH, CLI, kubectl
-│   ├── entrypoint.sh       # User setup and SSH daemon management
-│   ├── config/
-│   │   ├── motd           # Welcome message
-│   │   ├── sshd_config    # SSH security hardening
-│   │   └── profile.d/
-│   │       └── devserver.sh # User environment setup
-│   └── k8s/               # Kubernetes manifests
-│       ├── namespace.yaml  # Isolated namespace
-│       ├── rbac.yaml      # Service account with appropriate permissions
-│       ├── deployment.yaml # HA deployment (2 replicas, anti-affinity)
-│       └── service.yaml   # LoadBalancer with AWS NLB annotations
-├── cli/                   # ✅ COMPLETED - Python CLI package
-│   ├── devctl/
-│   │   ├── main.py        # CLI with status, info, test-k8s commands
-│   │   └── __init__.py
-│   └── pyproject.toml     # Modern Python packaging
-├── scripts/               # ✅ COMPLETED - Automation workflows
-│   ├── build-bastion.sh   # Docker build with error handling
-│   ├── deploy-bastion.sh  # Smart deployment with environment detection
-│   └── test-ssh.sh        # End-to-end SSH and CLI testing
 ├── watches.yaml
 ├── requirements.yml
 └── Dockerfile             # Operator image
@@ -259,15 +400,41 @@ pytorch-dev-operator/
 - SSH security hardening and proper user environment setup
 - Container security context properly configured for SSH daemon
 
-### Ready for Phase 2 🚀
+### Phase 2 Implementation Summary
 
-The bastion infrastructure is **production-ready** and provides:
-- Secure, centralized access point for all future development servers
-- CLI framework ready to be extended with server creation/management
-- Proven Kubernetes integration patterns for the operator to build upon
-- Established user namespace isolation ready for per-user server management
+### What We Built ✅
+
+**Secure User Provisioning Architecture**:
+- User Controller sidecar for automatic namespace and ServiceAccount provisioning
+- Separated RBAC model (controller vs user permissions)
+- Secure token management with proper file ownership
+- Enhanced CLI with security-appropriate connectivity tests
+- Comprehensive end-to-end testing with timeout handling
+
+**Security Model Achieved**:
+- Zero-trust architecture: Users cannot escalate privileges
+- Namespace isolation: Users limited to `dev-<username>` scope
+- Automatic resource provisioning without manual intervention
+- Audit trail through user registry and centralized logging
+
+**Production Ready Features**:
+- Resilient sidecar pattern with health checks
+- Token permission fixes for multi-user scenarios
+- Enhanced error handling and timeout management
+- Cross-platform compatibility with environment detection
+
+### Ready for Phase 3 🚀
+
+The **secure user provisioning** is complete and provides:
+- Production-ready bastion with automatic user onboarding
+- Secure kubectl access with proper namespace isolation
+- Proven sidecar controller pattern for resource management
+- Enhanced CLI framework ready for DevServer CRD integration
+- Comprehensive security model validated through testing
 
 ## CLI Commands
+
+### Phase 2 Available Commands ✅
 
 Users access the Python CLI through the bastion server via SSH:
 
@@ -275,23 +442,28 @@ Users access the Python CLI through the bastion server via SSH:
 # SSH to bastion server
 ssh username@bastion.devservers.company.com
 
-# CLI is pre-installed and configured
-# Create standalone dev server
+# Phase 2 - CLI is pre-installed and configured
+devctl status        # Show environment status and kubectl connectivity
+devctl info         # Show available commands and capabilities  
+devctl test-k8s     # Test secure Kubernetes access and permissions
+devctl --help       # Detailed help
+
+# Phase 2 - Users also have secure kubectl access
+kubectl get pods -n dev-username     # ✅ Works - user's namespace
+kubectl create pod test -n dev-username  # ✅ Works - user can manage resources
+kubectl get pods -n kube-system     # ❌ Forbidden - security enforced
+kubectl create namespace test       # ❌ Forbidden - security enforced
+```
+
+### Phase 3 Planned Commands (DevServer Operator)
+
+```bash
+# Future Phase 3 commands (coming with DevServer CRDs)
 devctl create my-dev --flavor gpu-large
-
-# Create distributed training cluster
 devctl create training-job --flavor gpu-large --distributed --replicas 4
-
-# SSH into server (or specific replica)
 devctl ssh my-dev [--replica 0]
-
-# Run distributed training
 devctl run training-job train.py --batch-size 32
-
-# Monitor resources
 devctl monitor training-job
-
-# Delete server
 devctl delete my-dev
 ```
 

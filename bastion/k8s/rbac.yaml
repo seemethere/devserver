@@ -11,82 +11,47 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: bastion-reader
+  name: bastion-controller
   labels:
     component: bastion
-    phase: "1"
+    phase: "2"
 rules:
-# Read cluster info for CLI status
+# Controller needs to read cluster info and manage namespaces
 - apiGroups: [""]
   resources: ["nodes", "namespaces"]
-  verbs: ["get", "list"]
+  verbs: ["get", "list", "create"]
 
-# Read/write permissions for dev-* namespaces (Phase 1 testing)
+# Controller needs to create ServiceAccounts and manage RBAC
 - apiGroups: [""]
-  resources: ["namespaces"]
+  resources: ["serviceaccounts", "secrets"]
+  verbs: ["get", "list", "create", "update", "patch"]
+
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings"]
+  verbs: ["get", "list", "create", "update", "patch"]
+
+# Controller needs to create tokens for users
+- apiGroups: [""]
+  resources: ["serviceaccounts/token"]
   verbs: ["create"]
-  resourceNames: []
-
-# Basic pod/service management in dev-* namespaces (for Phase 1 testing)
-- apiGroups: [""]
-  resources: ["pods", "services", "persistentvolumeclaims", "configmaps", "secrets"]
-  verbs: ["get", "list", "create", "update", "patch", "delete"]
-
-- apiGroups: ["apps"]
-  resources: ["deployments", "statefulsets", "replicasets"]
-  verbs: ["get", "list", "create", "update", "patch", "delete"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: bastion-reader
+  name: bastion-controller
   labels:
     component: bastion
-    phase: "1"
+    phase: "2"
 subjects:
 - kind: ServiceAccount
   name: bastion
   namespace: devserver-bastion
 roleRef:
   kind: ClusterRole
-  name: bastion-reader
+  name: bastion-controller
   apiGroup: rbac.authorization.k8s.io
 
----
-# Additional role for managing dev-* namespaces specifically
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: bastion-dev-namespace-manager
-  labels:
-    component: bastion
-    phase: "1"
-rules:
-# Allow creating and managing dev-* namespaces
-- apiGroups: [""]
-  resources: ["namespaces"]
-  verbs: ["create", "get", "list", "update", "patch"]
-  resourceNames: []
-
-# Full control within dev-* namespaces (restricted by namespace-scoped role bindings)
-- apiGroups: ["*"]
-  resources: ["*"]
-  verbs: ["*"]
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: bastion-dev-namespace-manager
-  labels:
-    component: bastion
-    phase: "1"
-subjects:
-- kind: ServiceAccount
-  name: bastion
-  namespace: devserver-bastion
-roleRef:
-  kind: ClusterRole
-  name: bastion-dev-namespace-manager
-  apiGroup: rbac.authorization.k8s.io
+# Note: User-specific permissions are now created dynamically 
+# by the user-controller for each dev-<username> namespace.
+# No additional ClusterRoles needed - security through namespace isolation.

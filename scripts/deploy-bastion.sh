@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Deploy script for bastion - Phase 1
-# Quick deployment script for development and testing
+# Deploy script for bastion - Phase 2
+# Secure user provisioning with sidecar controller
 
 set -e
 
@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Configuration
-IMAGE_NAME="devserver/bastion:phase1"
+IMAGE_NAME="devserver/bastion:phase2"
 NAMESPACE="devserver-bastion"
 
 # Parse command line options

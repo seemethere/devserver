@@ -6,7 +6,7 @@ metadata:
   labels:
     app: bastion
     component: bastion
-    phase: "1"
+    phase: "2"
 spec:
   replicas: 2  # HA setup
   selector:
@@ -17,7 +17,7 @@ spec:
       labels:
         app: bastion
         component: bastion
-        phase: "1"
+        phase: "2"
     spec:
       serviceAccountName: bastion
       securityContext:
@@ -27,7 +27,7 @@ spec:
       
       containers:
       - name: bastion
-        image: devserver/bastion:phase1  # Will be built locally
+        image: devserver/bastion:phase2  # Updated for Phase 2
         imagePullPolicy: Always
         
         ports:
@@ -42,7 +42,7 @@ spec:
           value: "testuser"
         - name: BASTION_TEST_UID
           value: "1000"
-        # Demo SSH key for Phase 1 testing (replaced by deploy script)
+        # Demo SSH key for Phase 2 testing (replaced by deploy script)
         - name: BASTION_TEST_SSH_KEY
           value: "DEMO_SSH_KEY_PLACEHOLDER"
         
@@ -71,10 +71,61 @@ spec:
         volumeMounts:
         - name: tmp
           mountPath: /tmp
+        - name: shared-data
+          mountPath: /shared
+      
+      # User Controller Sidecar - Secure User Provisioning
+      - name: user-controller
+        image: devserver/bastion:phase2  # Same image, different command
+        imagePullPolicy: Always
+        
+        command: ["python3", "/usr/local/bin/user-controller.py"]
+        
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        
+        # Controller health check - check if it can list namespaces
+        livenessProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - |
+              import subprocess
+              result = subprocess.run(['kubectl', 'get', 'namespaces'], capture_output=True, timeout=10)
+              exit(0 if result.returncode == 0 else 1)
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          timeoutSeconds: 15
+        
+        readinessProbe:
+          exec:
+            command:
+            - python3
+            - -c
+            - "import os; exit(0 if os.path.exists('/shared') else 1)"
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+        
+        volumeMounts:
+        - name: shared-data
+          mountPath: /shared
         
       volumes:
       - name: tmp
         emptyDir: {}
+      - name: shared-data
+        emptyDir: {}  # Shared communication between bastion and controller
       
       # Anti-affinity to spread bastion pods across nodes
       affinity:

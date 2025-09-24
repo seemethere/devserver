@@ -1,5 +1,5 @@
-# Bastion server for PyTorch development server platform
-# Phase 1: Basic SSH access with simple CLI
+# Bastion server for PyTorch development server platform  
+# Phase 2: Secure user provisioning with sidecar controller
 
 FROM ubuntu:22.04
 
@@ -57,6 +57,10 @@ RUN cd /opt/devctl && pip3 install --no-cache-dir .
 COPY bastion/config/motd /etc/motd
 COPY bastion/config/profile.d/devserver.sh /etc/profile.d/
 COPY bastion/config/sshd_config /etc/ssh/sshd_config.d/devserver.conf
+
+# Copy user controller sidecar
+COPY bastion/user-controller.py /usr/local/bin/user-controller.py
+RUN chmod +x /usr/local/bin/user-controller.py
 
 # Create entrypoint script
 COPY bastion/entrypoint.sh /entrypoint.sh

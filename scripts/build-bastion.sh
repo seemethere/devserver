@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Build script for bastion container - Phase 1
-# Quick iteration script for development and testing
+# Build script for bastion container - Phase 2
+# Secure user provisioning with sidecar controller
 
 set -e
 
@@ -10,10 +10,10 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Configuration
 IMAGE_NAME="devserver/bastion"
-IMAGE_TAG="phase1"
+IMAGE_TAG="phase2"
 FULL_IMAGE="$IMAGE_NAME:$IMAGE_TAG"
 
-echo "🔨 Building Bastion Container - Phase 1"
+echo "🔨 Building Bastion Container - Phase 2 (Secure User Provisioning)"
 echo "Project root: $PROJECT_ROOT"
 echo "Image: $FULL_IMAGE"
 echo
