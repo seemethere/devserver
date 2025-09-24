@@ -24,16 +24,47 @@ rules:
 # Controller needs to create ServiceAccounts and manage RBAC
 - apiGroups: [""]
   resources: ["serviceaccounts", "secrets"]
-  verbs: ["get", "list", "create", "update", "patch"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
 
 - apiGroups: ["rbac.authorization.k8s.io"]
-  resources: ["roles", "rolebindings"]
+  resources: ["roles", "rolebindings", "clusterrolebindings"]
   verbs: ["get", "list", "create", "update", "patch"]
 
 # Controller needs to create tokens for users
 - apiGroups: [""]
   resources: ["serviceaccounts/token"]
   verbs: ["create"]
+
+# Controller must have all permissions it grants to users (RBAC escalation prevention)
+# Basic Kubernetes resources that users need
+- apiGroups: [""]
+  resources: ["pods", "services", "persistentvolumeclaims", "configmaps", "events"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+# Pod subresources for exec and logs (needed for devctl ssh/exec)
+- apiGroups: [""]
+  resources: ["pods/exec", "pods/log"]
+  verbs: ["create", "get"]
+
+# App resources that users need  
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets", "replicasets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+# Batch resources for training jobs
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+# DevServer CRD permissions (namespace-scoped)
+- apiGroups: ["apps.devservers.io"]
+  resources: ["devservers", "devservers/status"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+# DevServerFlavor CRD permissions (cluster-scoped) - needed to grant to users
+- apiGroups: ["apps.devservers.io"]
+  resources: ["devserverflavors"]
+  verbs: ["get", "list", "watch"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -52,6 +83,21 @@ roleRef:
   name: bastion-controller
   apiGroup: rbac.authorization.k8s.io
 
-# Note: User-specific permissions are now created dynamically 
+---
+# ClusterRole for DevServerFlavor access (cluster-scoped resources)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devserver-flavor-reader
+  labels:
+    component: user-access
+    phase: "3"
+rules:
+# Read-only access to cluster-scoped DevServerFlavors
+- apiGroups: ["apps.devservers.io"]
+  resources: ["devserverflavors"]
+  verbs: ["get", "list", "watch"]
+
+# Note: User-specific permissions are created dynamically 
 # by the user-controller for each dev-<username> namespace.
-# No additional ClusterRoles needed - security through namespace isolation.
+# Users get this ClusterRole for DevServerFlavor access + namespace Role for everything else.

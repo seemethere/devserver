@@ -227,11 +227,67 @@ fi
 echo "✅ Operator is ready!"
 echo
 
-# Deploy sample resources for testing
-echo "📝 Deploying sample DevServerFlavor and DevServer..."
-kubectl apply -f config/samples/devservers_v1_devserverflavor.yaml
+# Deploy default DevServerFlavors (cluster-scoped)
+echo "📝 Creating default DevServerFlavors..."
+
+# Create default flavors with sensible local development configurations
+kubectl apply -f - <<EOF
+apiVersion: apps.devservers.io/v1
+kind: DevServerFlavor
+metadata:
+  name: cpu-small
+  labels:
+    devserver.io/managed-by: "deploy-script"
+    devserver.io/default: "true"
+spec:
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 500m
+    limits:
+      memory: 2Gi
+      cpu: 2
+---
+apiVersion: apps.devservers.io/v1
+kind: DevServerFlavor
+metadata:
+  name: cpu-medium
+  labels:
+    devserver.io/managed-by: "deploy-script"
+    devserver.io/default: "true"
+spec:
+  resources:
+    requests:
+      memory: 2Gi
+      cpu: 1
+    limits:
+      memory: 8Gi
+      cpu: 4
+---
+apiVersion: apps.devservers.io/v1
+kind: DevServerFlavor
+metadata:
+  name: cpu-large
+  labels:
+    devserver.io/managed-by: "deploy-script"
+    devserver.io/default: "true"
+spec:
+  resources:
+    requests:
+      memory: 4Gi
+      cpu: 2
+    limits:
+      memory: 16Gi
+      cpu: 8
+EOF
+
+echo "✅ Default DevServerFlavors created"
+echo
+
+# Deploy sample DevServer for testing
+echo "📝 Deploying sample DevServer for testing..."
 kubectl apply -f config/samples/devservers_v1_devserver.yaml
-echo "✅ Sample resources deployed"
+echo "✅ Sample DevServer deployed"
 echo
 
 # Show status

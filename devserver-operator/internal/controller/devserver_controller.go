@@ -47,10 +47,10 @@ type DevServerReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=devservers.devservers.io,resources=devservers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=devservers.devservers.io,resources=devservers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=devservers.devservers.io,resources=devservers/finalizers,verbs=update
-// +kubebuilder:rbac:groups=devservers.devservers.io,resources=devserverflavors,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps.devservers.io,resources=devservers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps.devservers.io,resources=devservers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=apps.devservers.io,resources=devservers/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apps.devservers.io,resources=devserverflavors,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
@@ -126,11 +126,11 @@ func (r *DevServerReconciler) reconcileDevServer(ctx context.Context, devServer 
 	log := logf.FromContext(ctx)
 	log.Info("Reconciling DevServer", "devserver", devServer.Name, "mode", devServer.Spec.Mode)
 
-	// Fetch the DevServerFlavor
+	// Fetch the DevServerFlavor (cluster-scoped, no namespace)
 	flavor := &devserversv1.DevServerFlavor{}
 	flavorKey := types.NamespacedName{
-		Name:      devServer.Spec.Flavor,
-		Namespace: devServer.Namespace,
+		Name: devServer.Spec.Flavor,
+		// No namespace - DevServerFlavor is cluster-scoped
 	}
 	if err := r.Get(ctx, flavorKey, flavor); err != nil {
 		if errors.IsNotFound(err) {

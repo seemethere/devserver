@@ -75,6 +75,7 @@ type DevServerFlavorStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 
 // DevServerFlavor is the Schema for the devserverflavors API
 type DevServerFlavor struct {

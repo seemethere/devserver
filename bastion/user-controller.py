@@ -126,6 +126,10 @@ rules:
 - apiGroups: [""]
   resources: ["pods", "services", "persistentvolumeclaims", "configmaps", "secrets"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
+# Pod subresources for exec and logs
+- apiGroups: [""]
+  resources: ["pods/exec", "pods/log"]
+  verbs: ["create", "get"]
 # Deployment management  
 - apiGroups: ["apps"]
   resources: ["deployments", "statefulsets", "replicasets"]
@@ -134,6 +138,14 @@ rules:
 - apiGroups: ["batch"]
   resources: ["jobs"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
+# DevServer CRD management (Phase 3) - namespace-scoped only
+- apiGroups: ["apps.devservers.io"]
+  resources: ["devservers"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+# DevServer status updates
+- apiGroups: ["apps.devservers.io"]
+  resources: ["devservers/status"]
+  verbs: ["get", "update", "patch"]
 # Read-only access to nodes (for debugging)
 - apiGroups: [""]
   resources: ["nodes"]
@@ -144,7 +156,7 @@ rules:
   verbs: ["get", "list"]
 """
         
-        # RoleBinding
+        # RoleBinding for namespace-scoped permissions
         rolebinding_yaml = f"""
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -161,8 +173,27 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 """
         
+        # ClusterRoleBinding for cluster-scoped DevServerFlavor access
+        cluster_rolebinding_yaml = f"""
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {username}-flavor-reader
+  labels:
+    devserver.io/user: "{username}"
+    devserver.io/created-by: "user-controller"
+subjects:
+- kind: ServiceAccount
+  name: {sa_name}
+  namespace: {namespace}
+roleRef:
+  kind: ClusterRole
+  name: devserver-flavor-reader
+  apiGroup: rbac.authorization.k8s.io
+"""
+        
         # Apply all resources
-        all_yaml = sa_yaml + "---\n" + role_yaml + "---\n" + rolebinding_yaml
+        all_yaml = sa_yaml + "---\n" + role_yaml + "---\n" + rolebinding_yaml + "---\n" + cluster_rolebinding_yaml
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write(all_yaml)

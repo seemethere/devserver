@@ -1,7 +1,4 @@
-.PHONY: build
-build:
-	$(MAKE) -C bastion build
-
 .PHONY: deploy
-deploy: build
+deploy:
 	$(MAKE) -C bastion deploy
+	$(MAKE) -C devserver-operator deploy

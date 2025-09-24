@@ -11,8 +11,8 @@ Build a Kubernetes operator to manage development servers for developers on AWS 
 - **Resource Management**: Kueue for quotas
 - **Access Method**: Centralized bastion server with SSH access
 - **Storage**:
-  - EBS volumes for persistent user home directories (`/home/dev/`)
-  - EFS shared volume across user's servers (`/shared`)
+  - Persistent volumes for user home directories (`/home/dev/`) - uses cluster's default storage class
+  - Planned: EBS volumes and EFS shared volumes (Phase 4/5)
 - **ML Framework**: PyTorch only
 
 ### Key Features
@@ -108,18 +108,18 @@ spec:
 
 ### Kubernetes Resources Created
 
-#### For Standalone Mode
-- **Pod/Deployment**: Single development server
-- **PVC (EBS)**: Home directory
-- **PVC (EFS)**: Shared volume
+#### For Standalone Mode (Phase 3 ✅)
+- **Deployment**: Single development server with sleep infinity
+- **PVC**: Home directory (using cluster's default storage class)
 - **Service**: For SSH/port access
+- **ConfigMap**: Planned for PyTorch utility scripts
 
-#### For Distributed Mode
+#### For Distributed Mode (Phase 4 - Planned)
 - **StatefulSet**: Ordered pods for training nodes
 - **Headless Service**: Pod discovery for PyTorch
 - **ConfigMap**: PyTorch utility scripts
-- **PVC (EBS)**: Home directory per pod
-- **PVC (EFS)**: Shared volume across all pods
+- **PVC**: Home directory per pod (planned EBS)
+- **PVC**: Shared volume across all pods (planned EFS)
 
 ## Phase 2 Architecture: Secure User Provisioning
 
@@ -278,44 +278,56 @@ users:
 - ✅ Security-aware devctl CLI with proper connectivity testing
 
 ### Phase 3: DevServer Operator & CRDs ✅ COMPLETED
-**Status**: All objectives completed successfully with production-ready operator
+**Status**: All objectives completed successfully with enterprise-grade operator and user experience
 
 **Completed Deliverables**:
 1. ✅ Setup Golang Operator SDK (Kubebuilder) project structure
 2. ✅ Create comprehensive CRDs (DevServer, DevServerFlavor) with full Go structs and validation
 3. ✅ Implement standalone server creation/deletion with robust reconciliation logic
-4. ✅ EBS/EFS volume provisioning with proper PVC management
+4. ✅ Persistent volume provisioning with proper PVC management
 5. ✅ Smart container lifecycle management (auto-injection of sleep infinity)
 6. ✅ Error-free reconciliation loops with proper resource handling
+7. ✅ **Complete devctl CLI with modular architecture and full DevServer lifecycle management**
+8. ✅ **Cluster-scoped DevServerFlavors with automatic default creation**
+9. ✅ **Enhanced RBAC with pods/exec permissions for container access**
+10. ✅ **Production-ready user workflow from SSH to DevServer management**
 
 **Technical Achievements**:
-- ✅ **Clean API Design**: DevServer and DevServerFlavor CRDs with comprehensive validation
+- ✅ **Enterprise Resource Management**: Cluster-scoped DevServerFlavors with automatic defaults (cpu-small, cpu-medium, cpu-large)
+- ✅ **Modular CLI Architecture**: Separated into commands, api, ui, config modules for maintainability
+- ✅ **Complete User Experience**: devctl create, list, describe, delete, exec, ssh, flavors - all working seamlessly
 - ✅ **Production-Ready Reconciliation**: Proper finalizers, owner references, and error handling
 - ✅ **Smart Resource Management**: Immutable PVC handling, deployment updates, service management
-- ✅ **Container Lifecycle**: Auto-injection of sleep commands for any base image
-- ✅ **Local Development**: Optimized for k3d clusters with appropriate resource sizing
-- ✅ **Status Management**: Real-time status updates with phase tracking
+- ✅ **Container Lifecycle**: Auto-injection of sleep commands for any base image with full container access
+- ✅ **Enhanced Security Model**: Proper RBAC for cluster-scoped resources with namespace isolation
+- ✅ **Local Development**: Optimized for k3d clusters with appropriate resource sizing and environment detection
+- ✅ **Status Management**: Real-time status updates with phase tracking and SSH endpoints
 
-### Phase 4: Distributed Training (Weeks 7-8)
+### Phase 4: AWS Production Implementation (Weeks 7-8)
+1. EBS CSI driver integration for persistent home directories
+2. EFS CSI driver integration for shared volumes across DevServers
+3. GPU node support and NVIDIA device plugin configuration
+4. AWS-specific DevServerFlavors (GPU types: p3, p4, g4dn, etc.)
+5. Network Load Balancer configuration for bastion access
+6. ECR integration for container registry
+7. AWS IAM integration for authentication
+
+### Phase 5: Distributed Training & Advanced Features (Weeks 9-10)
 1. Add distributed mode to DevServer CRD
-2. Implement StatefulSet creation for distributed training
-3. Configure PyTorch environment variables
+2. Implement StatefulSet creation for distributed PyTorch training
+3. Configure PyTorch environment variables and NCCL settings
 4. Add headless service for pod discovery
 5. Create PyTorch utility scripts ConfigMap
-
-### Phase 5: Resource Management (Weeks 9-10)
-1. Integrate Kueue for resource quotas
-2. Implement gang scheduling for distributed jobs
-3. Add resource monitoring and cost tracking
-4. Auto-shutdown for idle servers
-5. Capacity planning dashboards
+6. Auto-shutdown and lifecycle management
+7. Integration with Kueue for resource quotas
 
 ### Phase 6: Production Readiness (Weeks 11-12)
-1. Add comprehensive error handling
-2. Implement health checks and recovery
+1. Add comprehensive error handling and monitoring
+2. Implement health checks and recovery mechanisms
 3. Setup logging and monitoring (Prometheus/Grafana)
 4. Security hardening and penetration testing
-5. Documentation and training materials
+5. Cost tracking and capacity planning dashboards
+6. Documentation and training materials
 
 ## Project Structure
 
@@ -335,9 +347,21 @@ devserver/                 # ✅ Phase 1 & 2 COMPLETED
 │       ├── rbac.yaml      # ✅ UPDATED - Separated controller vs user permissions
 │       ├── deployment.yaml # ✅ UPDATED - Sidecar pattern (bastion + user-controller)
 │       └── service.yaml   # LoadBalancer with AWS NLB annotations
-├── cli/                   # ✅ Phase 2 - Enhanced Python CLI
+├── cli/                   # ✅ Phase 3 - Complete DevServer Management CLI
 │   ├── devctl/
-│   │   ├── main.py        # ✅ UPDATED - Security-aware connectivity tests
+│   │   ├── main.py        # ✅ UPDATED - Modular CLI with complete DevServer lifecycle
+│   │   ├── commands/      # ✅ NEW - Separated command modules
+│   │   │   ├── status.py  # Environment and DevServer status
+│   │   │   ├── devserver.py # create, list, describe, delete, exec, ssh, flavors
+│   │   │   ├── test.py    # Kubernetes connectivity and permission testing
+│   │   │   └── info.py    # Help and command information
+│   │   ├── api/           # ✅ NEW - Kubernetes API operations
+│   │   │   ├── kubectl.py # kubectl wrapper utilities
+│   │   │   └── devserver.py # DevServer and DevServerFlavor operations
+│   │   ├── ui/            # ✅ NEW - Rich console utilities
+│   │   │   └── console.py # Tables, panels, progress spinners
+│   │   ├── config/        # ✅ NEW - Configuration and settings
+│   │   │   └── settings.py # User context, defaults, environment detection
 │   │   └── __init__.py
 │   └── pyproject.toml     # Modern Python packaging
 ├── scripts/               # ✅ Phase 2 - Enhanced automation
@@ -452,6 +476,19 @@ devserver-operator/        # ✅ Phase 3 - DevServer CRDs and Operator (Golang)
 - Smart resource management for PVCs, Deployments, and Services
 - Container lifecycle management with auto-injection of sleep commands
 
+**Enterprise-Grade Resource Management**:
+- Cluster-scoped DevServerFlavors for centralized administration
+- Automatic default flavor creation (cpu-small, cpu-medium, cpu-large)
+- Enhanced RBAC model supporting both namespace and cluster-scoped resources
+- Zero-duplication flavor management across user namespaces
+
+**Complete User Experience (devctl CLI)**:
+- Modular architecture with separated concerns (commands, api, ui, config)
+- Full DevServer lifecycle: create, list, describe, delete, exec, ssh, flavors
+- Beautiful Rich UI with tables, panels, and progress spinners
+- Intelligent error handling and user guidance
+- Real-time status tracking and container access
+
 **Advanced Operator Features**:
 - Immutable PVC spec handling to prevent reconciliation errors
 - Owner reference management for proper resource cleanup
@@ -463,23 +500,26 @@ devserver-operator/        # ✅ Phase 3 - DevServer CRDs and Operator (Golang)
 - k3d cluster compatibility with appropriate resource sizing
 - Auto-detection and handling of local storage classes
 - Debug logging and comprehensive error reporting
-- Developer-friendly sample manifests for immediate testing
+- Bastion-style deployment scripts with environment detection
 
 **Production Ready Features**:
 - Clean reconciliation loops without error noise
 - Proper Kubernetes API conventions and best practices
-- Comprehensive RBAC with minimal required permissions
+- Comprehensive RBAC with minimal required permissions for security
 - Resource ownership and garbage collection
 - Robust error handling and retry logic
+- Complete user workflow validation from SSH to DevServer access
 
 ### Ready for Phase 4 🚀
 
-The **DevServer operator foundation** is complete and provides:
+The **complete development platform** is ready and provides:
 - Production-ready operator with standalone server management
+- Enterprise-grade user experience with intuitive CLI workflow
+- Centralized resource management with cluster-scoped flavors
 - Clean CRD architecture ready for distributed training extension
 - Proven reconciliation patterns for complex resource management
-- Local development workflow validated on k3d clusters
-- Comprehensive resource management patterns for expansion
+- Validated end-to-end user workflow from bastion SSH to DevServer access
+- Comprehensive security model with proper RBAC isolation
 
 ## CLI Commands
 
@@ -506,61 +546,58 @@ kubectl create namespace test       # ❌ Forbidden - security enforced
 
 ### Phase 3 Current Commands (DevServer Operator) ✅
 
-**Working with kubectl (Operator Ready)**:
+**Complete User Experience via Enhanced devctl CLI**:
 ```bash
-# Create a DevServerFlavor (resource template)
-kubectl apply -f - <<EOF
-apiVersion: apps.devservers.io/v1
-kind: DevServerFlavor
-metadata:
-  name: cpu-small
-spec:
-  resources:
-    requests:
-      memory: 512Mi
-      cpu: 500m
-    limits:
-      memory: 2Gi
-      cpu: 2
-EOF
+# SSH to bastion server
+ssh username@bastion.devservers.company.com
 
-# Create a DevServer (standalone development server)
-kubectl apply -f - <<EOF
-apiVersion: apps.devservers.io/v1
-kind: DevServer
-metadata:
-  name: mydev
-spec:
-  owner: user@company.com
-  flavor: cpu-small
-  image: ubuntu:22.04
-  mode: standalone
-  persistentHomeSize: 10Gi
-  enableSSH: true
-  lifecycle:
-    idleTimeout: 3600
-    autoShutdown: true
-EOF
+# Phase 3 - Complete DevServer lifecycle management
+devctl status          # Show environment, DevServer status, and available flavors
+devctl flavors         # List cluster-wide resource flavors (cpu-small, cpu-medium, cpu-large)
+devctl create mydev --flavor cpu-small --wait  # Create dev server with progress tracking
+devctl list            # List your development servers with status
+devctl describe mydev  # Show detailed DevServer information and resources
+devctl ssh mydev       # Interactive shell access to development server
+devctl exec mydev -- python train.py  # Execute specific commands
+devctl delete mydev    # Clean up development server
+devctl test-k8s        # Test permissions including cluster-scoped flavor access
 
-# Monitor DevServer status
-kubectl get devservers
-kubectl describe devserver mydev
-
-# Check created resources
-kubectl get pods,pvc,svc,deployments -l app=devserver
-
-# Access the development server
-kubectl exec -it deployment/mydev -- bash
+# Advanced usage
+devctl create large-dev --flavor cpu-large --image pytorch/pytorch:latest --home-size 50Gi
+devctl exec large-dev -- nvidia-smi  # For GPU-enabled flavors
 ```
 
-### Future Phase 4 Commands (Distributed Training)
+**Behind the Scenes (Automatic)**:
+```bash
+# DevServerFlavors are automatically created cluster-wide during operator deployment:
+# - cpu-small:  512Mi RAM, 0.5 CPU → 2Gi RAM, 2 CPU
+# - cpu-medium: 2Gi RAM, 1 CPU → 8Gi RAM, 4 CPU  
+# - cpu-large:  4Gi RAM, 2 CPU → 16Gi RAM, 8 CPU
+
+# User gets automatic access to:
+# - Namespace: dev-<username> 
+# - DevServer CRUD operations in their namespace
+# - Cluster-wide DevServerFlavor read access
+# - pods/exec permissions for container access
+```
+
+### Future Phase 4 Commands (AWS Production)
 
 ```bash
-# Future Phase 4 commands (coming with distributed training support)
-devctl create training-job --flavor gpu-large --distributed --replicas 4
-devctl ssh my-dev [--replica 0]
-devctl run training-job train.py --batch-size 32
-devctl monitor training-job
+# Future Phase 4 commands (coming with AWS production features)
+devctl create mydev --flavor p3.2xlarge --home-size 500Gi  # AWS GPU instances with EBS
+devctl create shared-dev --flavor g4dn.xlarge --shared-volume team-datasets  # With EFS shared storage
+devctl flavors --aws          # Show AWS-specific GPU flavors
+devctl cost mydev             # Cost tracking and usage monitoring
+```
+
+### Future Phase 5 Commands (Distributed Training)
+
+```bash
+# Future Phase 5 commands (coming with distributed training support)
+devctl create training-job --flavor p4d.24xlarge --distributed --replicas 4
+devctl monitor training-job   # Training progress and logs
+devctl logs training-job      # Distributed training logs
 ```
 
 ## Key Technical Decisions
@@ -568,10 +605,15 @@ devctl monitor training-job
 ### Operator Framework
 - **Golang Operator SDK (Kubebuilder)**: Chosen over Ansible Operator SDK for better performance, type safety, and easier debugging. Golang provides stronger static typing for Kubernetes API objects and more flexible reconciliation logic for complex resource management scenarios.
 
+### Resource Architecture
+- **Cluster-Scoped DevServerFlavors**: DevServerFlavors are cluster-scoped resources (like StorageClasses) for centralized administration and consistency. This eliminates duplication across namespaces and provides single-source-of-truth resource templates that administrators can manage globally while users consume via namespace-scoped DevServers.
+- **Automatic Default Flavors**: The operator deployment script automatically creates cpu-small, cpu-medium, and cpu-large flavors optimized for local development, eliminating manual setup overhead for users.
+
 ### Storage Strategy
-- **EBS** for home directories: Better performance, per-pod isolation
-- **EFS** for shared data: Dataset sharing, checkpoints, code
-- **EmptyDir** with Memory medium for `/dev/shm`: Critical for PyTorch DataLoader performance
+- **Persistent Volumes** for home directories: Currently uses cluster's default storage class (local-path for k3d)
+- **Planned EBS** for home directories: Better performance, per-pod isolation (Phase 4/5)
+- **Planned EFS** for shared data: Dataset sharing, checkpoints, code (Phase 4/5)
+- **EmptyDir** with Memory medium for `/dev/shm`: Critical for PyTorch DataLoader performance (planned)
 
 ### Networking
 - **Headless Service** for PyTorch distributed discovery
@@ -611,21 +653,45 @@ devctl monitor training-job
 - Integration with MLflow/Weights & Biases
 
 ## Dependencies
-- AWS EKS cluster with GPU nodes
+
+### Current (Phase 3)
+- Kubernetes cluster (k3d, kind, minikube, EKS, etc.)
+- Default storage class for PVCs (local-path, gp2, etc.)
+- Golang Operator SDK (Kubebuilder) for development
+- Container runtime (Docker) for building images
+- `kubectl` for cluster access
+- SSH client for bastion access
+
+### Future Phases (4-6)
+- AWS EKS cluster with GPU nodes (for production)
+- EBS CSI driver (for persistent storage)
+- EFS CSI driver (for shared volumes)
+- NVIDIA device plugin (for GPU support)
+- Kueue (for resource quotas)
 - Network Load Balancer for bastion access
-- EBS CSI driver
-- EFS CSI driver
-- Kueue installed
-- Golang Operator SDK (Kubebuilder)
-- NVIDIA device plugin
 - Container registry for PyTorch and bastion images
 - DNS management for bastion endpoint
 - SSH key management system (GitHub/LDAP/IAM)
 
 ## Next Steps
-1. Set up development EKS cluster with GPU nodes
-2. Build and deploy bastion infrastructure (Phase 1)
-3. Setup DNS and user SSH access
-4. Implement basic operator and CLI integration (Phase 2)
-5. Test with pilot user group
-6. Iterate based on feedback and expand features
+
+### Current Status: Phase 3 Complete ✅
+- ✅ **Bastion infrastructure** with secure user provisioning  
+- ✅ **DevServer operator** with comprehensive CRD management
+- ✅ **Enhanced devctl CLI** with complete user experience
+- ✅ **Local development workflow** validated on k3d clusters
+
+### Phase 4: AWS Production Implementation
+1. **AWS EKS Setup**: Provision production EKS cluster with GPU node groups
+2. **Storage Integration**: Configure EBS CSI driver and EFS CSI driver
+3. **GPU Infrastructure**: Install NVIDIA device plugin and GPU-specific flavors
+4. **Production Networking**: Setup Network Load Balancer and VPC configuration
+5. **Container Registry**: Integrate ECR for production image management
+6. **Authentication**: Replace demo SSH keys with AWS IAM/SSO integration
+7. **Monitoring**: Cost tracking and AWS CloudWatch integration
+
+### Phase 5: Distributed Training
+1. Implement distributed mode DevServer CRD extensions
+2. Add StatefulSet support for multi-node PyTorch training
+3. Configure NCCL for GPU communication and training optimization
+4. Create training job monitoring and progress tracking

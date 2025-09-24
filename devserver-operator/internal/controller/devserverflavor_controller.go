@@ -33,9 +33,9 @@ type DevServerFlavorReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=devservers.devservers.io,resources=devserverflavors,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=devservers.devservers.io,resources=devserverflavors/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=devservers.devservers.io,resources=devserverflavors/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apps.devservers.io,resources=devserverflavors,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps.devservers.io,resources=devserverflavors/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=apps.devservers.io,resources=devserverflavors/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

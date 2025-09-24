@@ -5,9 +5,10 @@ metadata:
     app.kubernetes.io/name: devserver-operator
     app.kubernetes.io/managed-by: kustomize
   name: mydev
+  namespace: default
 spec:
   owner: user@company.com
-  flavor: cpu-small
+  flavor: cpu-small  # References cluster-scoped DevServerFlavor
   image: ubuntu:22.04
   mode: standalone
   persistentHomeSize: 10Gi

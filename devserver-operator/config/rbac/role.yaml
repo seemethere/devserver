@@ -31,7 +31,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - devservers.devservers.io
+  - apps.devservers.io
   resources:
   - devserverflavors
   - devservers
@@ -44,14 +44,14 @@ rules:
   - update
   - watch
 - apiGroups:
-  - devservers.devservers.io
+  - apps.devservers.io
   resources:
   - devserverflavors/finalizers
   - devservers/finalizers
   verbs:
   - update
 - apiGroups:
-  - devservers.devservers.io
+  - apps.devservers.io
   resources:
   - devserverflavors/status
   - devservers/status

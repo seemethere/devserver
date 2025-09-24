@@ -21,3 +21,10 @@ deploy: build
 .PHONY: test
 test: deploy
 	./scripts/test-ssh.sh
+
+.PHONY: expose-bastion
+expose-bastion:
+	kubectl port-forward -n devserver-bastion services/bastion 2222:22
+
+ssh-bastion:
+	ssh -i ../.demo-keys/bastion_demo testuser@localhost -p 2222
