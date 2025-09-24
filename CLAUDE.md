@@ -12,7 +12,7 @@ Build a Kubernetes operator to manage development servers for developers on AWS 
 - **Access Method**: Centralized bastion server with SSH access
 - **Storage**:
   - Persistent volumes for user home directories (`/home/dev/`) - uses cluster's default storage class
-  - Planned: EBS volumes and EFS shared volumes (Phase 4/5)
+  - Planned: EBS volumes and EFS shared volumes (Phase 5/6)
 - **ML Framework**: PyTorch only
 
 ### Key Features
@@ -84,6 +84,9 @@ spec:
   lifecycle:
     idleTimeout: 3600
     autoShutdown: true
+    # Phase 4 additions:
+    expirationTime: "2024-01-15T18:00:00Z"  # Auto-expire at specific time
+    timeToLive: "4h"                        # Human-readable expiration from creation
 ```
 
 #### DevServerFlavor CRD
@@ -114,7 +117,7 @@ spec:
 - **Service**: For SSH/port access
 - **ConfigMap**: Planned for PyTorch utility scripts
 
-#### For Distributed Mode (Phase 4 - Planned)
+#### For Distributed Mode (Phase 6 - Planned)
 - **StatefulSet**: Ordered pods for training nodes
 - **Headless Service**: Pod discovery for PyTorch
 - **ConfigMap**: PyTorch utility scripts
@@ -303,7 +306,32 @@ users:
 - ✅ **Local Development**: Optimized for k3d clusters with appropriate resource sizing and environment detection
 - ✅ **Status Management**: Real-time status updates with phase tracking and SSH endpoints
 
-### Phase 4: AWS Production Implementation (Weeks 7-8)
+### Phase 4: Advanced Lifecycle & Flavor Management
+1. **Auto-expiration and lifecycle management implementation**
+2. **DevServer flavor updates without persistent volume disruption**
+3. Enhanced monitoring and resource usage tracking
+4. Cost optimization features and idle detection improvements
+5. User notification systems for expiration warnings
+
+#### New Phase 4 Features in Detail
+
+**Auto-Expiration and Lifecycle Management**:
+- Implement idle detection based on SSH connections, CPU usage, and process activity
+- Add `--time` flag to `devctl create` supporting human-readable formats (`30m`, `1h`, `2h30m`, `1d`)
+- Auto-shutdown functionality when expiration time is reached
+- `devctl extend` command to extend expiration time for running DevServers
+- Cost optimization through automatic resource cleanup
+- Configurable grace periods and warning notifications before shutdown
+
+**DevServer Flavor Updates Without Storage Disruption**:
+- `devctl update <name> --flavor <new-flavor>` command for in-place hardware scaling
+- Preserve persistent volumes (home directories and shared storage) during flavor changes
+- Rolling update strategy for zero-downtime transitions
+- Validation to ensure new flavor is compatible with existing storage
+- Support for both scale-up and scale-down scenarios
+- Automatic resource constraint validation and user warnings
+
+### Phase 5: AWS Production Implementation (Weeks 7-8)
 1. EBS CSI driver integration for persistent home directories
 2. EFS CSI driver integration for shared volumes across DevServers
 3. GPU node support and NVIDIA device plugin configuration
@@ -311,17 +339,19 @@ users:
 5. Network Load Balancer configuration for bastion access
 6. ECR integration for container registry
 7. AWS IAM integration for authentication
+8. Cost tracking and AWS CloudWatch integration
+9. Production networking and VPC configuration
 
-### Phase 5: Distributed Training & Advanced Features (Weeks 9-10)
+### Phase 6: Distributed Training & Advanced Features (Weeks 9-10)
 1. Add distributed mode to DevServer CRD
 2. Implement StatefulSet creation for distributed PyTorch training
 3. Configure PyTorch environment variables and NCCL settings
 4. Add headless service for pod discovery
 5. Create PyTorch utility scripts ConfigMap
-6. Auto-shutdown and lifecycle management
-7. Integration with Kueue for resource quotas
+6. Integration with Kueue for resource quotas
+7. Advanced monitoring and training job management
 
-### Phase 6: Production Readiness (Weeks 11-12)
+### Phase 7: Production Readiness (Weeks 11-12)
 1. Add comprehensive error handling and monitoring
 2. Implement health checks and recovery mechanisms
 3. Setup logging and monitoring (Prometheus/Grafana)
@@ -510,7 +540,7 @@ devserver-operator/        # ✅ Phase 3 - DevServer CRDs and Operator (Golang)
 - Robust error handling and retry logic
 - Complete user workflow validation from SSH to DevServer access
 
-### Ready for Phase 4 🚀
+### Ready for Phase 5 🚀
 
 The **complete development platform** is ready and provides:
 - Production-ready operator with standalone server management
@@ -581,20 +611,24 @@ devctl exec large-dev -- nvidia-smi  # For GPU-enabled flavors
 # - pods/exec permissions for container access
 ```
 
-### Future Phase 4 Commands (AWS Production)
+### Future Phase 5 Commands (AWS Production)
 
 ```bash
-# Future Phase 4 commands (coming with AWS production features)
+# Future Phase 5 commands (coming with AWS production features)
 devctl create mydev --flavor p3.2xlarge --home-size 500Gi  # AWS GPU instances with EBS
 devctl create shared-dev --flavor g4dn.xlarge --shared-volume team-datasets  # With EFS shared storage
+devctl create quick-test --flavor cpu-small --time 30m  # Auto-expire after 30 minutes
+devctl create training-run --flavor p4d.24xlarge --time 4h  # Auto-expire after 4 hours
+devctl update mydev --flavor p3.8xlarge  # Scale up hardware while keeping persistent volume
 devctl flavors --aws          # Show AWS-specific GPU flavors
 devctl cost mydev             # Cost tracking and usage monitoring
+devctl extend mydev --time 2h # Extend expiration time for running DevServer
 ```
 
-### Future Phase 5 Commands (Distributed Training)
+### Future Phase 6 Commands (Distributed Training)
 
 ```bash
-# Future Phase 5 commands (coming with distributed training support)
+# Future Phase 6 commands (coming with distributed training support)
 devctl create training-job --flavor p4d.24xlarge --distributed --replicas 4
 devctl monitor training-job   # Training progress and logs
 devctl logs training-job      # Distributed training logs
@@ -611,8 +645,8 @@ devctl logs training-job      # Distributed training logs
 
 ### Storage Strategy
 - **Persistent Volumes** for home directories: Currently uses cluster's default storage class (local-path for k3d)
-- **Planned EBS** for home directories: Better performance, per-pod isolation (Phase 4/5)
-- **Planned EFS** for shared data: Dataset sharing, checkpoints, code (Phase 4/5)
+- **Planned EBS** for home directories: Better performance, per-pod isolation (Phase 5/6)
+- **Planned EFS** for shared data: Dataset sharing, checkpoints, code (Phase 5/6)
 - **EmptyDir** with Memory medium for `/dev/shm`: Critical for PyTorch DataLoader performance (planned)
 
 ### Networking
@@ -662,7 +696,7 @@ devctl logs training-job      # Distributed training logs
 - `kubectl` for cluster access
 - SSH client for bastion access
 
-### Future Phases (4-6)
+### Future Phases (5-7)
 - AWS EKS cluster with GPU nodes (for production)
 - EBS CSI driver (for persistent storage)
 - EFS CSI driver (for shared volumes)
@@ -681,7 +715,7 @@ devctl logs training-job      # Distributed training logs
 - ✅ **Enhanced devctl CLI** with complete user experience
 - ✅ **Local development workflow** validated on k3d clusters
 
-### Phase 4: AWS Production Implementation
+### Phase 5: AWS Production Implementation
 1. **AWS EKS Setup**: Provision production EKS cluster with GPU node groups
 2. **Storage Integration**: Configure EBS CSI driver and EFS CSI driver
 3. **GPU Infrastructure**: Install NVIDIA device plugin and GPU-specific flavors
@@ -690,8 +724,48 @@ devctl logs training-job      # Distributed training logs
 6. **Authentication**: Replace demo SSH keys with AWS IAM/SSO integration
 7. **Monitoring**: Cost tracking and AWS CloudWatch integration
 
-### Phase 5: Distributed Training
+### Phase 6: Distributed Training
 1. Implement distributed mode DevServer CRD extensions
 2. Add StatefulSet support for multi-node PyTorch training
 3. Configure NCCL for GPU communication and training optimization
 4. Create training job monitoring and progress tracking
+
+## Phase 4 Feature Highlights
+
+### Auto-Expiration with Human-Readable Time Formats
+The enhanced lifecycle management system will support intuitive time specifications:
+
+```bash
+# Examples of the new --time flag
+devctl create quick-test --flavor cpu-small --time 30m     # 30 minutes
+devctl create medium-job --flavor cpu-medium --time 2h     # 2 hours
+devctl create long-run --flavor gpu-large --time 1d       # 1 day
+devctl create custom --flavor p3.2xlarge --time 2h30m     # 2 hours 30 minutes
+```
+
+**Implementation Features**:
+- Automatic conversion from human-readable time to absolute expiration timestamps
+- Idle detection monitoring SSH connections, CPU usage, and active processes
+- Configurable grace periods with user notifications before shutdown
+- Cost optimization through proactive resource cleanup
+- Extension capability for running DevServers
+
+### Dynamic Flavor Updates with Storage Preservation
+Users will be able to scale their hardware resources without losing their work:
+
+```bash
+# Scale up for intensive computation
+devctl update mydev --flavor p3.8xlarge  
+
+# Scale down to save costs during development
+devctl update mydev --flavor cpu-small
+
+# The persistent volume and all user data remains intact
+```
+
+**Implementation Features**:
+- In-place hardware scaling without affecting persistent volumes
+- Rolling update strategy for zero-downtime transitions
+- Validation to ensure flavor compatibility with existing storage requirements
+- Support for both CPU-only and GPU instance transitions
+- Automatic resource constraint validation and user guidance
