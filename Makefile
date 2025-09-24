@@ -1,5 +1,7 @@
+.PHONY: build
 build:
 	$(MAKE) -C bastion build
 
-deploy:
+.PHONY: deploy
+deploy: build
 	$(MAKE) -C bastion deploy
