@@ -55,35 +55,41 @@ trap cleanup EXIT
 # Kubernetes cleanup functions
 cleanup_k8s_resources() {
     echo "🧹 Cleaning up existing operator resources..."
-    
+
     # Delete existing operator deployment
     if kubectl get deployment devserver-operator-controller-manager -n "$NAMESPACE" &>/dev/null; then
         echo "  → Deleting existing operator deployment..."
         kubectl delete deployment devserver-operator-controller-manager -n "$NAMESPACE" --ignore-not-found=true
     fi
-    
+
     # Clean up stuck pods if force cleanup is requested
     if [ "$FORCE_CLEANUP" = true ]; then
         echo "  → Force cleaning stuck pods..."
         kubectl delete pods -n "$NAMESPACE" --field-selector=status.phase=Failed --ignore-not-found=true
         kubectl delete pods -n "$NAMESPACE" --field-selector=status.phase=Pending --ignore-not-found=true
-        
+
         # Force delete any remaining operator pods
         if kubectl get pods -n "$NAMESPACE" 2>/dev/null | grep -q controller-manager; then
             echo "  → Force deleting remaining operator pods..."
             kubectl delete pods -n "$NAMESPACE" -l control-plane=controller-manager --grace-period=0 --force --ignore-not-found=true
         fi
     fi
-    
+
     # Clean up existing test DevServers
     echo "  → Cleaning up test DevServers..."
-    kubectl delete devservers --all --ignore-not-found=true
-    kubectl delete devserverflavors --all --ignore-not-found=true
-    
+    if kubectl get crd devservers.apps.devservers.io &> /dev/null; then
+        echo "    → Deleting DevServer resources..."
+        kubectl delete devservers --all --ignore-not-found=true
+    fi
+    if kubectl get crd devserverflavors.apps.devservers.io &> /dev/null; then
+        echo "    → Deleting DevServerFlavor resources..."
+        kubectl delete devserverflavors --all --ignore-not-found=true
+    fi
+
     # Wait for cleanup to complete
     echo "  → Waiting for cleanup to complete..."
     kubectl wait --for=delete pods -n "$NAMESPACE" -l control-plane=controller-manager --timeout=30s 2>/dev/null || true
-    
+
     echo "✅ Cleanup complete!"
 }
 
@@ -284,23 +290,9 @@ EOF
 echo "✅ Default DevServerFlavors created"
 echo
 
-# Deploy sample DevServer for testing
-echo "📝 Deploying sample DevServer for testing..."
-kubectl apply -f config/samples/devservers_v1_devserver.yaml
-echo "✅ Sample DevServer deployed"
-echo
-
 # Show status
 echo "📊 Operator Status:"
 kubectl get all -n "$NAMESPACE"
-echo
-
-echo "📊 DevServer Resources:"
-kubectl get devserverflavors,devservers
-echo
-
-echo "📊 Created Development Resources:"
-kubectl get pods,pvc,svc,deployments -l app=devserver
 echo
 
 echo "🎯 Testing Instructions:"

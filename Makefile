@@ -1,5 +1,9 @@
 .PHONY: deploy clean deploy-operator deploy-bastion
 
+deploy:
+	make -C bastion deploy
+	make -C devserver-operator deploy
+
 TEST_VENV := .venv-e2e
 PYTHON := $(TEST_VENV)/bin/python
 PIP := $(TEST_VENV)/bin/pip
