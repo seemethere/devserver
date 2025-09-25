@@ -1,87 +1,35 @@
-# DevCtl CLI - Phase 1
+# devctl CLI
 
-Simple CLI for the PyTorch Development Server Platform bastion server.
+`devctl` is a command-line interface for managing `DevServer` resources. It is designed to be run inside the bastion host and provides a simplified, user-friendly alternative to `kubectl`.
 
-## Installation
+## Overview
 
-The CLI is automatically installed in the bastion container. For local development:
+`devctl` is a Python-based CLI built with the `click` and `rich` libraries. It interacts with the Kubernetes API to manage the lifecycle of `DevServer` resources, providing a streamlined experience for creating, accessing, and deleting development environments.
 
-```bash
-cd cli/
-pip install -e .
-```
+## Commands
 
-## Phase 1 Commands
+| Command                               | Description                                         |
+| ------------------------------------- | --------------------------------------------------- |
+| `devctl status`                       | Show environment and DevServer status               |
+| `devctl info`                         | Show information about available commands           |
+| `devctl test-k8s`                     | Test Kubernetes connectivity and permissions        |
+| `devctl create <name> --flavor <flavor>` | Create a new development server                  |
+| `devctl list`                         | List your development servers                       |
+| `devctl describe <name>`              | Show detailed information about a DevServer         |
+| `devctl ssh <name>`                   | SSH into a development server (interactive shell)   |
+| `devctl exec <name> -- <command>`     | Execute a command in a development server           |
+| `devctl delete <name>`                | Delete a development server                         |
+| `devctl flavors`                      | List available `DevServerFlavor`s                   |
+| `devctl --help`                       | Show detailed help for a command                    |
 
-### `devctl status`
-Shows current environment status including:
-- Username and assigned namespace
-- Bastion version information  
-- Kubernetes connectivity status
-- Environment detection (bastion vs local)
+## Getting Started
 
-### `devctl info`
-Lists available commands and shows what's coming in Phase 2.
-
-### `devctl test-k8s`
-Tests basic Kubernetes connectivity and permissions:
-- Cluster info retrieval
-- Namespace listing
-- User namespace access
-- Basic pod operations
-
-### `devctl --help`
-Shows detailed help for all commands.
-
-## Phase 1 Environment
-
-When running in the bastion, the CLI automatically:
-- Detects it's in a bastion container (via `/.bastion-marker`)
-- Uses the current user's assigned namespace (`dev-{username}`)
-- Connects to Kubernetes via service account
-- Shows Phase 1 limitations and what's coming next
-
-## Example Output
+`devctl` is pre-installed in the bastion host environment. To use it, simply SSH into the bastion and run the desired command.
 
 ```bash
-$ devctl status
-DevCtl Phase 1 Status
+# SSH into the bastion
+ssh -i .demo-keys/bastion_demo testuser@localhost -p 2222
 
-┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Setting         ┃ Value                     ┃
-┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ Username        │ testuser                  │
-│ Assigned        │ dev-testuser              │
-│ Namespace       │                           │
-│ Bastion Version │ 0.1.0-phase1              │
-│ Environment     │ Bastion Container ✓       │
-│ Kubernetes      │ Connected ✓               │
-└─────────────────┴───────────────────────────┘
-
-Phase 1 Limitations:
-• No server creation yet (coming in Phase 2)
-• No CRDs or operator (coming in Phase 2)  
-• This is just a bastion infrastructure test
+# Inside the bastion, you can now use devctl
+devctl status
 ```
-
-## Development
-
-For CLI development:
-
-```bash
-# Install in development mode
-pip install -e .
-
-# Run tests (when added)
-pytest
-
-# Format code (when configured)
-black devctl/
-```
-
-## Dependencies
-
-- `click` - Command line interface framework
-- `rich` - Rich text and beautiful formatting
-
-Minimal dependencies for Phase 1 - more will be added as functionality grows.

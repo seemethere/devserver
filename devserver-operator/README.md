@@ -1,135 +1,71 @@
-# devserver-operator
-// TODO(user): Add simple overview of use/purpose
+# DevServer Operator
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+This directory contains the Go-based Kubernetes operator for managing `DevServer` and `DevServerFlavor` custom resources.
+
+## Overview
+
+The DevServer Operator is built with the Kubebuilder framework and is responsible for reconciling `DevServer` resources. When a user creates a `DevServer`, the operator will provision the necessary Kubernetes resources to create a development environment, including:
+
+- A **Deployment** to run the development container.
+- A **PersistentVolumeClaim** for the user's home directory (`/home/dev`).
+- A **Service** to provide SSH access to the container.
+
+## Custom Resource Definitions (CRDs)
+
+### DevServer
+
+A `DevServer` represents a single development environment. Key fields in the `spec` include:
+
+- `flavor`: The name of a `DevServerFlavor` to use for resource allocation.
+- `image`: The container image to use for the development environment.
+- `storage`: The size of the persistent volume for the home directory.
+
+### DevServerFlavor
+
+A `DevServerFlavor` is a reusable template for `DevServer` resources. It defines the CPU and memory requests and limits for a development environment. `DevServerFlavor`s are cluster-scoped, so they can be used by any user in any namespace.
+
+The operator deployment automatically creates three default flavors: `cpu-small`, `cpu-medium`, and `cpu-large`.
 
 ## Getting Started
 
-### Prerequisites
-- go version v1.24.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+The operator is typically deployed as part of the platform's main `Makefile`. However, you can also deploy it manually.
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
-
-```sh
-make docker-build docker-push IMG=<some-registry>/devserver-operator:tag
+```bash
+make deploy
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+This will:
+1. Build the operator container image.
+2. Load the image into your local cluster (if using `k3d` or `kind`).
+3. Install the `DevServer` and `DevServerFlavor` CRDs.
+4. Deploy the operator to the `devserver-operator-system` namespace.
+5. Create the default `DevServerFlavor`s.
 
-**Install the CRDs into the cluster:**
+### Local Development
 
-```sh
-make install
+To run the operator locally for development and debugging, use the `run` target:
+
+```bash
+make run
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+This will run the operator on your local machine, using your local `kubeconfig` to connect to the cluster.
 
-```sh
-make deploy IMG=<some-registry>/devserver-operator:tag
+## Testing
+
+The operator includes both unit and end-to-end tests.
+
+**Unit Tests:**
+
+```bash
+make unit-test
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+**End-to-End Tests:**
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+The end-to-end tests use a `kind` cluster to test the full reconciliation lifecycle.
 
-```sh
-kubectl apply -k config/samples/
+```bash
+make test-e2e
 ```
-
->**NOTE**: Ensure that the samples has default values to test it out.
-
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
-
-```sh
-kubectl delete -k config/samples/
-```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/devserver-operator:tag
-```
-
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/devserver-operator/<tag or branch>/dist/install.yaml
-```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-kubebuilder edit --plugins=helm/v1-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 
