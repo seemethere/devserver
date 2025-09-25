@@ -306,12 +306,21 @@ users:
 - ✅ **Local Development**: Optimized for k3d clusters with appropriate resource sizing and environment detection
 - ✅ **Status Management**: Real-time status updates with phase tracking and SSH endpoints
 
-### Phase 4: Advanced Lifecycle & Flavor Management
-1. **Auto-expiration and lifecycle management implementation**
-2. **DevServer flavor updates without persistent volume disruption**
-3. Enhanced monitoring and resource usage tracking
-4. Cost optimization features and idle detection improvements
-5. User notification systems for expiration warnings
+### Phase 4: Advanced Lifecycle & Flavor Management ✅ COMPLETED
+**Status**: All core objectives completed successfully with a robust end-to-end test suite.
+
+**Completed Deliverables**:
+1. ✅ **Auto-Expiration Logic**: Operator now supports `timeToLive` and `expirationTime` fields in the `DevServer` spec for automatic cleanup of expired resources.
+2. ✅ **Human-Readable Time Durations**: Implemented a robust time duration parser for formats like `1d`, `2h30m`, `10m`.
+3. ✅ **`devctl create --time`**: Users can now create DevServers with a defined lifespan.
+4. ✅ **`devctl extend` Command**: Users can extend the lifetime of their running DevServers.
+5. ✅ **Dynamic Flavor Updates**: Implemented `devctl update --flavor` to allow in-place resource scaling (e.g., `cpu-small` to `cpu-large`) without disrupting persistent storage.
+6. ✅ **End-to-End Test Suite**: Created a comprehensive `pytest`-based e2e test suite to validate all new lifecycle features, simulating real user workflows from the bastion.
+
+**Future Enhancements (from original Phase 4 scope)**:
+- Enhanced monitoring and resource usage tracking
+- Cost optimization features and advanced idle detection
+- User notification systems for expiration warnings
 
 #### New Phase 4 Features in Detail
 
