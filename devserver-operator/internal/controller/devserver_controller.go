@@ -126,6 +126,7 @@ func (r *DevServerReconciler) cleanupDevServer(ctx context.Context, devServer *d
 // reconcileDevServer handles the main reconciliation logic
 func (r *DevServerReconciler) reconcileDevServer(ctx context.Context, devServer *devserversv1.DevServer) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
+	patch := client.MergeFrom(devServer.DeepCopy())
 	log.Info("Reconciling DevServer", "devserver", devServer.Name, "mode", devServer.Spec.Mode)
 
 	// Handle lifecycle and expiration
@@ -137,7 +138,7 @@ func (r *DevServerReconciler) reconcileDevServer(ctx context.Context, devServer 
 				log.Error(err, "Invalid TimeToLive duration", "timeToLive", devServer.Spec.Lifecycle.TimeToLive)
 				// Set status to failed and don't requeue
 				devServer.Status.Phase = "Failed"
-				if err := r.Status().Update(ctx, devServer); err != nil {
+				if err := r.Status().Patch(ctx, devServer, patch); err != nil {
 					log.Error(err, "Failed to update DevServer status to Failed")
 				}
 				return ctrl.Result{}, nil // Stop reconciliation for this invalid spec
@@ -177,7 +178,7 @@ func (r *DevServerReconciler) reconcileDevServer(ctx context.Context, devServer 
 			log.Error(err, "DevServerFlavor not found", "flavor", devServer.Spec.Flavor)
 			// Update status to indicate the flavor is missing
 			devServer.Status.Phase = "Failed"
-			r.Status().Update(ctx, devServer)
+			r.Status().Patch(ctx, devServer, patch)
 			return ctrl.Result{RequeueAfter: time.Minute * 5}, nil
 		}
 		return ctrl.Result{}, err
@@ -202,7 +203,7 @@ func (r *DevServerReconciler) reconcileDevServer(ctx context.Context, devServer 
 	if devServer.Spec.Mode == "distributed" {
 		log.Info("Distributed mode not yet implemented", "devserver", devServer.Name)
 		devServer.Status.Phase = "Pending"
-		r.Status().Update(ctx, devServer)
+		r.Status().Patch(ctx, devServer, patch)
 		return ctrl.Result{RequeueAfter: time.Minute * 5}, nil
 	}
 
@@ -210,7 +211,7 @@ func (r *DevServerReconciler) reconcileDevServer(ctx context.Context, devServer 
 	if err := r.reconcileStandaloneServer(ctx, devServer, flavor); err != nil {
 		log.Error(err, "Failed to reconcile standalone server")
 		devServer.Status.Phase = "Failed"
-		r.Status().Update(ctx, devServer)
+		r.Status().Patch(ctx, devServer, patch)
 		return ctrl.Result{}, err
 	}
 
@@ -222,7 +223,7 @@ func (r *DevServerReconciler) reconcileDevServer(ctx context.Context, devServer 
 		devServer.Status.StartTime = &now
 	}
 
-	if err := r.Status().Update(ctx, devServer); err != nil {
+	if err := r.Status().Patch(ctx, devServer, patch); err != nil {
 		log.Error(err, "Failed to update DevServer status")
 		return ctrl.Result{}, err
 	}
@@ -262,103 +263,128 @@ func (r *DevServerReconciler) reconcilePVC(ctx context.Context, devServer *devse
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvcKey := types.NamespacedName{Name: pvcName, Namespace: devServer.Namespace}
 
-	// Check if PVC already exists
 	err := r.Get(ctx, pvcKey, pvc)
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// PVC does not exist, create it
+			newPvc := r.pvcForDevServer(devServer)
+			if err := controllerutil.SetControllerReference(devServer, newPvc, r.Scheme); err != nil {
+				return err
+			}
+			logf.FromContext(ctx).Info("Creating a new PVC", "PVC.Namespace", newPvc.Namespace, "PVC.Name", newPvc.Name)
+			return r.Create(ctx, newPvc)
+		}
 		return err
 	}
 
-	pvcExists := err == nil
-
-	if !pvcExists {
-		// Create new PVC
-		pvc = &corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      pvcName,
-				Namespace: devServer.Namespace,
-			},
-			Spec: corev1.PersistentVolumeClaimSpec{
-				AccessModes: []corev1.PersistentVolumeAccessMode{
-					corev1.ReadWriteOnce,
-				},
-				Resources: corev1.VolumeResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: devServer.Spec.PersistentHomeSize,
-					},
-				},
-			},
-		}
-
-		// Set DevServer as owner
+	// For PVCs, we generally don't update them once created,
+	// but we can ensure the owner reference is set.
+	patch := client.MergeFrom(pvc.DeepCopy())
+	updated := false
+	if metav1.GetControllerOf(pvc) == nil {
 		if err := controllerutil.SetControllerReference(devServer, pvc, r.Scheme); err != nil {
 			return err
 		}
+		updated = true
+	}
 
-		if err := r.Create(ctx, pvc); err != nil {
-			return err
-		}
-
-		logf.FromContext(ctx).Info("PVC created", "pvc", pvcName)
-	} else {
-		// PVC exists, just ensure ownership (only update mutable metadata)
-		updated := false
-		if pvc.GetOwnerReferences() == nil || len(pvc.GetOwnerReferences()) == 0 {
-			if err := controllerutil.SetControllerReference(devServer, pvc, r.Scheme); err != nil {
-				return err
-			}
-			updated = true
-		}
-
-		if updated {
-			if err := r.Update(ctx, pvc); err != nil {
-				return err
-			}
-			logf.FromContext(ctx).Info("PVC ownership updated", "pvc", pvcName)
-		}
+	if updated {
+		logf.FromContext(ctx).Info("Patching PVC with owner reference", "PVC.Namespace", pvc.Namespace, "PVC.Name", pvc.Name)
+		return r.Patch(ctx, pvc, patch)
 	}
 
 	return nil
 }
 
+// pvcForDevServer returns a PVC object for the given DevServer
+func (r *DevServerReconciler) pvcForDevServer(devServer *devserversv1.DevServer) *corev1.PersistentVolumeClaim {
+	pvcName := fmt.Sprintf("%s-home", devServer.Name)
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pvcName,
+			Namespace: devServer.Namespace,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: devServer.Spec.PersistentHomeSize,
+				},
+			},
+		},
+	}
+}
+
 // reconcileDeployment creates or updates the Deployment for the DevServer
 func (r *DevServerReconciler) reconcileDeployment(ctx context.Context, devServer *devserversv1.DevServer, flavor *devserversv1.DevServerFlavor) error {
 	deploymentName := devServer.Name
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploymentName,
-			Namespace: devServer.Namespace,
-		},
+	deployment := &appsv1.Deployment{}
+	deploymentKey := types.NamespacedName{Name: deploymentName, Namespace: devServer.Namespace}
+
+	// Check if the deployment already exists
+	err := r.Get(ctx, deploymentKey, deployment)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Deployment does not exist, create it
+			newDeployment := r.deploymentForDevServer(devServer, flavor)
+			if err := controllerutil.SetControllerReference(devServer, newDeployment, r.Scheme); err != nil {
+				return err
+			}
+			logf.FromContext(ctx).Info("Creating a new Deployment", "Deployment.Namespace", newDeployment.Namespace, "Deployment.Name", newDeployment.Name)
+			return r.Create(ctx, newDeployment)
+		}
+		return err // Some other error
 	}
 
-	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, deployment, func() error {
-		// Set DevServer as owner
-		if err := controllerutil.SetControllerReference(devServer, deployment, r.Scheme); err != nil {
-			return err
-		}
+	// Deployment exists, create a patch from the existing deployment
+	patch := client.MergeFrom(deployment.DeepCopy())
 
-		// Configure deployment spec
-		replicas := int32(1)
-		deployment.Spec = appsv1.DeploymentSpec{
+	// Mutate the deployment object with the desired state
+	// Note: For a real-world operator, you'd have a more sophisticated update logic
+	// here, carefully merging fields. For this example, we'll just re-apply the spec.
+	updatedDeployment := r.deploymentForDevServer(devServer, flavor)
+	deployment.Spec = updatedDeployment.Spec
+	deployment.ObjectMeta.Labels = updatedDeployment.ObjectMeta.Labels // Example of updating metadata
+
+	// Set owner reference just in case it's missing
+	if err := controllerutil.SetControllerReference(devServer, deployment, r.Scheme); err != nil {
+		return err
+	}
+
+	logf.FromContext(ctx).Info("Patching existing Deployment", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
+	return r.Patch(ctx, deployment, patch)
+}
+
+// deploymentForDevServer returns a Deployment object for the given DevServer
+func (r *DevServerReconciler) deploymentForDevServer(devServer *devserversv1.DevServer, flavor *devserversv1.DevServerFlavor) *appsv1.Deployment {
+	replicas := int32(1)
+	labels := map[string]string{
+		"app":       "devserver",
+		"devserver": devServer.Name,
+	}
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      devServer.Name,
+			Namespace: devServer.Namespace,
+			Labels:    labels,
+		},
+		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app":       "devserver",
-					"devserver": devServer.Name,
-				},
+				MatchLabels: labels,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app":       "devserver",
-						"devserver": devServer.Name,
-					},
+					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:  "devserver",
-							Image: devServer.Spec.Image,
-							// Add default command to keep container running
+							Name:    "devserver",
+							Image:   devServer.Spec.Image,
 							Command: []string{"sleep"},
 							Args:    []string{"infinity"},
 							Resources: corev1.ResourceRequirements{
@@ -397,66 +423,100 @@ func (r *DevServerReconciler) reconcileDeployment(ctx context.Context, devServer
 					Tolerations:  flavor.Spec.Tolerations,
 				},
 			},
-		}
+		},
+	}
 
-		// Add shared volume if specified
-		if devServer.Spec.SharedVolumeClaimName != "" {
-			deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
-				deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
-				corev1.VolumeMount{
-					Name:      "shared",
-					MountPath: "/shared",
-				},
-			)
-			deployment.Spec.Template.Spec.Volumes = append(
-				deployment.Spec.Template.Spec.Volumes,
-				corev1.Volume{
-					Name: "shared",
-					VolumeSource: corev1.VolumeSource{
-						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-							ClaimName: devServer.Spec.SharedVolumeClaimName,
-						},
+	// Add shared volume if specified
+	if devServer.Spec.SharedVolumeClaimName != "" {
+		deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+			deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
+			corev1.VolumeMount{
+				Name:      "shared",
+				MountPath: "/shared",
+			},
+		)
+		deployment.Spec.Template.Spec.Volumes = append(
+			deployment.Spec.Template.Spec.Volumes,
+			corev1.Volume{
+				Name: "shared",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: devServer.Spec.SharedVolumeClaimName,
 					},
 				},
-			)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return err
+			},
+		)
 	}
 
-	if op != controllerutil.OperationResultNone {
-		logf.FromContext(ctx).Info("Deployment reconciled", "deployment", deploymentName, "operation", op)
-	}
-
-	return nil
+	return deployment
 }
 
 // reconcileService creates or updates the Service for SSH access
 func (r *DevServerReconciler) reconcileService(ctx context.Context, devServer *devserversv1.DevServer) error {
 	serviceName := fmt.Sprintf("%s-ssh", devServer.Name)
-	service := &corev1.Service{
+	service := &corev1.Service{}
+	serviceKey := types.NamespacedName{Name: serviceName, Namespace: devServer.Namespace}
+
+	err := r.Get(ctx, serviceKey, service)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Service does not exist, create it
+			newService := r.serviceForDevServer(devServer)
+			if err := controllerutil.SetControllerReference(devServer, newService, r.Scheme); err != nil {
+				return err
+			}
+			logf.FromContext(ctx).Info("Creating a new Service", "Service.Namespace", newService.Namespace, "Service.Name", newService.Name)
+			if err := r.Create(ctx, newService); err != nil {
+				return err
+			}
+			// Update status after creation
+			return r.updateDevServerStatusWithService(ctx, devServer, newService)
+		}
+		return err
+	}
+
+	// Service exists, patch if necessary
+	patch := client.MergeFrom(service.DeepCopy())
+	updated := false
+
+	// Example of a mutable field: ensure labels are correct
+	// In a real operator, you'd compare more fields.
+	desiredLabels := r.serviceForDevServer(devServer).ObjectMeta.Labels
+	if service.ObjectMeta.Labels == nil || service.ObjectMeta.Labels["app"] != desiredLabels["app"] {
+		service.ObjectMeta.Labels = desiredLabels
+		updated = true
+	}
+
+	if err := controllerutil.SetControllerReference(devServer, service, r.Scheme); err != nil {
+		return err
+	}
+
+	if updated {
+		logf.FromContext(ctx).Info("Patching existing Service", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
+		if err := r.Patch(ctx, service, patch); err != nil {
+			return err
+		}
+	}
+
+	return r.updateDevServerStatusWithService(ctx, devServer, service)
+}
+
+// serviceForDevServer returns a Service object for the given DevServer
+func (r *DevServerReconciler) serviceForDevServer(devServer *devserversv1.DevServer) *corev1.Service {
+	serviceName := fmt.Sprintf("%s-ssh", devServer.Name)
+	labels := map[string]string{
+		"app":       "devserver",
+		"devserver": devServer.Name,
+	}
+
+	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      serviceName,
 			Namespace: devServer.Namespace,
+			Labels:    labels,
 		},
-	}
-
-	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
-		// Set DevServer as owner
-		if err := controllerutil.SetControllerReference(devServer, service, r.Scheme); err != nil {
-			return err
-		}
-
-		// Configure service spec
-		service.Spec = corev1.ServiceSpec{
-			Selector: map[string]string{
-				"app":       "devserver",
-				"devserver": devServer.Name,
-			},
+		Spec: corev1.ServiceSpec{
+			Selector: labels,
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "ssh",
@@ -466,23 +526,16 @@ func (r *DevServerReconciler) reconcileService(ctx context.Context, devServer *d
 				},
 			},
 			Type: corev1.ServiceTypeClusterIP,
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return err
+		},
 	}
+}
 
-	if op != controllerutil.OperationResultNone {
-		logf.FromContext(ctx).Info("Service reconciled", "service", serviceName, "operation", op)
-		// Update status with SSH endpoint
-		devServer.Status.SSHEndpoint = fmt.Sprintf("%s.%s.svc.cluster.local:22", serviceName, devServer.Namespace)
-		devServer.Status.ServiceName = serviceName
-	}
-
-	return nil
+// updateDevServerStatusWithService updates the DevServer status with service details
+func (r *DevServerReconciler) updateDevServerStatusWithService(ctx context.Context, devServer *devserversv1.DevServer, service *corev1.Service) error {
+	patch := client.MergeFrom(devServer.DeepCopy())
+	devServer.Status.SSHEndpoint = fmt.Sprintf("%s.%s.svc.cluster.local:22", service.Name, devServer.Namespace)
+	devServer.Status.ServiceName = service.Name
+	return r.Status().Patch(ctx, devServer, patch)
 }
 
 // parseDuration supports formats like "1d", "2h30m".
