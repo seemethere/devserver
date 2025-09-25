@@ -9,7 +9,7 @@ from .config.settings import VERSION, get_username, get_user_namespace
 from .commands.status import status
 from .commands.info import info
 from .commands.test import test_k8s
-from .commands.devserver import create, list, describe, delete, exec, ssh, flavors
+from .commands.devserver import create, list, describe, delete, exec, ssh, flavors, extend, update
 
 
 @click.group()
@@ -41,6 +41,8 @@ cli.add_command(delete)
 cli.add_command(exec)
 cli.add_command(ssh)
 cli.add_command(flavors)
+cli.add_command(extend)
+cli.add_command(update)
 
 
 if __name__ == '__main__':

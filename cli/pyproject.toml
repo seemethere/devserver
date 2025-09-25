@@ -1,19 +1,16 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "devctl"
-version = "0.1.0"
-description = "Phase 1 CLI for PyTorch development servers bastion"
-authors = [{name = "DevServer Team", email = "devops@company.com"}]
-license = {text = "MIT"}
+version = "0.3.0"
+description = "CLI for managing DevServers on Kubernetes"
 readme = "README.md"
 requires-python = ">=3.8"
-
 dependencies = [
-    "click>=8.0.0",
-    "rich>=12.0.0",
+    "click",
+    "rich",
 ]
 
 [project.scripts]
@@ -21,4 +18,3 @@ devctl = "devctl.main:cli"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["devctl*"]

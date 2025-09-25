@@ -45,6 +45,17 @@ def get_devserver(name: str, namespace: str) -> Optional[Dict]:
 
 def create_devserver(name: str, spec: Dict, namespace: str) -> bool:
     """Create a new DevServer."""
+
+    lifecycle = spec.get('lifecycle', {})
+    lifecycle_yaml_parts = [
+        f"    idleTimeout: {lifecycle.get('idleTimeout', 3600)}",
+        f"    autoShutdown: {str(lifecycle.get('autoShutdown', True)).lower()}",
+    ]
+    if 'timeToLive' in lifecycle:
+        lifecycle_yaml_parts.append(f"    timeToLive: {lifecycle['timeToLive']}")
+
+    lifecycle_yaml = "\n".join(lifecycle_yaml_parts)
+
     devserver_yaml = f"""
 apiVersion: apps.devservers.io/v1
 kind: DevServer
@@ -59,8 +70,7 @@ spec:
   persistentHomeSize: {spec.get('persistentHomeSize', '10Gi')}
   enableSSH: {str(spec.get('enableSSH', True)).lower()}
   lifecycle:
-    idleTimeout: {spec.get('idleTimeout', 3600)}
-    autoShutdown: {str(spec.get('autoShutdown', True)).lower()}
+{lifecycle_yaml}
 """
     
     try:
@@ -70,6 +80,21 @@ spec:
             capture_output=True,
             text=True,
             timeout=30
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def patch_devserver(name: str, namespace: str, patch: Dict) -> bool:
+    """Patch a DevServer resource."""
+    try:
+        patch_json = json.dumps(patch)
+        result = run_kubectl(
+            "patch", "devserver", name,
+            "--type", "merge",
+            "-p", patch_json,
+            namespace=namespace
         )
         return result.returncode == 0
     except Exception:

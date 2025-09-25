@@ -1,16 +1,39 @@
 """DevServer management commands."""
 
 import subprocess
+import re
+from datetime import datetime, timedelta, timezone
 
 import click
 from rich.table import Table
 
 from ..api.devserver import (
     list_devservers, get_devserver, create_devserver, delete_devserver,
-    wait_for_devserver_ready, get_devserver_resources, flavor_exists, list_flavors
+    wait_for_devserver_ready, get_devserver_resources, flavor_exists, list_flavors,
+    patch_devserver
 )
 from ..ui.console import console, create_devserver_table, create_flavor_panels, create_progress_spinner
 from ..config.settings import get_username, get_user_namespace, DEFAULT_IMAGE, DEFAULT_HOME_SIZE
+
+
+def parse_duration(duration_str: str) -> timedelta:
+    """Parse a duration string like 1d, 2h, 30m into a timedelta."""
+    parts = re.findall(r'(\d+)([dhms])', duration_str)
+    if not parts:
+        raise ValueError("Invalid duration string")
+    
+    delta = timedelta()
+    for value, unit in parts:
+        value = int(value)
+        if unit == 'd':
+            delta += timedelta(days=value)
+        elif unit == 'h':
+            delta += timedelta(hours=value)
+        elif unit == 'm':
+            delta += timedelta(minutes=value)
+        elif unit == 's':
+            delta += timedelta(seconds=value)
+    return delta
 
 
 @click.command()
@@ -18,9 +41,10 @@ from ..config.settings import get_username, get_user_namespace, DEFAULT_IMAGE, D
 @click.option('--flavor', required=True, help='DevServerFlavor to use (e.g., cpu-small)')
 @click.option('--image', default=DEFAULT_IMAGE, help='Container image to use')
 @click.option('--home-size', default=DEFAULT_HOME_SIZE, help='Size of persistent home directory')
+@click.option('--time', help='Auto-expire after a set duration (e.g., 30m, 1h, 1d)')
 @click.option('--wait', is_flag=True, help='Wait for DevServer to be ready')
 @click.pass_context
-def create(ctx: click.Context, name: str, flavor: str, image: str, home_size: str, wait: bool) -> None:
+def create(ctx: click.Context, name: str, flavor: str, image: str, home_size: str, time: str | None, wait: bool) -> None:
     """Create a new development server."""
     username = get_username()
     namespace = get_user_namespace()
@@ -49,6 +73,13 @@ def create(ctx: click.Context, name: str, flavor: str, image: str, home_size: st
         return
     
     # Create DevServer spec
+    lifecycle_config = {
+        'idleTimeout': 3600,
+        'autoShutdown': True,
+    }
+    if time:
+        lifecycle_config['timeToLive'] = time
+
     spec = {
         'owner': f"{username}@company.com",
         'flavor': flavor,
@@ -56,8 +87,7 @@ def create(ctx: click.Context, name: str, flavor: str, image: str, home_size: st
         'mode': 'standalone',
         'persistentHomeSize': home_size,
         'enableSSH': True,
-        'idleTimeout': 3600,
-        'autoShutdown': True
+        'lifecycle': lifecycle_config,
     }
     
     # Create DevServer
@@ -79,6 +109,83 @@ def create(ctx: click.Context, name: str, flavor: str, image: str, home_size: st
                     console.print(f"Check status with: [cyan]devctl describe {name}[/cyan]")
     else:
         console.print("[red]❌ Failed to create DevServer[/red]")
+
+
+@click.command()
+@click.argument('name')
+@click.option('--time', required=True, help='Duration to extend by (e.g., 2h, 30m)')
+@click.pass_context
+def extend(ctx: click.Context, name: str, time: str) -> None:
+    """Extend the expiration time of a development server."""
+    namespace = get_user_namespace()
+
+    if not get_devserver(name, namespace):
+        console.print(f"[red]❌ DevServer '{name}' not found in namespace '{namespace}'[/red]")
+        return
+
+    try:
+        duration = parse_duration(time)
+        if duration.total_seconds() <= 0:
+            raise ValueError("Duration must be positive.")
+    except (ValueError, IndexError):
+        console.print(f"[red]❌ Invalid time duration format: '{time}'[/red]")
+        console.print("Use formats like '1d', '2h30m', '10m'.")
+        return
+
+    new_expiration_time = datetime.now(timezone.utc) + duration
+    # Kubernetes expects RFC3339 format with 'Z' for UTC
+    expiration_str = new_expiration_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    patch = {
+        'spec': {
+            'lifecycle': {
+                'expirationTime': expiration_str
+            }
+        }
+    }
+
+    console.print(f"Extending DevServer '{name}' until {expiration_str}...")
+    if patch_devserver(name, namespace, patch):
+        console.print(f"[green]✅ DevServer '{name}' extended successfully.[/green]")
+    else:
+        console.print(f"[red]❌ Failed to extend DevServer '{name}'.[/red]")
+
+
+@click.command()
+@click.argument('name')
+@click.option('--flavor', required=True, help='New DevServerFlavor to use')
+@click.pass_context
+def update(ctx: click.Context, name: str, flavor: str) -> None:
+    """Update a development server's flavor."""
+    namespace = get_user_namespace()
+
+    devserver = get_devserver(name, namespace)
+    if not devserver:
+        console.print(f"[red]❌ DevServer '{name}' not found in namespace '{namespace}'[/red]")
+        return
+    
+    current_flavor = devserver.get('spec', {}).get('flavor')
+    if current_flavor == flavor:
+        console.print(f"[yellow]DevServer '{name}' is already using flavor '{flavor}'. No changes made.[/yellow]")
+        return
+
+    if not flavor_exists(flavor):
+        console.print(f"[red]❌ DevServerFlavor '{flavor}' not found[/red]")
+        console.print("Use 'devctl flavors' to see available flavors.")
+        return
+
+    patch = {
+        'spec': {
+            'flavor': flavor
+        }
+    }
+
+    console.print(f"Updating DevServer '{name}' to flavor '{flavor}'...")
+    if patch_devserver(name, namespace, patch):
+        console.print(f"[green]✅ DevServer '{name}' update initiated successfully.[/green]")
+        console.print("The server will restart with the new resources. Your home directory will be preserved.")
+    else:
+        console.print(f"[red]❌ Failed to update DevServer '{name}'.[/red]")
 
 
 @click.command()

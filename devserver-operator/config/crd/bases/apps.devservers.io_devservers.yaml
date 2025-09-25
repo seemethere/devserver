@@ -93,6 +93,12 @@ spec:
                     description: AutoShutdown enables automatic shutdown when idle
                       timeout is reached
                     type: boolean
+                  expirationTime:
+                    description: |-
+                      ExpirationTime is the absolute time at which the DevServer will be deleted.
+                      This is calculated from TimeToLive if provided.
+                    format: date-time
+                    type: string
                   idleTimeout:
                     default: 3600
                     description: IdleTimeout specifies how long (in seconds) the server
@@ -100,6 +106,11 @@ spec:
                     format: int32
                     minimum: 60
                     type: integer
+                  timeToLive:
+                    description: |-
+                      TimeToLive is a duration string (e.g., "2h", "1d", "30m") that specifies
+                      how long the DevServer should exist before being automatically deleted.
+                    type: string
                 type: object
               mode:
                 default: standalone

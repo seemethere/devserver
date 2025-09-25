@@ -104,6 +104,16 @@ type LifecycleConfig struct {
 	// +optional
 	// +kubebuilder:default=true
 	AutoShutdown bool `json:"autoShutdown,omitempty"`
+
+	// TimeToLive is a duration string (e.g., "2h", "1d", "30m") that specifies
+	// how long the DevServer should exist before being automatically deleted.
+	// +optional
+	TimeToLive string `json:"timeToLive,omitempty"`
+
+	// ExpirationTime is the absolute time at which the DevServer will be deleted.
+	// This is calculated from TimeToLive if provided.
+	// +optional
+	ExpirationTime *metav1.Time `json:"expirationTime,omitempty"`
 }
 
 // DevServerStatus defines the observed state of DevServer.

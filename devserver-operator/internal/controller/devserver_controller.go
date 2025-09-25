@@ -19,6 +19,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -126,6 +128,44 @@ func (r *DevServerReconciler) reconcileDevServer(ctx context.Context, devServer 
 	log := logf.FromContext(ctx)
 	log.Info("Reconciling DevServer", "devserver", devServer.Name, "mode", devServer.Spec.Mode)
 
+	// Handle lifecycle and expiration
+	if devServer.Spec.Lifecycle != nil {
+		// If TimeToLive is set but ExpirationTime is not, calculate and set it.
+		if devServer.Spec.Lifecycle.TimeToLive != "" && devServer.Spec.Lifecycle.ExpirationTime == nil {
+			duration, err := parseDuration(devServer.Spec.Lifecycle.TimeToLive)
+			if err != nil {
+				log.Error(err, "Invalid TimeToLive duration", "timeToLive", devServer.Spec.Lifecycle.TimeToLive)
+				// Set status to failed and don't requeue
+				devServer.Status.Phase = "Failed"
+				if err := r.Status().Update(ctx, devServer); err != nil {
+					log.Error(err, "Failed to update DevServer status to Failed")
+				}
+				return ctrl.Result{}, nil // Stop reconciliation for this invalid spec
+			}
+
+			expirationTime := metav1.NewTime(devServer.CreationTimestamp.Time.Add(duration))
+			devServer.Spec.Lifecycle.ExpirationTime = &expirationTime
+
+			log.Info("Setting expiration time from TimeToLive", "expirationTime", expirationTime)
+			if err := r.Update(ctx, devServer); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{Requeue: true}, nil
+		}
+
+		// If ExpirationTime is set, check if we've passed it.
+		if devServer.Spec.Lifecycle.ExpirationTime != nil {
+			if time.Now().After(devServer.Spec.Lifecycle.ExpirationTime.Time) {
+				log.Info("DevServer has expired, deleting.", "expirationTime", devServer.Spec.Lifecycle.ExpirationTime.Time)
+				if err := r.Delete(ctx, devServer); err != nil {
+					return ctrl.Result{}, err
+				}
+				// Deletion will trigger finalizer logic, so we can stop here.
+				return ctrl.Result{}, nil
+			}
+		}
+	}
+
 	// Fetch the DevServerFlavor (cluster-scoped, no namespace)
 	flavor := &devserversv1.DevServerFlavor{}
 	flavorKey := types.NamespacedName{
@@ -141,6 +181,21 @@ func (r *DevServerReconciler) reconcileDevServer(ctx context.Context, devServer 
 			return ctrl.Result{RequeueAfter: time.Minute * 5}, nil
 		}
 		return ctrl.Result{}, err
+	}
+
+	// Smart requeue logic
+	var requeueAfter time.Duration
+	if devServer.Spec.Lifecycle != nil && devServer.Spec.Lifecycle.ExpirationTime != nil {
+		requeueAfter = time.Until(devServer.Spec.Lifecycle.ExpirationTime.Time)
+		if requeueAfter < 0 {
+			requeueAfter = 0 // Expired, should be handled on next reconcile
+		}
+	}
+
+	// Use a shorter requeue if expiration is near, otherwise default to 30 minutes
+	defaultRequeue := 30 * time.Minute
+	if requeueAfter <= 0 || requeueAfter > defaultRequeue {
+		requeueAfter = defaultRequeue
 	}
 
 	// For now, only handle standalone mode (Phase 3 requirement)
@@ -172,8 +227,8 @@ func (r *DevServerReconciler) reconcileDevServer(ctx context.Context, devServer 
 		return ctrl.Result{}, err
 	}
 
-	log.Info("DevServer reconciliation completed", "devserver", devServer.Name)
-	return ctrl.Result{RequeueAfter: time.Minute * 30}, nil
+	log.Info("DevServer reconciliation completed", "devserver", devServer.Name, "requeueAfter", requeueAfter)
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
 // reconcileStandaloneServer creates/updates resources for a standalone DevServer
@@ -428,6 +483,37 @@ func (r *DevServerReconciler) reconcileService(ctx context.Context, devServer *d
 	}
 
 	return nil
+}
+
+// parseDuration supports formats like "1d", "2h30m".
+func parseDuration(s string) (time.Duration, error) {
+	re := regexp.MustCompile(`(\d+)([dhms])`)
+	matches := re.FindAllStringSubmatch(s, -1)
+	if len(matches) == 0 {
+		// Fallback to standard parser if our regex doesn't match
+		return time.ParseDuration(s)
+	}
+
+	var totalDuration time.Duration
+	for _, match := range matches {
+		value, err := strconv.Atoi(match[1])
+		if err != nil {
+			return 0, err
+		}
+		unit := match[2]
+		switch unit {
+		case "d":
+			totalDuration += time.Duration(value) * 24 * time.Hour
+		case "h":
+			totalDuration += time.Duration(value) * time.Hour
+		case "m":
+			totalDuration += time.Duration(value) * time.Minute
+		case "s":
+			totalDuration += time.Duration(value) * time.Second
+		}
+	}
+
+	return totalDuration, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
