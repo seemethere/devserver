@@ -7,7 +7,6 @@ The goal is to build a lightweight, easy-to-manage Kubernetes operator to manage
 
 This project is built with the following principles:
 *   **Python First**: The operator is built using the `kopf` framework in Python for rapid development and ease of maintenance.
-*   **No Bastion**: Users are expected to have their own authenticated `kubeconfig` file. The CLI will use the user's local Kubernetes context, simplifying the security model.
 *   **Unified Codebase**: The operator and the `devctl` command-line tool are managed in a single codebase to streamline development, testing, and deployment.
 
 ---

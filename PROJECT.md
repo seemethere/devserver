@@ -6,7 +6,6 @@ This document outlines the plan for building a Python-based Kubernetes operator 
 
 *   **Operator Framework**: `kopf` (Python)
 *   **CLI Framework**: `argparse` (Python standard library)
-*   **Authentication**: Relies on the user's local `kubeconfig` (no bastion).
 *   **Codebase**: A single, unified repository for the operator and the CLI.
 *   **Testing**: A strong emphasis on TDD with `pytest` and `k3d` for local cluster testing.
 
