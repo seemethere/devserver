@@ -1,0 +1,77 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: devservers.devserver.io
+spec:
+  group: devserver.io
+  names:
+    kind: DevServer
+    listKind: DevServerList
+    plural: devservers
+    singular: devserver
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                owner:
+                  type: string
+                flavor:
+                  type: string
+                image:
+                  type: string
+                mode:
+                  type: string
+                  enum: [standalone, distributed]
+                  default: standalone
+                distributed:
+                  type: object
+                  properties:
+                    worldSize:
+                      type: integer
+                    nprocsPerNode:
+                      type: integer
+                    backend:
+                      type: string
+                    ncclSettings:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                persistentHomeSize:
+                  type: string
+                sharedVolumeClaimName:
+                  type: string
+                enableSSH:
+                  type: boolean
+                lifecycle:
+                  type: object
+                  properties:
+                    idleTimeout:
+                      type: integer
+                    autoShutdown:
+                      type: boolean
+                    expirationTime:
+                      type: string
+                      format: date-time
+                    timeToLive:
+                      type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                message:
+                  type: string
+                connection:
+                  type: object
+                  properties:
+                    shell:
+                      type: string
+                    ssh:
+                      type: string
