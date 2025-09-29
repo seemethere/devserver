@@ -20,8 +20,14 @@ kubeconfig:
 
 # Conditional pytest flags based on VERBOSE environment variable
 PYTEST_VERBOSE = $(if $(filter 1,$(VERBOSE)),-s,)
+PYTHON = .venv/bin/python3
+PYTEST = $(PYTHON) -m pytest
+
+$(PYTHON):
+	uv venv -p 3.13 .venv
+	uv pip install -e .
 
 .PHONY: test
 test:
 	@echo "🧪 Running tests$(if $(filter 1,$(VERBOSE)), with verbose output,) (use VERBOSE=1 for detailed output)..."
-	.venv/bin/python3 -m pytest -v $(PYTEST_VERBOSE) tests
+	timeout 90 $(PYTEST) -v $(PYTEST_VERBOSE) tests

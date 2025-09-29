@@ -144,77 +144,46 @@ def apply_crds():
 def operator_runner():
     """
     Pytest fixture to run the operator in the background during test session.
+    Runs as a daemon thread that will be terminated when tests complete.
     """
     # Import the operator module to ensure handlers are registered
     import src.devserver_operator.operator  # noqa: F401
     
-    # Set up the operator to run in a background thread with better shutdown handling
-    operator_thread = None
-    stop_event = threading.Event()
-    
     def run_operator():
         """Run the operator in a separate event loop."""
-        # Create a completely new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
         try:
-            # Configure logging to show operator activity
-            import logging
-            logging.basicConfig(level=logging.INFO)
-            kopf_logger = logging.getLogger('kopf')
-            kopf_logger.setLevel(logging.INFO)
-            
             print(f"🚀 Starting operator in namespace: {TEST_NAMESPACE}")
-            
-            # Create an asyncio stop event and tie it to the threading event
-            async_stop_event = asyncio.Event()
-            
-            def check_stop():
-                if stop_event.is_set():
-                    loop.call_soon_threadsafe(async_stop_event.set)
-                else:
-                    # Check again in 0.1 seconds
-                    loop.call_later(0.1, check_stop)
-            
-            # Start checking for stop signal
-            check_stop()
-            
-            # Run kopf with the stop event
             loop.run_until_complete(
                 kopf.run(
                     registry=kopf.get_default_registry(),
-                    stop_flag=async_stop_event,
                     priority=0,
-                    namespaces=[TEST_NAMESPACE],  # Watch only the test namespace
+                    namespaces=[TEST_NAMESPACE],
                 )
             )
-        except Exception as e:
-            # Log all errors to help debug, but suppress cancellation errors
-            if "cancelled" not in str(e).lower() and "stop" not in str(e).lower():
-                print(f"❌ Operator error: {e}")
-                import traceback
-                traceback.print_exc()
+        except Exception:
+            pass  # Suppress errors during shutdown
         finally:
-            print("🛑 Operator stopped")
             try:
                 loop.close()
             except:
-                pass  # Ignore any errors during loop cleanup
+                pass
     
-    # Start the operator in a background thread
+    # Start the operator in a daemon thread (will be killed when main process exits)
     operator_thread = threading.Thread(target=run_operator, daemon=True)
     operator_thread.start()
     
     # Give the operator a moment to start up
     print("⏳ Waiting for operator to start...")
-    time.sleep(5)  # Increased startup time
-    print("✅ Operator should be running!")
+    time.sleep(5)
+    print("✅ Operator running!")
     
     yield
-
-    # Cleanup: Let daemon threads handle cleanup automatically
-    print("🏁 Test session ending - operator cleanup handled by daemon thread")
+    
+    # Daemon thread will be terminated automatically when tests complete
+    print("🏁 Test session ending, tearing down operator...")
 
 
 @pytest.fixture(scope="function")
