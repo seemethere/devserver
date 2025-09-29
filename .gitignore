@@ -86,4 +86,4 @@ Thumbs.db
 # Lambda build artifacts
 *.zip
 
-reference/
+reference/**/package

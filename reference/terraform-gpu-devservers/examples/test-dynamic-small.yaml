@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-dynamic-small
+  namespace: default
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: test-dynamic-small
+    spec:
+      restartPolicy: Never
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-H100-80GB-HBM3  # Target H100 GPUs specifically
+      containers:
+      - name: small-workload
+        image: ubuntu:20.04
+        command:
+        - /bin/bash
+        - -c
+        - |
+          echo "=== Small Workload - 1g.10gb MIG Slice ==="
+          echo "Requested: nvidia.com/mig-1g.10gb = 1"
+          echo "Expected: ~10GB GPU memory"
+          echo ""
+          nvidia-smi || echo "nvidia-smi not available"
+          echo ""
+          echo "=== Environment ==="
+          env | grep NVIDIA || echo "No NVIDIA env vars"
+        resources:
+          limits:
+            nvidia.com/mig-1g.10gb: 1  # Small workload
+          requests:
+            nvidia.com/mig-1g.10gb: 1
