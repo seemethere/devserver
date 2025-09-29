@@ -24,6 +24,7 @@ PYTHON = .venv/bin/python3
 PYTEST = $(PYTHON) -m pytest
 
 $(PYTHON):
+	@echo "🐍 No virtual environment found, creating one..."
 	uv venv -p 3.13 .venv
 	uv pip install -e .
 
