@@ -161,18 +161,39 @@ spec:
 
 ### Running Tests
 
+The test suite includes comprehensive integration tests that actually run the operator and verify its functionality:
+
 ```bash
-# Install test dependencies
+# Install test dependencies  
 pip install -e ".[test]"
 
-# Run all tests
+# Run all tests (includes operator integration tests)
 make test
 
-# Run specific test categories
-python -m pytest tests/test_operator.py -v
-python -m pytest tests/test_cli.py -v
-python -m pytest tests/test_crds.py -v
+# Or run pytest directly with specific options
+python -m pytest tests/ -v                    # All tests with verbose output
+python -m pytest tests/test_operator.py -v    # Just operator tests
+python -m pytest tests/test_cli.py -v         # Just CLI tests
+python -m pytest tests/test_crds.py -v        # Just CRD tests
 ```
+
+#### Test Features
+
+- **Operator Integration**: Tests actually run the kopf operator in the background
+- **Real Kubernetes**: Tests create real CRDs, DevServers, and Deployments  
+- **Error Scenarios**: Tests verify proper error handling (missing flavors, etc.)
+- **Multi-resource**: Tests verify operator can handle multiple DevServers
+- **Cleanup Verification**: Tests verify proper garbage collection of resources
+- **CLI Integration**: Tests verify CLI commands work with running operator
+
+#### Test Environment
+
+The tests are designed to work with any Kubernetes cluster (local k3d or remote):
+
+- **Session Fixtures**: Operator runs once per test session for efficiency
+- **Auto CRD Management**: CRDs are automatically applied and cleaned up
+- **Resource Isolation**: Each test uses unique resource names to avoid conflicts
+- **Timeout Handling**: Tests include appropriate timeouts for async operations
 
 ### Local Development Workflow
 

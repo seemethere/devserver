@@ -18,6 +18,10 @@ kubeconfig:
 	@echo "📋 Getting kubeconfig for cluster '$(CLUSTER_NAME)'..."
 	@k3d kubeconfig get $(CLUSTER_NAME)
 
+# Conditional pytest flags based on VERBOSE environment variable
+PYTEST_VERBOSE = $(if $(filter 1,$(VERBOSE)),-s,)
+
 .PHONY: test
 test:
-	.venv/bin/python3 -m pytest -v tests
+	@echo "🧪 Running tests$(if $(filter 1,$(VERBOSE)), with verbose output,) (use VERBOSE=1 for detailed output)..."
+	.venv/bin/python3 -m pytest -v $(PYTEST_VERBOSE) tests

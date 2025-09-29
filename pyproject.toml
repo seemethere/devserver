@@ -17,8 +17,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "kopf",
-    "kubernetes",
+    "kopf>=1.37.0",  # Use newer version for better asyncio compatibility
+    "kubernetes>=28.1.0",  # Use newer version to avoid deprecation warnings
     "pytest",
 ]
 
@@ -31,3 +31,4 @@ devctl = "cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
