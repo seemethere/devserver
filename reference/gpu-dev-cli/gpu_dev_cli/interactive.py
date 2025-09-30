@@ -150,12 +150,12 @@ def select_gpu_count_interactive(gpu_type: str, max_gpus: int) -> Optional[int]:
 
     # Filter single-node by actual max for this GPU type
     valid_counts = [count for count in valid_counts if count <= max_gpus]
-
+    
     # Add multinode options (multiples of max_gpus)
     multinode_counts = [count for count in multinode_counts if count % max_gpus == 0]
 
     choices = []
-
+    
     # Add single-node options
     for count in valid_counts:
         if count == 1:
@@ -163,7 +163,7 @@ def select_gpu_count_interactive(gpu_type: str, max_gpus: int) -> Optional[int]:
         else:
             label = f"{count} GPUs (single node)"
         choices.append(questionary.Choice(title=label, value=count))
-
+    
     # Add separator and multinode options
     if multinode_counts:
         choices.append(questionary.Separator("--- Multinode (Distributed) ---"))
@@ -377,7 +377,7 @@ def select_reservation_interactive(
                 title="🗑️  Cancel ALL reservations above", value="__ALL__"
             )
         )
-
+    
     # Add quit option at the end for all actions
     action_verb = "cancel" if action == "cancel" else "edit"
     choices.append(

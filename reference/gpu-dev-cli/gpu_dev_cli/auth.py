@@ -65,14 +65,7 @@ def validate_ssh_key_matches_github_user(config: Config, live=None) -> Dict[str,
         try:
             # First try with batch mode to check if host key is already known
             batch_result = subprocess.run(
-                [
-                    "ssh",
-                    "-o",
-                    "BatchMode=yes",
-                    "-o",
-                    "ConnectTimeout=5",
-                    "git@github.com",
-                ],
+                ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "git@github.com"],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -82,22 +75,13 @@ def validate_ssh_key_matches_github_user(config: Config, live=None) -> Dict[str,
             ssh_output = batch_result.stderr or ""
 
             # Check if output indicates host key verification failure
-            if (
-                "Host key verification failed" in ssh_output
-                or "authenticity of host" in ssh_output
-            ):
-                raise subprocess.CalledProcessError(
-                    batch_result.returncode, "ssh", "Host verification needed"
-                )
+            if "Host key verification failed" in ssh_output or "authenticity of host" in ssh_output:
+                raise subprocess.CalledProcessError(batch_result.returncode, "ssh", "Host verification needed")
 
-        except (
-            subprocess.CalledProcessError,
-            subprocess.TimeoutExpired,
-        ) as batch_error:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as batch_error:
             try:
                 # Host key not known, need interactive verification
                 from rich.console import Console
-
                 console = Console()
 
                 # Stop the spinner to allow interactive input
@@ -105,15 +89,11 @@ def validate_ssh_key_matches_github_user(config: Config, live=None) -> Dict[str,
                     live.stop()
 
                 console.print(
-                    "[yellow]⚠️  GitHub host key verification required. Please respond to the prompt below.[/yellow]"
-                )
+                    "[yellow]⚠️  GitHub host key verification required. Please respond to the prompt below.[/yellow]")
 
                 # Use os.system for true terminal interaction
                 import os
-
-                exit_code = os.system(
-                    "ssh -o BatchMode=no -o ConnectTimeout=10 git@github.com"
-                )
+                exit_code = os.system("ssh -o BatchMode=no -o ConnectTimeout=10 git@github.com")
 
                 # Restart the spinner
                 if live:
@@ -121,23 +101,12 @@ def validate_ssh_key_matches_github_user(config: Config, live=None) -> Dict[str,
                     live.update(Spinner("dots", text="🔐 Validating SSH key..."))
                 # SSH should return non-zero (that's normal for GitHub), but if it's 255 it means connection failed
                 if exit_code == 255 * 256:  # os.system returns exit_code * 256
-                    console.print(
-                        "[red]⚠️  SSH connection failed - host key may not have been accepted.[/red]"
-                    )
-                    raise Exception(
-                        "SSH connection failed - host key may not have been accepted"
-                    )
+                    console.print("[red]⚠️  SSH connection failed - host key may not have been accepted.[/red]")
+                    raise Exception("SSH connection failed - host key may not have been accepted")
 
                 # After interactive verification, run again in batch mode to get output
                 final_result = subprocess.run(
-                    [
-                        "ssh",
-                        "-o",
-                        "BatchMode=yes",
-                        "-o",
-                        "ConnectTimeout=5",
-                        "git@github.com",
-                    ],
+                    ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "git@github.com"],
                     capture_output=True,
                     text=True,
                     timeout=10,
