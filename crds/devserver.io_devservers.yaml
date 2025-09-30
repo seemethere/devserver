@@ -49,6 +49,11 @@ spec:
                   type: string
                 enableSSH:
                   type: boolean
+                ssh:
+                  type: object
+                  properties:
+                    publicKey:
+                      type: string
                 lifecycle:
                   type: object
                   properties:

@@ -4,15 +4,15 @@ import io
 import sys
 from src.cli import main as cli_main
 from src.cli import handlers
-from tests.test_operator import (
-    CRD_GROUP,
-    CRD_VERSION,
-    CRD_PLURAL_DEVSERVER,
-    NAMESPACE,
-    TEST_DEVSERVER_NAME,
-    custom_objects_api,
-)
+from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
+
+# Define constants and clients needed for CLI tests
+CRD_GROUP = "devserver.io"
+CRD_VERSION = "v1"
+CRD_PLURAL_DEVSERVER = "devservers"
+NAMESPACE = TEST_NAMESPACE
+TEST_DEVSERVER_NAME = "test-cli-devserver"
 
 
 class TestCliIntegration:
@@ -20,8 +20,10 @@ class TestCliIntegration:
     Integration tests for the CLI that interact with a Kubernetes cluster.
     """
 
-    def test_list_command(self):
+    def test_list_command(self, k8s_clients):
         """Tests that the 'list' command can see a created DevServer."""
+        custom_objects_api = k8s_clients["custom_objects_api"]
+
         # Create a DevServer for the list command to find
         devserver_manifest = {
             "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
@@ -63,8 +65,10 @@ class TestCliIntegration:
                 name=TEST_DEVSERVER_NAME,
             )
 
-    def test_create_command(self):
+    def test_create_command(self, k8s_clients):
         """Tests that the 'create' command successfully creates a DevServer."""
+        custom_objects_api = k8s_clients["custom_objects_api"]
+
         try:
             # Call the handler to create the DevServer
             handlers.create_devserver(
@@ -100,8 +104,10 @@ class TestCliIntegration:
                 if e.status != 404:
                     raise
 
-    def test_delete_command(self):
+    def test_delete_command(self, k8s_clients):
         """Tests that the 'delete' command successfully deletes a DevServer."""
+        custom_objects_api = k8s_clients["custom_objects_api"]
+
         # Create a resource to be deleted
         devserver_manifest = {
             "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
@@ -181,12 +187,14 @@ class TestCliParser:
             assert cm.value.code != 0
 
 
-def test_create_and_list_with_operator(operator_running):
+def test_create_and_list_with_operator(operator_running, k8s_clients):
     """
     Integration test for the CLI that works with the actual operator running.
     This test verifies end-to-end functionality by creating a DevServer with CLI
     and verifying it appears in list with proper status when operator is running.
     """
+    custom_objects_api = k8s_clients["custom_objects_api"]
+
     # First create a flavor for the test
     flavor_manifest = {
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",

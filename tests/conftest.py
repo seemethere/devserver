@@ -10,6 +10,7 @@ from kubernetes import client, config, utils
 import kopf
 import uuid
 import os
+import pathlib
 
 # Generate a unique test namespace for each test session
 # This prevents conflicts between concurrent test runs
@@ -18,6 +19,20 @@ TEST_NAMESPACE = f"devserver-test-{uuid.uuid4().hex[:8]}"
 # Allow override via environment variable for debugging
 if os.getenv("DEVSERVER_TEST_NAMESPACE"):
     TEST_NAMESPACE = os.getenv("DEVSERVER_TEST_NAMESPACE")
+
+
+@pytest.fixture(scope="session")
+def k8s_clients():
+    """
+    Session-scoped fixture that provides Kubernetes API clients.
+    Loads kubeconfig once and creates clients for all tests to use.
+    """
+    config.load_kube_config()
+    return {
+        "apps_v1": client.AppsV1Api(),
+        "core_v1": client.CoreV1Api(),
+        "custom_objects_api": client.CustomObjectsApi(),
+    }
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -29,6 +44,21 @@ def apply_crds():
     config.load_kube_config()
     k8s_client = client.ApiClient()
     core_v1 = client.CoreV1Api()
+
+    # --- Early connection check ---
+    try:
+        # Make a simple, lightweight API call to check connectivity
+        print("🔎 Attempting to connect to Kubernetes API...")
+        core_v1.list_namespace(limit=1, _request_timeout=2)
+        print("✅ Kubernetes API connection successful.")
+    except Exception as e:
+        pytest.fail(
+            "❌ Could not connect to Kubernetes API. "
+            "Please ensure your kubeconfig is correct and the cluster is running.\n"
+            f"   Error: {e}",
+            pytrace=False
+        )
+    # --- End connection check ---
 
     # Create test namespace
     test_namespace = client.V1Namespace(
@@ -123,7 +153,6 @@ def apply_crds():
     
     # Optionally delete CRDs (cluster-scoped resources)
     # We'll leave CRDs in place to avoid termination issues between test runs
-    import os
     if os.getenv("CLEANUP_CRDS", "false").lower() == "true":
         print("🧹 Deleting CRDs (CLEANUP_CRDS=true)...")
         api_extensions_v1 = client.ApiextensionsV1Api()
@@ -151,6 +180,9 @@ def operator_runner():
     
     def run_operator():
         """Run the operator in a separate event loop."""
+        # Load kubeconfig within the thread to ensure it's available in this context
+        config.load_kube_config()
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
@@ -195,3 +227,52 @@ def operator_running(operator_runner):
     # Additional per-test setup can go here if needed
     yield
     # Per-test cleanup can go here if needed
+
+# --- Constants for Tests ---
+CRD_GROUP = "devserver.io"
+CRD_VERSION = "v1"
+CRD_PLURAL_FLAVOR = "devserverflavors"
+TEST_FLAVOR_NAME = "test-flavor"
+
+@pytest.fixture(scope="function")
+def test_flavor(request):
+    """Creates a test DevServerFlavor for a single test function."""
+    custom_objects_api = client.CustomObjectsApi()
+    
+    flavor_manifest = {
+        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
+        "kind": "DevServerFlavor",
+        "metadata": {"name": TEST_FLAVOR_NAME},
+        "spec": {
+            "resources": {
+                "requests": {"cpu": "100m", "memory": "128Mi"},
+                "limits": {"cpu": "500m", "memory": "512Mi"},
+            }
+        },
+    }
+    
+    print(f"🔧 Creating test_flavor: {TEST_FLAVOR_NAME}")
+    custom_objects_api.create_cluster_custom_object(
+        group=CRD_GROUP,
+        version=CRD_VERSION,
+        plural=CRD_PLURAL_FLAVOR,
+        body=flavor_manifest,
+    )
+
+    # Use request.addfinalizer for robust cleanup
+    def cleanup():
+        print(f"🧹 Cleaning up test_flavor: {TEST_FLAVOR_NAME}")
+        try:
+            custom_objects_api.delete_cluster_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                plural=CRD_PLURAL_FLAVOR,
+                name=TEST_FLAVOR_NAME,
+            )
+        except client.ApiException as e:
+            if e.status != 404:
+                print(f"⚠️ Error cleaning up flavor: {e}")
+
+    request.addfinalizer(cleanup)
+    
+    return TEST_FLAVOR_NAME

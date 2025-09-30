@@ -32,3 +32,8 @@ devctl = "cli.main:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning:kubernetes.client.rest",
+]
+

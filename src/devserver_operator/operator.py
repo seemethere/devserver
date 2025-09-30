@@ -1,6 +1,9 @@
 import kopf
 from kubernetes import client
 
+from .resources.services import build_headless_service, build_ssh_service
+from .resources.statefulset import build_statefulset
+
 # Constants
 CRD_GROUP = "devserver.io"
 CRD_VERSION = "v1"
@@ -29,74 +32,63 @@ def create_devserver(spec, name, namespace, logger, patch, **kwargs):
             raise kopf.PermanentError(f"Flavor '{spec['flavor']}' not found.")
         raise
 
-    # Define the Deployment
-    deployment = {
-        "apiVersion": "apps/v1",
-        "kind": "Deployment",
-        "metadata": {
-            "name": name,
-            "namespace": namespace,
-        },
-        "spec": {
-            "replicas": 1,
-            "selector": {"matchLabels": {"app": name}},
-            "template": {
-                "metadata": {"labels": {"app": name}},
-                "spec": {
-                    "containers": [
-                        {
-                            "name": "devserver",
-                            "image": spec.get("image", "ubuntu:latest"),
-                            "resources": flavor["spec"]["resources"],
-                            # Keep the container running
-                            "command": ["sleep"],
-                            "args": ["infinity"],
-                        }
-                    ]
-                },
-            },
-        },
-    }
+    # Build the required Kubernetes objects
+    headless_service = build_headless_service(name, namespace)
+    ssh_service = build_ssh_service(name, namespace)
+    statefulset = build_statefulset(name, namespace, spec, flavor)
 
-    # Set owner reference
-    kopf.adopt(deployment)
+    # Set owner references
+    kopf.adopt(headless_service)
+    kopf.adopt(ssh_service)
+    kopf.adopt(statefulset)
 
-    # Create the Deployment in Kubernetes, but only if it doesn't exist
+    # Create the resources in Kubernetes
+    core_v1 = client.CoreV1Api()
     apps_v1 = client.AppsV1Api()
+
+    # Create Services
     try:
-        apps_v1.read_namespaced_deployment(name=name, namespace=namespace)
-        logger.info(f"Deployment '{name}' already exists. Skipping creation.")
+        core_v1.create_namespaced_service(namespace=namespace, body=headless_service)
+        logger.info(f"Headless Service '{headless_service['metadata']['name']}' created.")
     except client.ApiException as e:
-        if e.status == 404:
-            apps_v1.create_namespaced_deployment(
-                body=deployment,
-                namespace=namespace,
-            )
-            logger.info(f"Deployment '{name}' created for DevServer.")
-        else:
+        if e.status != 409: # Ignore if it already exists
+            raise
+
+    if spec.get("enableSSH", False):
+        try:
+            core_v1.create_namespaced_service(namespace=namespace, body=ssh_service)
+            logger.info(f"SSH Service '{ssh_service['metadata']['name']}' created.")
+        except client.ApiException as e:
+            if e.status != 409:
+                raise
+
+    # Create StatefulSet
+    try:
+        apps_v1.create_namespaced_stateful_set(body=statefulset, namespace=namespace)
+        logger.info(f"StatefulSet '{name}' created for DevServer.")
+    except client.ApiException as e:
+        if e.status != 409: # Ignore if it already exists
             raise
 
     # Update the status
     patch.status["phase"] = "Running"
-    patch.status["message"] = f"Deployment '{name}' created successfully."
+    patch.status["message"] = f"StatefulSet '{name}' created successfully."
 
-    return {"status": "DeploymentCreated", "phase": "Running"}
+    return {"status": "StatefulSetCreated", "phase": "Running"}
 
 
 @kopf.on.delete(CRD_GROUP, CRD_VERSION, "devservers")
 def delete_devserver(name, namespace, logger, **kwargs):
     """
     Handle the deletion of a DevServer resource.
-
-    This handler will be called when the resource is marked for deletion.
-    We perform our cleanup (deleting the Deployment) and then kopf
-    will automatically remove the finalizer.
+    The StatefulSet and Services are owned by the DevServer and will be garbage collected.
     """
     logger.info(f"DevServer '{name}' in namespace '{namespace}' is being deleted.")
 
-    # The Deployment is owned by the DevServer and should be garbage collected.
-    # However, for more complex scenarios (e.g., external resources),
-    # this is where you would put explicit cleanup logic.
-    # For now, we just log and let the owner reference handle it.
+    # The owner reference handles cleanup of StatefulSet and Services.
+    # PVCs from StatefulSets are not automatically deleted to prevent data loss.
+    # An administrator may need to clean them up manually.
+    logger.info("Associated StatefulSet and Services will be garbage collected.")
+    logger.warning(f"PersistentVolumeClaim for '{name}' will NOT be deleted automatically.")
 
     return {"status": "DeletionHandled"}
