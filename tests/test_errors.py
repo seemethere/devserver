@@ -21,7 +21,7 @@ def test_devserver_missing_flavor_error(operator_running, k8s_clients):
     devserver_name = "test-missing-flavor"
     devserver_manifest = {
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
-        "kind": "DevServer", 
+        "kind": "DevServer",
         "metadata": {"name": devserver_name, "namespace": NAMESPACE},
         "spec": {
             "flavor": "non-existent-flavor",
@@ -45,7 +45,9 @@ def test_devserver_missing_flavor_error(operator_running, k8s_clients):
             apps_v1.read_namespaced_stateful_set(
                 name=devserver_name, namespace=NAMESPACE
             )
-        assert exc_info.value.status == 404, "StatefulSet should not exist for invalid flavor"
+        assert exc_info.value.status == 404, (
+            "StatefulSet should not exist for invalid flavor"
+        )
 
     finally:
         # Cleanup

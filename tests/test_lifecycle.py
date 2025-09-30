@@ -30,12 +30,14 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
         "spec": {
             "flavor": test_flavor,
             "image": "ubuntu:22.04",
-            "ssh": {"publicKey": "ssh-rsa AAAA..."}
+            "ssh": {"publicKey": "ssh-rsa AAAA..."},
         },
     }
 
     try:
-        print(f"📝 Creating DevServer '{TEST_DEVSERVER_NAME}' in namespace '{NAMESPACE}'")
+        print(
+            f"📝 Creating DevServer '{TEST_DEVSERVER_NAME}' in namespace '{NAMESPACE}'"
+        )
         custom_objects_api.create_namespaced_custom_object(
             group=CRD_GROUP,
             version=CRD_VERSION,
@@ -47,19 +49,23 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
 
         # 2. Wait and check for the corresponding StatefulSet
         statefulset = None
-        print(f"⏳ Waiting for statefulset '{TEST_DEVSERVER_NAME}' to be created by operator...")
+        print(
+            f"⏳ Waiting for statefulset '{TEST_DEVSERVER_NAME}' to be created by operator..."
+        )
         for i in range(30):
             time.sleep(0.5)
             try:
                 statefulset = apps_v1.read_namespaced_stateful_set(
                     name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
                 )
-                print(f"✅ StatefulSet found after {i+1} attempts!")
+                print(f"✅ StatefulSet found after {i + 1} attempts!")
                 break
             except client.ApiException as e:
                 if e.status == 404:
                     if i % 10 == 0:
-                        print(f"⏳ Still waiting for statefulset (attempt {i+1}/30)...")
+                        print(
+                            f"⏳ Still waiting for statefulset (attempt {i + 1}/30)..."
+                        )
                     continue
                 raise
 
@@ -68,7 +74,7 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
             f"StatefulSet '{TEST_DEVSERVER_NAME}' not created by operator."
         )
         assert statefulset.spec.template.spec.containers[0].image == "ubuntu:22.04"
-        
+
         container = statefulset.spec.template.spec.containers[0]
         assert container.resources.requests["cpu"] == "100m"
         assert "sleep infinity" in container.args[0]
@@ -135,10 +141,7 @@ def test_devserver_with_default_image(test_flavor, operator_running, k8s_clients
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
         "kind": "DevServer",
         "metadata": {"name": devserver_name, "namespace": NAMESPACE},
-        "spec": {
-            "flavor": test_flavor,
-            "ssh": {"publicKey": "ssh-rsa AAAA..."}
-        },
+        "spec": {"flavor": test_flavor, "ssh": {"publicKey": "ssh-rsa AAAA..."}},
     }
 
     try:
@@ -203,7 +206,7 @@ def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
                 "spec": {
                     "flavor": test_flavor,
                     "image": images[i],
-                    "ssh": {"publicKey": "ssh-rsa AAAA..."}
+                    "ssh": {"publicKey": "ssh-rsa AAAA..."},
                 },
             }
             custom_objects_api.create_namespaced_custom_object(
@@ -218,7 +221,7 @@ def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
         found = []
         for _ in range(30):
             time.sleep(0.5)
-            
+
             all_found = True
             try:
                 for name in devserver_names:
@@ -226,7 +229,7 @@ def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
             except client.ApiException as e:
                 if e.status == 404:
                     all_found = False
-            
+
             if all_found:
                 break
         else:

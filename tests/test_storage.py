@@ -56,7 +56,7 @@ def test_devserver_persistent_storage(test_flavor, operator_running, k8s_clients
                 if e.status == 404:
                     continue
                 raise
-        
+
         assert statefulset is not None
         vct = statefulset.spec.volume_claim_templates[0]
         assert vct.spec.resources.requests["storage"] == storage_size
@@ -91,14 +91,16 @@ def test_devserver_persistent_storage(test_flavor, operator_running, k8s_clients
         except client.ApiException as e:
             if e.status != 404:
                 raise
-        
+
         # Note: The PVC created by the StatefulSet is not automatically
         # garbage collected to prevent data loss. It would need to be
         # cleaned up manually in a real environment. For the test,
         # the namespace cleanup in conftest.py will handle it.
 
 
-def test_persistent_storage_retains_on_recreation(test_flavor, operator_running, k8s_clients):
+def test_persistent_storage_retains_on_recreation(
+    test_flavor, operator_running, k8s_clients
+):
     """
     Tests that the PVC is retained when a DevServer is deleted and then
     re-attached when the same DevServer is recreated.
@@ -136,7 +138,9 @@ def test_persistent_storage_retains_on_recreation(test_flavor, operator_running,
         for _ in range(30):
             time.sleep(0.5)
             try:
-                core_v1.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
+                core_v1.read_namespaced_persistent_volume_claim(
+                    name=pvc_name, namespace=NAMESPACE
+                )
                 print(f"✅ PVC '{pvc_name}' created.")
                 break
             except client.ApiException as e:
@@ -159,21 +163,27 @@ def test_persistent_storage_retains_on_recreation(test_flavor, operator_running,
         for _ in range(30):
             time.sleep(0.5)
             try:
-                apps_v1.read_namespaced_stateful_set(name=devserver_name, namespace=NAMESPACE)
+                apps_v1.read_namespaced_stateful_set(
+                    name=devserver_name, namespace=NAMESPACE
+                )
             except client.ApiException as e:
                 if e.status == 404:
                     print(f"✅ StatefulSet '{devserver_name}' deleted.")
                     break
         else:
             pytest.fail(f"StatefulSet '{devserver_name}' was not deleted in phase 2.")
-        
+
         # Assert that the PVC still exists
         try:
-            core_v1.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
+            core_v1.read_namespaced_persistent_volume_claim(
+                name=pvc_name, namespace=NAMESPACE
+            )
             print(f"✅ PVC '{pvc_name}' correctly retained after deletion.")
         except client.ApiException as e:
             if e.status == 404:
-                pytest.fail(f"PVC '{pvc_name}' was deleted, but should have been retained.")
+                pytest.fail(
+                    f"PVC '{pvc_name}' was deleted, but should have been retained."
+                )
             raise
 
         # 3. Re-creation
@@ -187,10 +197,12 @@ def test_persistent_storage_retains_on_recreation(test_flavor, operator_running,
         )
 
         # Wait for StatefulSet to be re-created and become ready
-        for _ in range(60): # Longer wait for re-attachment
+        for _ in range(60):  # Longer wait for re-attachment
             time.sleep(1)
             try:
-                sts = apps_v1.read_namespaced_stateful_set(name=devserver_name, namespace=NAMESPACE)
+                sts = apps_v1.read_namespaced_stateful_set(
+                    name=devserver_name, namespace=NAMESPACE
+                )
                 if sts.status.ready_replicas == 1:
                     print(f"✅ StatefulSet '{devserver_name}' re-created and ready.")
                     break

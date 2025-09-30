@@ -28,15 +28,15 @@ def is_valid_name(name: str) -> bool:
     if len(name) > 63 or len(name) < 1:
         return False
 
-    if name.startswith('-') or name.endswith('-'):
+    if name.startswith("-") or name.endswith("-"):
         return False
 
-    if '--' in name:
+    if "--" in name:
         return False
 
     # Check characters
     for char in name:
-        if not (char.islower() or char.isdigit() or char == '-'):
+        if not (char.islower() or char.isdigit() or char == "-"):
             return False
 
     return True
@@ -63,20 +63,20 @@ def sanitize_name(name: str) -> str:
     for char in name:
         if char.islower() or char.isdigit():
             sanitized += char
-        elif char in [' ', '_', '.']:
-            sanitized += '-'
+        elif char in [" ", "_", "."]:
+            sanitized += "-"
         # Skip other invalid characters
 
     # Remove consecutive hyphens
-    while '--' in sanitized:
-        sanitized = sanitized.replace('--', '-')
+    while "--" in sanitized:
+        sanitized = sanitized.replace("--", "-")
 
     # Remove leading/trailing hyphens
-    sanitized = sanitized.strip('-')
+    sanitized = sanitized.strip("-")
 
     # Truncate to 63 characters
     if len(sanitized) > 63:
-        sanitized = sanitized[:63].rstrip('-')
+        sanitized = sanitized[:63].rstrip("-")
 
     return sanitized  # Empty string if sanitization fails - Lambda will generate name
 
@@ -101,7 +101,9 @@ def generate_unique_name(existing_names: List[str], preferred_name: str = None) 
             raise ValueError("Invalid preferred name and no fallback available")
     else:
         # This function shouldn't be called without a preferred name
-        raise ValueError("generate_unique_name called without preferred_name - use Lambda instead")
+        raise ValueError(
+            "generate_unique_name called without preferred_name - use Lambda instead"
+        )
 
     # Check if base name is available
     if base_name not in existing_names:
@@ -114,4 +116,6 @@ def generate_unique_name(existing_names: List[str], preferred_name: str = None) 
             return candidate
 
     # If we can't find a unique variation, this shouldn't happen in CLI context
-    raise ValueError(f"Could not generate unique name for '{preferred_name}' after trying 999 variations")
+    raise ValueError(
+        f"Could not generate unique name for '{preferred_name}' after trying 999 variations"
+    )

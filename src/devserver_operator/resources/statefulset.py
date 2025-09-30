@@ -64,7 +64,7 @@ def build_statefulset(name, namespace, spec, flavor):
                             # Initialize shared storage if it exists
                             if [ -d "/shared" ]; then
                                 echo "[STARTUP] Shared storage detected. Initializing..."
-                                USER_DIR=$(echo "{spec.get('owner', 'default')}" | cut -d'@' -f1)
+                                USER_DIR=$(echo "{spec.get("owner", "default")}" | cut -d'@' -f1)
                                 mkdir -p "/shared/$USER_DIR"
                                 chown dev:dev "/shared/$USER_DIR"
                                 echo "[STARTUP] Shared storage setup for user $USER_DIR at /shared/$USER_DIR."
@@ -94,9 +94,7 @@ def build_statefulset(name, namespace, spec, flavor):
                 "spec": {
                     "accessModes": ["ReadWriteOnce"],
                     "resources": {
-                        "requests": {
-                            "storage": spec.get("persistentHomeSize", "10Gi")
-                        }
+                        "requests": {"storage": spec.get("persistentHomeSize", "10Gi")}
                     },
                 },
             }

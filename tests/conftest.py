@@ -56,7 +56,7 @@ def apply_crds():
             "❌ Could not connect to Kubernetes API. "
             "Please ensure your kubeconfig is correct and the cluster is running.\n"
             f"   Error: {e}",
-            pytrace=False
+            pytrace=False,
         )
     # --- End connection check ---
 
@@ -76,7 +76,7 @@ def apply_crds():
     # Check for any existing CRDs and handle terminating state
     api_extensions_v1 = client.ApiextensionsV1Api()
     crd_names = ["devservers.devserver.io", "devserverflavors.devserver.io"]
-    
+
     for crd_name in crd_names:
         print(f"⏳ Checking if CRD {crd_name} exists...")
         try:
@@ -89,7 +89,9 @@ def apply_crds():
                         api_extensions_v1.read_custom_resource_definition(name=crd_name)
                         time.sleep(1)
                         if i % 10 == 0:  # Log every 10 seconds
-                            print(f"⏳ Still waiting for {crd_name} deletion ({i+1}/30)...")
+                            print(
+                                f"⏳ Still waiting for {crd_name} deletion ({i + 1}/30)..."
+                            )
                     except client.ApiException as e:
                         if e.status == 404:
                             print(f"✅ CRD {crd_name} fully deleted")
@@ -111,7 +113,9 @@ def apply_crds():
     # Apply CRDs using server-side apply for idempotency
     print("🔧 Applying DevServer CRDs...")
     try:
-        utils.create_from_yaml(k8s_client, "crds/devserver.io_devservers.yaml", apply=True)
+        utils.create_from_yaml(
+            k8s_client, "crds/devserver.io_devservers.yaml", apply=True
+        )
         utils.create_from_yaml(
             k8s_client, "crds/devserver.io_devserverflavors.yaml", apply=True
         )
@@ -125,12 +129,12 @@ def apply_crds():
 
     # Teardown: Delete test namespace and CRDs after all tests in the session are done
     print("🧹 Cleaning up test resources...")
-    
+
     # Delete test namespace first (this will delete all namespaced resources)
     try:
         core_v1.delete_namespace(name=TEST_NAMESPACE)
         print(f"✅ Deleted test namespace: {TEST_NAMESPACE}")
-        
+
         # Wait for namespace to be fully deleted with timeout
         print("⏳ Waiting for namespace deletion to complete...")
         for i in range(30):  # Wait up to 30 seconds
@@ -138,7 +142,7 @@ def apply_crds():
                 core_v1.read_namespace(name=TEST_NAMESPACE)
                 time.sleep(1)
                 if i % 10 == 0:  # Log every 10 seconds
-                    print(f"⏳ Still waiting for namespace deletion ({i+1}/30)...")
+                    print(f"⏳ Still waiting for namespace deletion ({i + 1}/30)...")
             except client.ApiException as e:
                 if e.status == 404:
                     print("✅ Namespace fully deleted")
@@ -146,11 +150,11 @@ def apply_crds():
                 raise
         else:
             print("⚠️ Namespace deletion timeout - proceeding anyway")
-            
+
     except client.ApiException as e:
         if e.status != 404:
             raise
-    
+
     # Optionally delete CRDs (cluster-scoped resources)
     # We'll leave CRDs in place to avoid termination issues between test runs
     if os.getenv("CLEANUP_CRDS", "false").lower() == "true":
@@ -164,8 +168,10 @@ def apply_crds():
                 if e.status != 404:
                     print(f"⚠️ Failed to delete CRD {crd_name}: {e}")
     else:
-        print("ℹ️ Leaving CRDs in place for future test runs (set CLEANUP_CRDS=true to delete)")
-    
+        print(
+            "ℹ️ Leaving CRDs in place for future test runs (set CLEANUP_CRDS=true to delete)"
+        )
+
     print("🏁 Cleanup completed")
 
 
@@ -177,15 +183,15 @@ def operator_runner():
     """
     # Import the operator module to ensure handlers are registered
     import src.devserver_operator.operator  # noqa: F401
-    
+
     def run_operator():
         """Run the operator in a separate event loop."""
         # Load kubeconfig within the thread to ensure it's available in this context
         config.load_kube_config()
-        
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
+
         try:
             print(f"🚀 Starting operator in namespace: {TEST_NAMESPACE}")
             loop.run_until_complete(
@@ -202,18 +208,18 @@ def operator_runner():
                 loop.close()
             except:
                 pass
-    
+
     # Start the operator in a daemon thread (will be killed when main process exits)
     operator_thread = threading.Thread(target=run_operator, daemon=True)
     operator_thread.start()
-    
+
     # Give the operator a moment to start up
     print("⏳ Waiting for operator to start...")
     time.sleep(5)
     print("✅ Operator running!")
-    
+
     yield
-    
+
     # Daemon thread will be terminated automatically when tests complete
     print("🏁 Test session ending, tearing down operator...")
 
@@ -228,17 +234,19 @@ def operator_running(operator_runner):
     yield
     # Per-test cleanup can go here if needed
 
+
 # --- Constants for Tests ---
 CRD_GROUP = "devserver.io"
 CRD_VERSION = "v1"
 CRD_PLURAL_FLAVOR = "devserverflavors"
 TEST_FLAVOR_NAME = "test-flavor"
 
+
 @pytest.fixture(scope="function")
 def test_flavor(request):
     """Creates a test DevServerFlavor for a single test function."""
     custom_objects_api = client.CustomObjectsApi()
-    
+
     flavor_manifest = {
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
         "kind": "DevServerFlavor",
@@ -250,7 +258,7 @@ def test_flavor(request):
             }
         },
     }
-    
+
     print(f"🔧 Creating test_flavor: {TEST_FLAVOR_NAME}")
     custom_objects_api.create_cluster_custom_object(
         group=CRD_GROUP,
@@ -274,5 +282,5 @@ def test_flavor(request):
                 print(f"⚠️ Error cleaning up flavor: {e}")
 
     request.addfinalizer(cleanup)
-    
+
     return TEST_FLAVOR_NAME

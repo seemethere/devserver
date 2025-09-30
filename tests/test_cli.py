@@ -225,6 +225,7 @@ def test_create_and_list_with_operator(operator_running, k8s_clients):
 
         # Give the operator time to process
         import time
+
         time.sleep(3)
 
         # Verify it appears in the list command
@@ -235,7 +236,7 @@ def test_create_and_list_with_operator(operator_running, k8s_clients):
 
         output = captured_output.getvalue()
         assert "cli-test-server" in output
-        
+
         # If operator is working, we should see Running status eventually
         # Note: This might show "Unknown" initially before operator processes it
 
@@ -245,7 +246,7 @@ def test_create_and_list_with_operator(operator_running, k8s_clients):
             handlers.delete_devserver(name="cli-test-server", namespace=NAMESPACE)
         except Exception:
             pass
-        
+
         try:
             custom_objects_api.delete_cluster_custom_object(
                 group=CRD_GROUP,
