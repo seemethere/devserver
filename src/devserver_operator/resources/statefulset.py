@@ -39,10 +39,27 @@ def build_statefulset(name, namespace, spec, flavor):
                             set -ex
                             echo "[STARTUP] Starting devserver container..."
 
-                            # Setup user and SSH
-                            id dev &>/dev/null || useradd -u 1000 -m -s /bin/bash dev
-                            usermod -aG sudo dev
+                            # Setup user and SSH (handle persistent home directory)
+                            if ! id dev &>/dev/null; then
+                                # Check if UID 1000 is taken by another user
+                                if id 1000 &>/dev/null; then
+                                    existing_user=$(id -nu 1000)
+                                    echo "[STARTUP] UID 1000 taken by $existing_user, removing..."
+                                    userdel $existing_user 2>/dev/null || true
+                                fi
+
+                                if [ -d "/home/dev" ]; then
+                                    # Home directory exists (from PVC), create user without -m flag
+                                    useradd -u 1000 -d /home/dev -s /bin/bash dev
+                                else
+                                    # Fresh start, create user with home directory
+                                    useradd -u 1000 -m -s /bin/bash dev
+                                fi
+                            fi
+                            usermod -aG sudo dev 2>/dev/null || true
+                            mkdir -p /etc/sudoers.d
                             echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev
+                            chmod 440 /etc/sudoers.d/dev
                             
                             # Initialize shared storage if it exists
                             if [ -d "/shared" ]; then
