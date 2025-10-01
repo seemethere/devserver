@@ -73,7 +73,7 @@ EOF
 
 ```bash
 # Start the operator (in development mode)
-python -m src.devserver_operator.operator
+python3 -m devserver.operator
 ```
 
 ### 5. Use the CLI
@@ -99,11 +99,12 @@ devctl delete mydev
 ```
 devserver2/
 ├── src/
-│   ├── devserver_operator/    # Kubernetes operator implementation
-│   │   └── operator.py        # Main operator logic with Kopf handlers
-│   └── cli/                   # Command-line interface
-│       ├── main.py           # CLI entry point with argparse
-│       └── handlers.py       # CLI command implementations
+│   └── devserver/
+│       ├── operator/            # Kubernetes operator implementation
+│       │   └── operator.py        # Main operator logic with Kopf handlers
+│       └── cli/                   # Command-line interface
+│           ├── main.py           # CLI entry point with argparse
+│           └── handlers.py       # CLI command implementations
 ├── crds/                     # Custom Resource Definitions
 │   ├── devserver.io_devservers.yaml
 │   └── devserver.io_devserverflavors.yaml
@@ -199,7 +200,7 @@ The tests are designed to work with any Kubernetes cluster (local k3d or remote)
 
 1. **Start k3d cluster**: `make up`
 2. **Apply CRDs**: `kubectl apply -f crds/`
-3. **Run operator**: `python -m src.devserver_operator.operator`
+3. **Run operator**: `python3 -m devserver.operator`
 4. **Test CLI**: `devctl create test-server --flavor cpu-small`
 5. **Run tests**: `make test`
 6. **Clean up**: `make down`

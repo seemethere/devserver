@@ -2,8 +2,9 @@ import pytest
 from unittest.mock import patch
 import io
 import sys
-from src.cli import main as cli_main
-from src.cli import handlers
+
+from devserver.cli import main as cli_main
+from devserver.cli import handlers
 from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
 from typing import Any, Dict
@@ -21,7 +22,9 @@ class TestCliIntegration:
     Integration tests for the CLI that interact with a Kubernetes cluster.
     """
 
-    def test_list_command(self, k8s_clients: Dict[str, Any]) -> None:
+    def test_list_command(
+        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str
+    ) -> None:
         """Tests that the 'list' command can see a created DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
 
@@ -31,7 +34,8 @@ class TestCliIntegration:
             "kind": "DevServer",
             "metadata": {"name": TEST_DEVSERVER_NAME, "namespace": NAMESPACE},
             "spec": {
-                "flavor": "any-flavor"
+                "flavor": "any-flavor",
+                "ssh": {"publicKey": "ssh-rsa AAA..."},
             },  # Flavor doesn't need to exist for this test
         }
 
@@ -66,7 +70,9 @@ class TestCliIntegration:
                 name=TEST_DEVSERVER_NAME,
             )
 
-    def test_create_command(self, k8s_clients: Dict[str, Any]) -> None:
+    def test_create_command(
+        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str
+    ) -> None:
         """Tests that the 'create' command successfully creates a DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
 
@@ -77,6 +83,7 @@ class TestCliIntegration:
                 flavor="test-flavor",
                 image="nginx:latest",
                 namespace=NAMESPACE,
+                ssh_public_key_file=test_ssh_public_key,
             )
 
             # Verify the resource was created
@@ -90,6 +97,7 @@ class TestCliIntegration:
 
             assert ds["spec"]["flavor"] == "test-flavor"
             assert ds["spec"]["image"] == "nginx:latest"
+            assert "publicKey" in ds["spec"]["ssh"]
 
         finally:
             # Cleanup
@@ -105,7 +113,9 @@ class TestCliIntegration:
                 if e.status != 404:
                     raise
 
-    def test_delete_command(self, k8s_clients: Dict[str, Any]) -> None:
+    def test_delete_command(
+        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str
+    ) -> None:
         """Tests that the 'delete' command successfully deletes a DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
 
@@ -114,7 +124,10 @@ class TestCliIntegration:
             "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
             "kind": "DevServer",
             "metadata": {"name": TEST_DEVSERVER_NAME, "namespace": NAMESPACE},
-            "spec": {"flavor": "any-flavor"},
+            "spec": {
+                "flavor": "any-flavor",
+                "ssh": {"publicKey": "ssh-rsa AAA..."},
+            },
         }
         custom_objects_api.create_namespaced_custom_object(
             group=CRD_GROUP,
@@ -191,7 +204,7 @@ class TestCliParser:
 
 
 def test_create_and_list_with_operator(
-    operator_running: Any, k8s_clients: Dict[str, Any]
+    operator_running: Any, k8s_clients: Dict[str, Any], test_ssh_public_key: str
 ) -> None:
     """
     Integration test for the CLI that works with the actual operator running.
@@ -226,6 +239,7 @@ def test_create_and_list_with_operator(
             flavor="cli-test-flavor",
             image="alpine:latest",
             namespace=NAMESPACE,
+            ssh_public_key_file=test_ssh_public_key,
         )
 
         # Give the operator time to process

@@ -26,7 +26,7 @@ install-crds: #TODO: List crd file glob to re-run this on file changes
 .PHONY: run
 run:
 	@echo "🏃 Running operator..."
-	$(PYTHON) -m kopf run src/devserver_operator/operator.py
+	$(PYTHON) -m devserver.operator
 
 DOCKER_REGISTRY :=
 DOCKER_IMAGE := $(DOCKER_REGISTRY)seemethere/devserver

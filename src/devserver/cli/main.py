@@ -16,6 +16,12 @@ def main() -> None:
         "--flavor", type=str, required=True, help="The flavor of the DevServer."
     )
     parser_create.add_argument("--image", type=str, help="The container image to use.")
+    parser_create.add_argument(
+        "--ssh-public-key-file",
+        type=str,
+        default="~/.ssh/id_rsa.pub",
+        help="Path to the SSH public key file (default: ~/.ssh/id_rsa.pub).",
+    )
 
     # 'list' command
     subparsers.add_parser("list", help="List all DevServers.")
@@ -30,7 +36,12 @@ def main() -> None:
 
     # Dispatch to handler functions
     if args.command == "create":
-        handlers.create_devserver(name=args.name, flavor=args.flavor, image=args.image)
+        handlers.create_devserver(
+            name=args.name,
+            flavor=args.flavor,
+            image=args.image,
+            ssh_public_key_file=args.ssh_public_key_file,
+        )
     elif args.command == "list":
         handlers.list_devservers()
     elif args.command == "delete":
