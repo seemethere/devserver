@@ -9,9 +9,10 @@ $(PYTHON):
 	@echo "🐍 No virtual environment found, creating one..."
 	uv venv -p 3.13 .venv
 	uv pip install -e .
+	uv pip install -e .[dev]
 
 .PHONY: test
-test:
+test: $(PYTHON)
 	@echo "🧪 Running tests$(if $(filter 1,$(VERBOSE)), with verbose output,) (use VERBOSE=1 for detailed output)..."
 	timeout 90 $(PYTEST) -v $(PYTEST_VERBOSE) tests
 
@@ -25,7 +26,7 @@ run:
 	@echo "🏃 Running operator..."
 	$(PYTHON) -m kopf run src/devserver_operator/operator.py
 
-DOCKER_REGISTRY := 
+DOCKER_REGISTRY :=
 DOCKER_IMAGE := $(DOCKER_REGISTRY)seemethere/devserver
 
 .PHONY: docker-build
