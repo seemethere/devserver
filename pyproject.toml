@@ -22,6 +22,11 @@ dependencies = [
     "pytest",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pre-commit",
+]
+
 [project.urls]
 Homepage = "https://github.com/pypa/sampleproject"
 Issues = "https://github.com/pypa/sampleproject/issues"
@@ -36,4 +41,7 @@ where = ["src"]
 filterwarnings = [
     "ignore::DeprecationWarning:kubernetes.client.rest",
 ]
+
+[tool.ruff]
+exclude = ["reference"]
 

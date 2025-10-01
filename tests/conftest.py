@@ -10,7 +10,6 @@ from kubernetes import client, config, utils
 import kopf
 import uuid
 import os
-import pathlib
 
 # Generate a unique test namespace for each test session
 # This prevents conflicts between concurrent test runs
