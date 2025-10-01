@@ -2,14 +2,16 @@
 PYTEST_VERBOSE = $(if $(filter 1,$(VERBOSE)),-s,)
 VENV_BIN = .venv/bin
 PYTHON = $(VENV_BIN)/python3
+PIP = $(VENV_BIN)/pip3
 PRECOMMIT = $(VENV_BIN)/pre-commit
 PYTEST = $(PYTHON) -m pytest
 
 $(PYTHON):
 	@echo "🐍 No virtual environment found, creating one..."
 	uv venv -p 3.13 .venv
-	uv pip install -e .
-	uv pip install -e .[dev]
+	$(PYTHON) -m ensurepip
+	$(PIP) install -e .
+	$(PIP) install -e .[dev]
 
 .PHONY: test
 test: $(PYTHON)

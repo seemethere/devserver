@@ -19,11 +19,11 @@ classifiers = [
 dependencies = [
     "kopf>=1.37.0",  # Use newer version for better asyncio compatibility
     "kubernetes>=28.1.0",  # Use newer version to avoid deprecation warnings
-    "pytest",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "pytest",
     "pre-commit",
     "ruff",
     "ty",
