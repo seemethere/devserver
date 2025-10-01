@@ -1,11 +1,12 @@
 """
 This module contains the handler functions for the CLI commands.
 """
+from typing import Optional
 
 from kubernetes import client, config
 
 
-def list_devservers(namespace="default"):
+def list_devservers(namespace: str = "default") -> None:
     """Lists all DevServers in a given namespace."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
@@ -37,7 +38,9 @@ def list_devservers(namespace="default"):
             print(f"Error connecting to Kubernetes: {e}")
 
 
-def create_devserver(name, flavor, image=None, namespace="default"):
+def create_devserver(
+    name: str, flavor: str, image: Optional[str] = None, namespace: str = "default"
+) -> None:
     """Creates a new DevServer resource."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
@@ -69,7 +72,7 @@ def create_devserver(name, flavor, image=None, namespace="default"):
             print(f"Error creating DevServer: {e.reason}")
 
 
-def delete_devserver(name, namespace="default"):
+def delete_devserver(name: str, namespace: str = "default") -> None:
     """Deletes a DevServer resource."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()

@@ -1,4 +1,7 @@
-def build_headless_service(name, namespace):
+from typing import Any, Dict
+
+
+def build_headless_service(name: str, namespace: str) -> Dict[str, Any]:
     """Builds the headless Service for the StatefulSet."""
     return {
         "apiVersion": "v1",
@@ -11,7 +14,7 @@ def build_headless_service(name, namespace):
     }
 
 
-def build_ssh_service(name, namespace):
+def build_ssh_service(name: str, namespace: str) -> Dict[str, Any]:
     """Builds the NodePort Service for SSH access."""
     return {
         "apiVersion": "v1",

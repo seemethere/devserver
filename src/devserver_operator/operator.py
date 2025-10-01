@@ -1,3 +1,6 @@
+import logging
+from typing import Any, Dict
+
 import kopf
 from kubernetes import client
 
@@ -11,7 +14,14 @@ FINALIZER = f"finalizer.{CRD_GROUP}"
 
 
 @kopf.on.create(CRD_GROUP, CRD_VERSION, "devservers")
-def create_devserver(spec, name, namespace, logger, patch, **kwargs):
+def create_devserver(
+    spec: Dict[str, Any],
+    name: str,
+    namespace: str,
+    logger: logging.Logger,
+    patch: Dict[str, Any],
+    **kwargs: Any,
+) -> Dict[str, Any]:
     """
     Handle the creation of a new DevServer resource.
     """
@@ -73,14 +83,16 @@ def create_devserver(spec, name, namespace, logger, patch, **kwargs):
             raise
 
     # Update the status
-    patch.status["phase"] = "Running"
-    patch.status["message"] = f"StatefulSet '{name}' created successfully."
+    patch["status"]["phase"] = "Running"
+    patch["status"]["message"] = f"StatefulSet '{name}' created successfully."
 
     return {"status": "StatefulSetCreated", "phase": "Running"}
 
 
 @kopf.on.delete(CRD_GROUP, CRD_VERSION, "devservers")
-def delete_devserver(name, namespace, logger, **kwargs):
+def delete_devserver(
+    name: str, namespace: str, logger: logging.Logger, **kwargs: Any
+) -> Dict[str, str]:
     """
     Handle the deletion of a DevServer resource.
     The StatefulSet and Services are owned by the DevServer and will be garbage collected.

@@ -1,4 +1,9 @@
-def build_statefulset(name, namespace, spec, flavor):
+from typing import Any, Dict
+
+
+def build_statefulset(
+    name: str, namespace: str, spec: Dict[str, Any], flavor: Dict[str, Any]
+) -> Dict[str, Any]:
     """Builds the StatefulSet for the DevServer."""
     statefulset_spec = {
         "replicas": 1,

@@ -2,15 +2,18 @@ import time
 import pytest
 from kubernetes import client
 from tests.conftest import TEST_NAMESPACE
+from typing import Any, Dict
 
 # Constants from the main test file
-CRD_GROUP = "devserver.io"
-CRD_VERSION = "v1"
-CRD_PLURAL_DEVSERVER = "devservers"
-NAMESPACE = TEST_NAMESPACE
+CRD_GROUP: str = "devserver.io"
+CRD_VERSION: str = "v1"
+CRD_PLURAL_DEVSERVER: str = "devservers"
+NAMESPACE: str = TEST_NAMESPACE
 
 
-def test_devserver_missing_flavor_error(operator_running, k8s_clients):
+def test_devserver_missing_flavor_error(
+    operator_running: Any, k8s_clients: Dict[str, Any]
+) -> None:
     """
     Tests that creating a DevServer with a non-existent flavor
     properly handles the error condition.
@@ -45,6 +48,7 @@ def test_devserver_missing_flavor_error(operator_running, k8s_clients):
             apps_v1.read_namespaced_stateful_set(
                 name=devserver_name, namespace=NAMESPACE
             )
+        assert isinstance(exc_info.value, client.ApiException)
         assert exc_info.value.status == 404, (
             "StatefulSet should not exist for invalid flavor"
         )

@@ -2,7 +2,7 @@ import argparse
 from . import handlers
 
 
-def main():
+def main() -> None:
     """Main function for the devctl CLI."""
     parser = argparse.ArgumentParser(description="A CLI to manage DevServers.")
     subparsers = parser.add_subparsers(

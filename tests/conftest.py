@@ -10,6 +10,7 @@ from kubernetes import client, config, utils
 import kopf
 import uuid
 import os
+from typing import cast
 
 # Generate a unique test namespace for each test session
 # This prevents conflicts between concurrent test runs
@@ -17,7 +18,7 @@ TEST_NAMESPACE = f"devserver-test-{uuid.uuid4().hex[:8]}"
 
 # Allow override via environment variable for debugging
 if os.getenv("DEVSERVER_TEST_NAMESPACE"):
-    TEST_NAMESPACE = os.getenv("DEVSERVER_TEST_NAMESPACE")
+    TEST_NAMESPACE = cast(str, os.getenv("DEVSERVER_TEST_NAMESPACE"))
 
 
 @pytest.fixture(scope="session")

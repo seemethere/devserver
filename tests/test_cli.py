@@ -6,13 +6,14 @@ from src.cli import main as cli_main
 from src.cli import handlers
 from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
+from typing import Any, Dict
 
 # Define constants and clients needed for CLI tests
-CRD_GROUP = "devserver.io"
-CRD_VERSION = "v1"
-CRD_PLURAL_DEVSERVER = "devservers"
-NAMESPACE = TEST_NAMESPACE
-TEST_DEVSERVER_NAME = "test-cli-devserver"
+CRD_GROUP: str = "devserver.io"
+CRD_VERSION: str = "v1"
+CRD_PLURAL_DEVSERVER: str = "devservers"
+NAMESPACE: str = TEST_NAMESPACE
+TEST_DEVSERVER_NAME: str = "test-cli-devserver"
 
 
 class TestCliIntegration:
@@ -20,7 +21,7 @@ class TestCliIntegration:
     Integration tests for the CLI that interact with a Kubernetes cluster.
     """
 
-    def test_list_command(self, k8s_clients):
+    def test_list_command(self, k8s_clients: Dict[str, Any]) -> None:
         """Tests that the 'list' command can see a created DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
 
@@ -65,7 +66,7 @@ class TestCliIntegration:
                 name=TEST_DEVSERVER_NAME,
             )
 
-    def test_create_command(self, k8s_clients):
+    def test_create_command(self, k8s_clients: Dict[str, Any]) -> None:
         """Tests that the 'create' command successfully creates a DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
 
@@ -104,7 +105,7 @@ class TestCliIntegration:
                 if e.status != 404:
                     raise
 
-    def test_delete_command(self, k8s_clients):
+    def test_delete_command(self, k8s_clients: Dict[str, Any]) -> None:
         """Tests that the 'delete' command successfully deletes a DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
 
@@ -135,6 +136,7 @@ class TestCliIntegration:
                 plural=CRD_PLURAL_DEVSERVER,
                 name=TEST_DEVSERVER_NAME,
             )
+        assert isinstance(cm.value, client.ApiException)
         assert cm.value.status == 404
 
 
@@ -144,7 +146,7 @@ class TestCliParser:
     These tests do not interact with Kubernetes.
     """
 
-    def test_create_command_parsing(self):
+    def test_create_command_parsing(self) -> None:
         """Tests that 'create' command arguments are parsed correctly."""
         test_args = [
             "devctl",
@@ -161,7 +163,7 @@ class TestCliParser:
             with patch("argparse.ArgumentParser.parse_args"):
                 cli_main.main()
 
-    def test_list_command_parsing(self):
+    def test_list_command_parsing(self) -> None:
         """Tests that 'list' command is recognized."""
         test_args = ["devctl", "list"]
         with patch("sys.argv", test_args):
@@ -169,14 +171,14 @@ class TestCliParser:
             with patch("argparse.ArgumentParser.parse_args"):
                 cli_main.main()
 
-    def test_delete_command_parsing(self):
+    def test_delete_command_parsing(self) -> None:
         """Tests that 'delete' command arguments are parsed correctly."""
         test_args = ["devctl", "delete", "my-server"]
         with patch("sys.argv", test_args):
             with patch("argparse.ArgumentParser.parse_args"):
                 cli_main.main()
 
-    def test_create_command_missing_flavor(self):
+    def test_create_command_missing_flavor(self) -> None:
         """Tests that 'create' command fails without a required flavor."""
         test_args = ["devctl", "create", "my-server"]
         with patch("sys.argv", test_args):
@@ -184,10 +186,13 @@ class TestCliParser:
             # We can assert that it exits with a non-zero status code.
             with pytest.raises(SystemExit) as cm:
                 cli_main.main()
+            assert isinstance(cm.value, SystemExit)
             assert cm.value.code != 0
 
 
-def test_create_and_list_with_operator(operator_running, k8s_clients):
+def test_create_and_list_with_operator(
+    operator_running: Any, k8s_clients: Dict[str, Any]
+) -> None:
     """
     Integration test for the CLI that works with the actual operator running.
     This test verifies end-to-end functionality by creating a DevServer with CLI

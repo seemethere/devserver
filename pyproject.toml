@@ -25,6 +25,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pre-commit",
+    "ruff",
+    "ty",
 ]
 
 [project.urls]
@@ -45,3 +47,6 @@ filterwarnings = [
 [tool.ruff]
 exclude = ["reference"]
 
+[tool.ty.src]
+include = ["src", "tests"]
+exclude = ["reference"]
