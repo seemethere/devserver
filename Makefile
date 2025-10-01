@@ -1,6 +1,8 @@
 # Conditional pytest flags based on VERBOSE environment variable
 PYTEST_VERBOSE = $(if $(filter 1,$(VERBOSE)),-s,)
-PYTHON = .venv/bin/python3
+VENV_BIN = .venv/bin
+PYTHON = $(VENV_BIN)/python3
+PRECOMMIT = $(VENV_BIN)/pre-commit
 PYTEST = $(PYTHON) -m pytest
 
 $(PYTHON):
@@ -35,3 +37,8 @@ docker-build:
 docker-push:
 	@echo "🔄 Pushing Docker image..."
 	docker push $(DOCKER_IMAGE)
+
+.PHONY: pre-commit
+pre-commit:
+	@echo "🔄 Running pre-commit checks..."
+	$(PRECOMMIT) run --all-files
