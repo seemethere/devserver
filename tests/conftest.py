@@ -22,6 +22,16 @@ if os.getenv("DEVSERVER_TEST_NAMESPACE"):
 
 
 @pytest.fixture(scope="session")
+def test_ssh_public_key(tmp_path_factory):
+    """Creates a dummy SSH public key file for tests."""
+    # A minimal valid-looking public key
+    key_content = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC"
+    key_path = tmp_path_factory.mktemp("ssh") / "id_rsa.pub"
+    key_path.write_text(key_content)
+    return str(key_path)
+
+
+@pytest.fixture(scope="session")
 def k8s_clients():
     """
     Session-scoped fixture that provides Kubernetes API clients.
@@ -182,7 +192,7 @@ def operator_runner():
     Runs as a daemon thread that will be terminated when tests complete.
     """
     # Import the operator module to ensure handlers are registered
-    import src.devserver_operator.operator  # noqa: F401
+    import devserver.operator.operator  # noqa: F401
 
     def run_operator():
         """Run the operator in a separate event loop."""

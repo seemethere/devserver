@@ -12,7 +12,7 @@ NAMESPACE: str = TEST_NAMESPACE
 
 
 def test_devserver_missing_flavor_error(
-    operator_running: Any, k8s_clients: Dict[str, Any]
+    operator_running: Any, k8s_clients: Dict[str, Any], test_ssh_public_key: str
 ) -> None:
     """
     Tests that creating a DevServer with a non-existent flavor
@@ -29,6 +29,7 @@ def test_devserver_missing_flavor_error(
         "spec": {
             "flavor": "non-existent-flavor",
             "image": "ubuntu:22.04",
+            "ssh": {"publicKey": "ssh-rsa AAA..."},
         },
     }
 

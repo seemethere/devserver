@@ -34,7 +34,7 @@ Homepage = "https://github.com/pypa/sampleproject"
 Issues = "https://github.com/pypa/sampleproject/issues"
 
 [project.scripts]
-devctl = "cli.main:main"
+devctl = "devserver.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
