@@ -83,8 +83,10 @@ def create_devserver(
             raise
 
     # Update the status
-    patch["status"]["phase"] = "Running"
-    patch["status"]["message"] = f"StatefulSet '{name}' created successfully."
+    patch["status"] = {
+        "phase": "Running",
+        "message": f"StatefulSet '{name}' created successfully.",
+    }
 
     return {"status": "StatefulSetCreated", "phase": "Running"}
 
