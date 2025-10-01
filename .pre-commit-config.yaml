@@ -2,8 +2,8 @@ repos:
   - repo: local
     hooks:
       - id: uv-format
-        name: Run uv format
-        entry: uv format
+        name: Run ruff
+        entry: uvx -p 3.13 ruff check --fix
         language: system
         types: [python]
         pass_filenames: false

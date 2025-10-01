@@ -18,7 +18,7 @@ def main():
     parser_create.add_argument("--image", type=str, help="The container image to use.")
 
     # 'list' command
-    parser_list = subparsers.add_parser("list", help="List all DevServers.")
+    subparsers.add_parser("list", help="List all DevServers.")
 
     # 'delete' command
     parser_delete = subparsers.add_parser("delete", help="Delete a DevServer.")

@@ -205,7 +205,7 @@ def operator_runner():
         finally:
             try:
                 loop.close()
-            except:
+            except Exception:
                 pass
 
     # Start the operator in a daemon thread (will be killed when main process exits)

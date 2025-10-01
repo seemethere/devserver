@@ -218,7 +218,6 @@ def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
             )
 
         # Wait for all statefulsets to be created
-        found = []
         for _ in range(30):
             time.sleep(0.5)
 
