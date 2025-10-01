@@ -1,0 +1,14 @@
+apiVersion: devserver.io/v1
+kind: DevServerFlavor
+metadata:
+  name: cpu-small
+spec:
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  nodeSelector:
+    kubernetes.io/arch: amd64

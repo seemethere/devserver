@@ -20,6 +20,7 @@ spec:
           properties:
             spec:
               type: object
+              required: ["flavor", "ssh"]
               properties:
                 owner:
                   type: string
@@ -51,6 +52,7 @@ spec:
                   type: boolean
                 ssh:
                   type: object
+                  required: ["publicKey"]
                   properties:
                     publicKey:
                       type: string

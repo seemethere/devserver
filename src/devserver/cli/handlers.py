@@ -2,6 +2,8 @@
 This module contains the handler functions for the CLI commands.
 """
 from typing import Optional
+from pathlib import Path
+import sys
 
 from kubernetes import client, config
 
@@ -39,11 +41,31 @@ def list_devservers(namespace: str = "default") -> None:
 
 
 def create_devserver(
-    name: str, flavor: str, image: Optional[str] = None, namespace: str = "default"
+    name: str,
+    flavor: str,
+    image: Optional[str] = None,
+    ssh_public_key_file: Optional[str] = None,
+    namespace: str = "default",
 ) -> None:
     """Creates a new DevServer resource."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
+
+    # Read SSH public key from file
+    if not ssh_public_key_file:
+        print("Error: SSH public key file not provided.")
+        sys.exit(1)
+
+    try:
+        key_path = Path(ssh_public_key_file).expanduser()
+        with open(key_path, "r") as f:
+            ssh_public_key = f.read().strip()
+    except FileNotFoundError:
+        print(f"Error: SSH public key file not found at '{key_path}'")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error reading SSH public key file: {e}")
+        sys.exit(1)
 
     # Construct the DevServer manifest
     manifest = {
@@ -53,6 +75,7 @@ def create_devserver(
         "spec": {
             "flavor": flavor,
             "image": image or "ubuntu:22.04",  # Default image
+            "ssh": {"publicKey": ssh_public_key},
         },
     }
 

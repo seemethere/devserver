@@ -5,4 +5,4 @@ COPY requirements.txt .
 RUN . .venv/bin/activate && uv pip install -r requirements.txt
 COPY . .
 RUN . .venv/bin/activate && uv pip install .
-CMD ["python3", "-m", "kopf", "run", "src/devserver_operator/operator.py"]
+CMD ["python3", "-m", "devserver.operator"]

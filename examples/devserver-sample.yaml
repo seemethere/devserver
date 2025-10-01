@@ -1,0 +1,8 @@
+apiVersion: devserver.io/v1
+kind: DevServer
+metadata:
+  name: sample-devserver
+  namespace: default
+spec:
+  flavor: cpu-small
+  image: ubuntu:22.04
