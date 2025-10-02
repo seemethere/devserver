@@ -30,6 +30,7 @@ def test_devserver_missing_flavor_error(
             "flavor": "non-existent-flavor",
             "image": "ubuntu:22.04",
             "ssh": {"publicKey": "ssh-rsa AAA..."},
+            "lifecycle": {"timeToLive": "1h"},
         },
     }
 

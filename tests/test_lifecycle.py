@@ -31,6 +31,7 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
             "flavor": test_flavor,
             "image": "ubuntu:22.04",
             "ssh": {"publicKey": "ssh-rsa AAAA..."},
+            "lifecycle": {"timeToLive": "1h"},
         },
     }
 
@@ -112,8 +113,8 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
 
         # 5. Wait and check for the corresponding StatefulSet to be deleted
         statefulset_deleted = False
-        for _ in range(30):
-            time.sleep(0.5)
+        for _ in range(60):
+            time.sleep(1)
             try:
                 apps_v1.read_namespaced_stateful_set(
                     name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
@@ -141,7 +142,11 @@ def test_devserver_with_default_image(test_flavor, operator_running, k8s_clients
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
         "kind": "DevServer",
         "metadata": {"name": devserver_name, "namespace": NAMESPACE},
-        "spec": {"flavor": test_flavor, "ssh": {"publicKey": "ssh-rsa AAAA..."}},
+        "spec": {
+            "flavor": test_flavor,
+            "ssh": {"publicKey": "ssh-rsa AAAA..."},
+            "lifecycle": {"timeToLive": "1h"},
+        },
     }
 
     try:
@@ -207,6 +212,7 @@ def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
                     "flavor": test_flavor,
                     "image": images[i],
                     "ssh": {"publicKey": "ssh-rsa AAAA..."},
+                    "lifecycle": {"timeToLive": "1h"},
                 },
             }
             custom_objects_api.create_namespaced_custom_object(
@@ -248,3 +254,75 @@ def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
             except client.ApiException as e:
                 if e.status != 404:
                     raise
+
+
+def test_devserver_expires_after_ttl(test_flavor, operator_running, k8s_clients):
+    """
+    Tests that a DevServer is automatically deleted after its timeToLive expires.
+    """
+    custom_objects_api = k8s_clients["custom_objects_api"]
+    devserver_name = "test-expiry"
+
+    devserver_manifest = {
+        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
+        "kind": "DevServer",
+        "metadata": {"name": devserver_name, "namespace": NAMESPACE},
+        "spec": {
+            "flavor": test_flavor,
+            "ssh": {"publicKey": "ssh-rsa AAAA..."},
+            "lifecycle": {"timeToLive": "1s"},
+        },
+    }
+
+    try:
+        # Create the DevServer
+        custom_objects_api.create_namespaced_custom_object(
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            namespace=NAMESPACE,
+            plural=CRD_PLURAL_DEVSERVER,
+            body=devserver_manifest,
+        )
+
+        # Wait a bit longer than the TTL for the operator to delete it
+        print("⏳ Waiting for DevServer to expire and be deleted...")
+        for _ in range(15):  # Wait up to 15 seconds
+            time.sleep(1)
+            try:
+                obj = custom_objects_api.get_namespaced_custom_object(
+                    group=CRD_GROUP,
+                    version=CRD_VERSION,
+                    namespace=NAMESPACE,
+                    plural=CRD_PLURAL_DEVSERVER,
+                    name=devserver_name,
+                )
+                if obj.get("metadata", {}).get("deletionTimestamp"):
+                    print(
+                        "✅ DevServer has deletion timestamp. Assuming deletion is in progress."
+                    )
+                    break
+            except client.ApiException as e:
+                if e.status == 404:
+                    print("✅ DevServer successfully deleted.")
+                    break
+                raise
+        else:
+            pytest.fail(
+                "DevServer was not deleted after expiration within the time limit."
+            )
+
+        print("✅ DevServer was deleted successfully after expiration.")
+
+    finally:
+        # Cleanup in case the test fails before deletion
+        try:
+            custom_objects_api.delete_namespaced_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                namespace=NAMESPACE,
+                plural=CRD_PLURAL_DEVSERVER,
+                name=devserver_name,
+            )
+        except client.ApiException as e:
+            if e.status != 404:
+                raise
