@@ -22,6 +22,14 @@ def main() -> None:
         default="~/.ssh/id_rsa.pub",
         help="Path to the SSH public key file (default: ~/.ssh/id_rsa.pub).",
     )
+    parser_create.add_argument(
+        "--time",
+        "--ttl",
+        dest="time_to_live",
+        type=str,
+        default="4h",
+        help="The time to live for the DevServer (default: 4h).",
+    )
 
     # 'list' command
     subparsers.add_parser("list", help="List all DevServers.")
@@ -41,6 +49,7 @@ def main() -> None:
             flavor=args.flavor,
             image=args.image,
             ssh_public_key_file=args.ssh_public_key_file,
+            time_to_live=args.time_to_live,
         )
     elif args.command == "list":
         handlers.list_devservers()

@@ -89,6 +89,7 @@ async def run_operator(namespaces=None):
             registry=kopf.get_default_registry(),
             priority=0,
             namespaces=namespaces,
+            cluster_wide=not namespaces,
         )
     except KeyboardInterrupt:
         print("\n" + "=" * 80)

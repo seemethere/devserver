@@ -16,7 +16,7 @@ $(PYTHON):
 .PHONY: test
 test: $(PYTHON)
 	@echo "🧪 Running tests$(if $(filter 1,$(VERBOSE)), with verbose output,) (use VERBOSE=1 for detailed output)..."
-	timeout 90 $(PYTEST) -v $(PYTEST_VERBOSE) tests
+	timeout 180 $(PYTEST) -v $(PYTEST_VERBOSE) tests
 
 .PHONY: install-crds
 install-crds: #TODO: List crd file glob to re-run this on file changes

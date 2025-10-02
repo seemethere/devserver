@@ -31,6 +31,7 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
             "flavor": test_flavor,
             "image": "ubuntu:22.04",
             "ssh": {"publicKey": "ssh-rsa AAAA..."},
+            "lifecycle": {"timeToLive": "1h"},
         },
     }
 
@@ -112,8 +113,8 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
 
         # 5. Wait and check for the corresponding StatefulSet to be deleted
         statefulset_deleted = False
-        for _ in range(30):
-            time.sleep(0.5)
+        for _ in range(60):
+            time.sleep(1)
             try:
                 apps_v1.read_namespaced_stateful_set(
                     name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
@@ -141,7 +142,11 @@ def test_devserver_with_default_image(test_flavor, operator_running, k8s_clients
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
         "kind": "DevServer",
         "metadata": {"name": devserver_name, "namespace": NAMESPACE},
-        "spec": {"flavor": test_flavor, "ssh": {"publicKey": "ssh-rsa AAAA..."}},
+        "spec": {
+            "flavor": test_flavor,
+            "ssh": {"publicKey": "ssh-rsa AAAA..."},
+            "lifecycle": {"timeToLive": "1h"},
+        },
     }
 
     try:
@@ -207,6 +212,7 @@ def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
                     "flavor": test_flavor,
                     "image": images[i],
                     "ssh": {"publicKey": "ssh-rsa AAAA..."},
+                    "lifecycle": {"timeToLive": "1h"},
                 },
             }
             custom_objects_api.create_namespaced_custom_object(

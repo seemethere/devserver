@@ -1,11 +1,14 @@
 import logging
+import time
 from typing import Any, Dict
+from datetime import datetime
 
 import kopf
 from kubernetes import client
 
 from .resources.services import build_headless_service, build_ssh_service
 from .resources.statefulset import build_statefulset
+from ..utils.time import parse_duration
 
 # Constants
 CRD_GROUP = "devserver.io"
@@ -21,7 +24,7 @@ def create_devserver(
     logger: logging.Logger,
     patch: Dict[str, Any],
     **kwargs: Any,
-) -> Dict[str, Any]:
+) -> None:
     """
     Handle the creation of a new DevServer resource.
     """
@@ -88,13 +91,11 @@ def create_devserver(
         "message": f"StatefulSet '{name}' created successfully.",
     }
 
-    return {"status": "StatefulSetCreated", "phase": "Running"}
-
 
 @kopf.on.delete(CRD_GROUP, CRD_VERSION, "devservers")
 def delete_devserver(
     name: str, namespace: str, logger: logging.Logger, **kwargs: Any
-) -> Dict[str, str]:
+) -> None:
     """
     Handle the deletion of a DevServer resource.
     The StatefulSet and Services are owned by the DevServer and will be garbage collected.
@@ -109,4 +110,37 @@ def delete_devserver(
         f"PersistentVolumeClaim for '{name}' will NOT be deleted automatically."
     )
 
-    return {"status": "DeletionHandled"}
+
+@kopf.timer(CRD_GROUP, CRD_VERSION, "devservers", interval=300, sharp=True)
+def expire_devservers(body: Dict[str, Any], logger: logging.Logger, **kwargs: Any) -> None:
+    """
+    Handle the expiration of DevServers.
+    """
+    # Check if the resource is already marked for deletion
+    if body.get("metadata", {}).get("deletionTimestamp"):
+        return
+
+    creation_timestamp_str = body["metadata"]["creationTimestamp"]
+    creation_time = datetime.fromisoformat(creation_timestamp_str.replace("Z", "+00:00"))
+
+    time_to_live_str = body["spec"]["lifecycle"]["timeToLive"]
+    time_to_live_seconds = parse_duration(time_to_live_str)
+
+    if creation_time.timestamp() + time_to_live_seconds < time.time():
+        logger.info(f"DevServer '{body['metadata']['name']}' is expired.")
+        try:
+            client.CustomObjectsApi().delete_namespaced_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                plural="devservers",
+                name=body["metadata"]["name"],
+                namespace=body["metadata"]["namespace"],
+                body=client.V1DeleteOptions(),
+            )
+        except client.ApiException as e:
+            if e.status == 404:
+                logger.warning(
+                    f"DevServer '{body['metadata']['name']}' not found for deletion, probably already deleted."
+                )
+            else:
+                raise

@@ -36,6 +36,7 @@ class TestCliIntegration:
             "spec": {
                 "flavor": "any-flavor",
                 "ssh": {"publicKey": "ssh-rsa AAA..."},
+                "lifecycle": {"timeToLive": "1h"},
             },  # Flavor doesn't need to exist for this test
         }
 
@@ -127,6 +128,7 @@ class TestCliIntegration:
             "spec": {
                 "flavor": "any-flavor",
                 "ssh": {"publicKey": "ssh-rsa AAA..."},
+                "lifecycle": {"timeToLive": "1h"},
             },
         }
         custom_objects_api.create_namespaced_custom_object(
