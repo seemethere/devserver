@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from typing import Any, Dict
 from datetime import datetime
@@ -14,6 +15,9 @@ from ..utils.time import parse_duration
 CRD_GROUP = "devserver.io"
 CRD_VERSION = "v1"
 FINALIZER = f"finalizer.{CRD_GROUP}"
+
+# Operator settings
+EXPIRATION_INTERVAL = int(os.environ.get("DEVSERVER_EXPIRATION_INTERVAL", 30))
 
 
 @kopf.on.create(CRD_GROUP, CRD_VERSION, "devservers")
@@ -111,7 +115,7 @@ def delete_devserver(
     )
 
 
-@kopf.timer(CRD_GROUP, CRD_VERSION, "devservers", interval=300, sharp=True)
+@kopf.timer(CRD_GROUP, CRD_VERSION, "devservers", interval=EXPIRATION_INTERVAL, sharp=True)
 def expire_devservers(body: Dict[str, Any], logger: logging.Logger, **kwargs: Any) -> None:
     """
     Handle the expiration of DevServers.
@@ -126,6 +130,7 @@ def expire_devservers(body: Dict[str, Any], logger: logging.Logger, **kwargs: An
     time_to_live_str = body["spec"]["lifecycle"]["timeToLive"]
     time_to_live_seconds = parse_duration(time_to_live_str)
 
+    # TODO: Handle alerting users of expiration in 5 minute intervals starting at 15 minutes before expiration
     if creation_time.timestamp() + time_to_live_seconds < time.time():
         logger.info(f"DevServer '{body['metadata']['name']}' is expired.")
         try:
