@@ -124,10 +124,10 @@ def expire_devservers(body: Dict[str, Any], logger: logging.Logger, **kwargs: An
     if body.get("metadata", {}).get("deletionTimestamp"):
         return
 
-    creation_timestamp_str = body["metadata"]["creationTimestamp"]
+    creation_timestamp_str: str = body["metadata"]["creationTimestamp"]
     creation_time = datetime.fromisoformat(creation_timestamp_str.replace("Z", "+00:00"))
 
-    time_to_live_str = body["spec"]["lifecycle"]["timeToLive"]
+    time_to_live_str: str = body["spec"]["lifecycle"]["timeToLive"]
     time_to_live_seconds = parse_duration(time_to_live_str)
 
     # TODO: Handle alerting users of expiration in 5 minute intervals starting at 15 minutes before expiration
