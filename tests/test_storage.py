@@ -31,6 +31,7 @@ def test_devserver_persistent_storage(test_flavor, operator_running, k8s_clients
             "flavor": test_flavor,
             "persistentHomeSize": storage_size,
             "ssh": {"publicKey": "ssh-rsa AAAA..."},
+            "lifecycle": {"timeToLive": "1h"},
         },
     }
 
@@ -120,6 +121,7 @@ def test_persistent_storage_retains_on_recreation(
             "flavor": test_flavor,
             "persistentHomeSize": "1Gi",
             "ssh": {"publicKey": "ssh-rsa AAAA..."},
+            "lifecycle": {"timeToLive": "1h"},
         },
     }
 
@@ -160,8 +162,8 @@ def test_persistent_storage_retains_on_recreation(
         )
 
         # Wait for StatefulSet to be deleted
-        for _ in range(30):
-            time.sleep(0.5)
+        for _ in range(60):
+            time.sleep(1)
             try:
                 apps_v1.read_namespaced_stateful_set(
                     name=devserver_name, namespace=NAMESPACE

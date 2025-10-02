@@ -44,17 +44,13 @@ def create_devserver(
     name: str,
     flavor: str,
     image: Optional[str] = None,
-    ssh_public_key_file: Optional[str] = None,
+    ssh_public_key_file: str = "~/.ssh/id_rsa.pub",
     namespace: str = "default",
+    time_to_live: str = "4h",
 ) -> None:
     """Creates a new DevServer resource."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
-
-    # Read SSH public key from file
-    if not ssh_public_key_file:
-        print("Error: SSH public key file not provided.")
-        sys.exit(1)
 
     try:
         key_path = Path(ssh_public_key_file).expanduser()
@@ -76,6 +72,7 @@ def create_devserver(
             "flavor": flavor,
             "image": image or "ubuntu:22.04",  # Default image
             "ssh": {"publicKey": ssh_public_key},
+            "lifecycle": {"timeToLive": time_to_live},
         },
     }
 

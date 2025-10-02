@@ -20,7 +20,7 @@ spec:
           properties:
             spec:
               type: object
-              required: ["flavor", "ssh"]
+              required: ["flavor", "ssh", "lifecycle"]
               properties:
                 owner:
                   type: string
@@ -58,14 +58,8 @@ spec:
                       type: string
                 lifecycle:
                   type: object
+                  required: ["timeToLive"]
                   properties:
-                    idleTimeout:
-                      type: integer
-                    autoShutdown:
-                      type: boolean
-                    expirationTime:
-                      type: string
-                      format: date-time
                     timeToLive:
                       type: string
             status:

@@ -191,6 +191,9 @@ def operator_runner():
     Pytest fixture to run the operator in the background during test session.
     Runs as a daemon thread that will be terminated when tests complete.
     """
+    # Set a short expiration interval for tests
+    os.environ["DEVSERVER_EXPIRATION_INTERVAL"] = "5"
+
     # Import the operator module to ensure handlers are registered
     import devserver.operator.operator  # noqa: F401
 
