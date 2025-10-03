@@ -12,7 +12,7 @@ The project is divided into two main components:
 ### Core Components
 
 ```
-devserver2/
+devserver/
 ├── src/
 │   └── devserver/
 │       ├── operator/            # Kubernetes operator implementation
