@@ -34,6 +34,8 @@ def main() -> None:
     # 'list' command
     subparsers.add_parser("list", help="List all DevServers.")
 
+    subparsers.add_parser("flavors", help="Show the available flavors.")
+
     # 'delete' command
     parser_delete = subparsers.add_parser("delete", help="Delete a DevServer.")
     parser_delete.add_argument(
@@ -55,6 +57,8 @@ def main() -> None:
         handlers.list_devservers()
     elif args.command == "delete":
         handlers.delete_devserver(name=args.name)
+    elif args.command == "flavors":
+        handlers.list_flavors()
 
 
 if __name__ == "__main__":

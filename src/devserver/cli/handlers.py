@@ -6,7 +6,9 @@ from pathlib import Path
 import sys
 
 from kubernetes import client, config
-
+from rich.console import Console
+from rich.table import Table
+from rich.pretty import Pretty
 
 def list_devservers(namespace: str = "default") -> None:
     """Lists all DevServers in a given namespace."""
@@ -25,13 +27,17 @@ def list_devservers(namespace: str = "default") -> None:
             print(f"No DevServers found in namespace '{namespace}'.")
             return
 
-        # Simple print for now. We can make this a nice table later.
-        print(f"{'NAME':<20} {'STATUS':<15}")
-        print("-" * 35)
+        console = Console()
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("NAME", style="dim", width=20)
+        table.add_column("STATUS")
+
         for ds in devservers["items"]:
             name = ds["metadata"]["name"]
             status = ds.get("status", {}).get("phase", "Unknown")
-            print(f"{name:<20} {status:<15}")
+            table.add_row(name, status)
+
+        console.print(table)
 
     except client.ApiException as e:
         if e.status == 404:
@@ -111,3 +117,31 @@ def delete_devserver(name: str, namespace: str = "default") -> None:
             print(f"Error: DevServer '{name}' not found.")
         else:
             print(f"Error deleting DevServer: {e.reason}")
+
+
+def list_flavors() -> None:
+    """Lists all DevServerFlavors."""
+    config.load_kube_config()
+    custom_objects_api = client.CustomObjectsApi()
+
+    try:
+        flavors = custom_objects_api.list_cluster_custom_object(
+            group="devserver.io",
+            version="v1",
+            plural="devserverflavors",
+        )
+        console = Console()
+        table = Table(
+            show_header=True, header_style="bold magenta"
+        )
+        table.add_column("NAME", style="dim", width=20)
+        table.add_column("RESOURCES", width=80)
+
+        for flavor in flavors["items"]:
+            name = flavor["metadata"]["name"]
+            resources = flavor["spec"]["resources"]
+            table.add_row(name, Pretty(resources))
+
+        console.print(table)
+    except client.ApiException as e:
+        print(f"Error listing DevServerFlavors: {e.reason}")
