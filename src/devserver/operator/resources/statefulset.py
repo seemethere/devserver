@@ -12,6 +12,7 @@ def build_statefulset(
         "template": {
             "metadata": {"labels": {"app": name}},
             "spec": {
+                "nodeSelector": flavor["spec"].get("nodeSelector"),
                 "initContainers": [
                     {
                         "name": "ssh-setup",
@@ -105,6 +106,10 @@ def build_statefulset(
             }
         ],
     }
+
+    # Remove nodeSelector if it is None
+    if not statefulset_spec["template"]["spec"]["nodeSelector"]:
+        del statefulset_spec["template"]["spec"]["nodeSelector"]
 
     # Add shared volume if specified
     if "sharedVolumeClaimName" in spec:
