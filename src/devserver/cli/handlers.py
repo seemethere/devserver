@@ -243,7 +243,6 @@ def ssh_devserver(
         ]
         if remote_command:
             ssh_command.extend(remote_command)
-        console.print(Pretty(ssh_command))
 
         subprocess.run(ssh_command, check=False)
 
