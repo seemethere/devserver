@@ -18,6 +18,14 @@ When a `DevServer` resource is created, the operator provisions the necessary Ku
 -   A `Secret` for SSH host keys.
 -   A `ConfigMap` for the SSH daemon configuration.
 
+### Container Startup Script
+
+The operator injects a `startup.sh` script into the `DevServer` container. This script is responsible for:
+
+-   **User Creation**: It creates a non-root `dev` user with UID/GID `1000`. The script is designed to be idempotent and work across different Linux distributions (e.g., Debian-based and Red Hat-based) by handling cases where a user or group with that ID already exists.
+-   **SSH Setup**: It configures the `dev` user's `authorized_keys` with the public key from the `DevServer` spec.
+-   **SSHD Execution**: It starts the SSH daemon (`sshd`) as the final step, allowing the user to connect.
+
 **Example `DevServer`:**
 
 ```yaml
