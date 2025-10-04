@@ -11,7 +11,7 @@ def main() -> None:
 
     # 'create' command
     parser_create = subparsers.add_parser("create", help="Create a new DevServer.")
-    parser_create.add_argument("name", type=str, help="The name of the DevServer.")
+    parser_create.add_argument("--name", type=str, help="The name of the DevServer.", default="dev")
     parser_create.add_argument(
         "--flavor", type=str, required=True, help="The flavor of the DevServer."
     )
