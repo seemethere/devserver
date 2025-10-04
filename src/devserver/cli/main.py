@@ -1,64 +1,61 @@
-import argparse
+import click
 from . import handlers
 
 
+@click.group()
 def main() -> None:
-    """Main function for the devctl CLI."""
-    parser = argparse.ArgumentParser(description="A CLI to manage DevServers.")
-    subparsers = parser.add_subparsers(
-        dest="command", required=True, help="Available commands"
+    """A CLI to manage DevServers."""
+    pass
+
+
+@main.command(help="Create a new DevServer.")
+@click.option("--name", type=str, default="dev", help="The name of the DevServer.")
+@click.option("--flavor", type=str, required=True, help="The flavor of the DevServer.")
+@click.option("--image", type=str, help="The container image to use.")
+@click.option(
+    "--ssh-public-key-file",
+    type=str,
+    default="~/.ssh/id_rsa.pub",
+    help="Path to the SSH public key file.",
+)
+@click.option(
+    "--time",
+    "--ttl",
+    "time_to_live",
+    type=str,
+    default="4h",
+    help="The time to live for the DevServer.",
+)
+def create(
+    name: str, flavor: str, image: str, ssh_public_key_file: str, time_to_live: str
+) -> None:
+    """Create a new DevServer."""
+    handlers.create_devserver(
+        name=name,
+        flavor=flavor,
+        image=image,
+        ssh_public_key_file=ssh_public_key_file,
+        time_to_live=time_to_live,
     )
 
-    # 'create' command
-    parser_create = subparsers.add_parser("create", help="Create a new DevServer.")
-    parser_create.add_argument("--name", type=str, help="The name of the DevServer.", default="dev")
-    parser_create.add_argument(
-        "--flavor", type=str, required=True, help="The flavor of the DevServer."
-    )
-    parser_create.add_argument("--image", type=str, help="The container image to use.")
-    parser_create.add_argument(
-        "--ssh-public-key-file",
-        type=str,
-        default="~/.ssh/id_rsa.pub",
-        help="Path to the SSH public key file (default: ~/.ssh/id_rsa.pub).",
-    )
-    parser_create.add_argument(
-        "--time",
-        "--ttl",
-        dest="time_to_live",
-        type=str,
-        default="4h",
-        help="The time to live for the DevServer (default: 4h).",
-    )
 
-    # 'list' command
-    subparsers.add_parser("list", help="List all DevServers.")
+@main.command(help="List all DevServers.")
+def list() -> None:
+    """List all DevServers."""
+    handlers.list_devservers()
 
-    subparsers.add_parser("flavors", help="Show the available flavors.")
 
-    # 'delete' command
-    parser_delete = subparsers.add_parser("delete", help="Delete a DevServer.")
-    parser_delete.add_argument(
-        "name", type=str, help="The name of the DevServer to delete."
-    )
+@main.command(help="Show the available flavors.")
+def flavors() -> None:
+    """Show the available flavors."""
+    handlers.list_flavors()
 
-    args = parser.parse_args()
 
-    # Dispatch to handler functions
-    if args.command == "create":
-        handlers.create_devserver(
-            name=args.name,
-            flavor=args.flavor,
-            image=args.image,
-            ssh_public_key_file=args.ssh_public_key_file,
-            time_to_live=args.time_to_live,
-        )
-    elif args.command == "list":
-        handlers.list_devservers()
-    elif args.command == "delete":
-        handlers.delete_devserver(name=args.name)
-    elif args.command == "flavors":
-        handlers.list_flavors()
+@main.command(help="Delete a DevServer.")
+@click.argument("name", type=str)
+def delete(name: str) -> None:
+    """Delete a DevServer."""
+    handlers.delete_devserver(name=name)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ from unittest.mock import patch
 import io
 import sys
 
+from click.testing import CliRunner
 from devserver.cli import main as cli_main
 from devserver.cli import handlers
 from tests.conftest import TEST_NAMESPACE
@@ -157,52 +158,73 @@ class TestCliIntegration:
 
 class TestCliParser:
     """
-    Unit tests for the argparse CLI parser.
+    Unit tests for the Click CLI parser.
     These tests do not interact with Kubernetes.
     """
 
     def test_create_command_parsing(self) -> None:
         """Tests that 'create' command arguments are parsed correctly."""
-        test_args = [
-            "devctl",
-            "create",
-            "my-server",
-            "--flavor",
-            "cpu-small",
-            "--image",
-            "ubuntu:22.04",
-        ]
-        with patch("sys.argv", test_args):
-            # A successful parse should not exit, so we just run it.
-            # We add a dummy `parse_args` to prevent the actual print/logic from running.
-            with patch("argparse.ArgumentParser.parse_args"):
-                cli_main.main()
+        runner = CliRunner()
+        
+        # Mock the handler to avoid actual Kubernetes interaction
+        with patch("devserver.cli.handlers.create_devserver") as mock_create:
+            result = runner.invoke(
+                cli_main.main,
+                ["create", "--name", "my-server", "--flavor", "cpu-small", "--image", "ubuntu:22.04"]
+            )
+            
+            # Check that the command succeeded
+            assert result.exit_code == 0
+            
+            # Verify the handler was called with correct arguments
+            mock_create.assert_called_once()
+            call_kwargs = mock_create.call_args.kwargs
+            assert call_kwargs["name"] == "my-server"
+            assert call_kwargs["flavor"] == "cpu-small"
+            assert call_kwargs["image"] == "ubuntu:22.04"
 
     def test_list_command_parsing(self) -> None:
         """Tests that 'list' command is recognized."""
-        test_args = ["devctl", "list"]
-        with patch("sys.argv", test_args):
-            # A successful parse should not exit.
-            with patch("argparse.ArgumentParser.parse_args"):
-                cli_main.main()
+        runner = CliRunner()
+        
+        # Mock the handler to avoid actual Kubernetes interaction
+        with patch("devserver.cli.handlers.list_devservers") as mock_list:
+            result = runner.invoke(cli_main.main, ["list"])
+            
+            # Check that the command succeeded
+            assert result.exit_code == 0
+            
+            # Verify the handler was called
+            mock_list.assert_called_once()
 
     def test_delete_command_parsing(self) -> None:
         """Tests that 'delete' command arguments are parsed correctly."""
-        test_args = ["devctl", "delete", "my-server"]
-        with patch("sys.argv", test_args):
-            with patch("argparse.ArgumentParser.parse_args"):
-                cli_main.main()
+        runner = CliRunner()
+        
+        # Mock the handler to avoid actual Kubernetes interaction
+        with patch("devserver.cli.handlers.delete_devserver") as mock_delete:
+            result = runner.invoke(cli_main.main, ["delete", "my-server"])
+            
+            # Check that the command succeeded
+            assert result.exit_code == 0
+            
+            # Verify the handler was called with correct arguments
+            mock_delete.assert_called_once()
+            call_kwargs = mock_delete.call_args.kwargs
+            assert call_kwargs["name"] == "my-server"
 
     def test_create_command_missing_flavor(self) -> None:
         """Tests that 'create' command fails without a required flavor."""
-        test_args = ["devctl", "create", "my-server"]
-        with patch("sys.argv", test_args):
-            # argparse prints to stderr and exits on error.
-            # We can assert that it exits with a non-zero status code.
-            with pytest.raises(SystemExit) as cm:
-                cli_main.main()
-            assert isinstance(cm.value, SystemExit)
-            assert cm.value.code != 0
+        runner = CliRunner()
+        
+        # Click exits with non-zero code when required option is missing
+        result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
+        
+        # Check that the command failed
+        assert result.exit_code != 0
+        
+        # Click should report the missing required option in the output
+        assert "flavor" in result.output.lower() or "required" in result.output.lower()
 
 
 def test_create_and_list_with_operator(
