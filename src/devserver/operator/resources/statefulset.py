@@ -6,6 +6,9 @@ def build_statefulset(
 ) -> Dict[str, Any]:
     """Builds the StatefulSet for the DevServer."""
     image = spec.get("image", "ubuntu:latest")
+
+    # Get the public key from the spec
+    ssh_public_key = spec.get("ssh", {}).get("publicKey", "")
     statefulset_spec = {
         "replicas": 1,
         "serviceName": f"{name}-headless",
@@ -34,25 +37,6 @@ def build_statefulset(
                         ],
                         "volumeMounts": [{"name": "bin", "mountPath": "/opt/bin"}],
                     },
-                    {
-                        "name": "init",
-                        "image": "alpine:latest",
-                        "command": ["/bin/sh", "-c"],
-                        "args": [
-                            f"""
-                            set -ex
-                            echo "[INIT] Setting up dev user and SSH keys..."
-                            adduser -D -u 1000 -s /bin/bash dev
-                            mkdir -p /home/dev/.ssh
-                            echo '{spec["ssh"]["publicKey"]}' > /home/dev/.ssh/authorized_keys
-                            chown -R 1000:1000 /home/dev
-                            chmod 700 /home/dev/.ssh
-                            chmod 600 /home/dev/.ssh/authorized_keys
-                            echo "[INIT] Setup complete."
-                            """
-                        ],
-                        "volumeMounts": [{"name": "home", "mountPath": "/home/dev"}],
-                    },
                 ],
                 "containers": [
                     {
@@ -62,7 +46,23 @@ def build_statefulset(
                         "args": [
                             """
                             set -ex
-                            echo "[STARTUP] Configuring sshd environment..."
+                            #
+                            # The logic is as follows:
+                            # 1. Create a 'dev' user and group.
+                            # 2. Set up their home directory and authorize the SSH public key.
+                            # 3. Create a user and group for sshd privilege separation.
+                            # 4. Start sshd.
+                            #
+                            echo "[STARTUP] Configuring user and sshd..."
+                            # Create a 'dev' user
+                            addgroup --gid 1000 dev
+                            adduser --uid 1000 --ingroup dev --home /home/dev --shell /bin/bash --disabled-password --gecos "" dev
+                            # Set up SSH for the 'dev' user
+                            mkdir -p /home/dev/.ssh
+                            echo "${SSH_PUBLIC_KEY}" > /home/dev/.ssh/authorized_keys
+                            chown -R dev:dev /home/dev/.ssh
+                            chmod 700 /home/dev/.ssh
+                            chmod 600 /home/dev/.ssh/authorized_keys
                             # Create a user and group for privilege separation
                             addgroup --system sshd
                             adduser --system --no-create-home --ingroup sshd sshd
@@ -88,6 +88,12 @@ def build_statefulset(
                             },
                         ],
                         "resources": flavor["spec"]["resources"],
+                        "env": [
+                            {
+                                "name": "SSH_PUBLIC_KEY",
+                                "value": ssh_public_key,
+                            },
+                        ],
                     }
                 ],
                 "volumes": [
@@ -120,7 +126,7 @@ def build_statefulset(
     }
 
     # Remove nodeSelector if it is None
-    if not statefulset_spec["template"]["spec"]["nodeSelector"]:
+    if not statefulset_spec["template"]["spec"].get("nodeSelector"):
         del statefulset_spec["template"]["spec"]["nodeSelector"]
 
     # Add shared volume if specified
