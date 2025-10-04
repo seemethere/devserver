@@ -17,7 +17,7 @@ def list_devservers(namespace: str = "default") -> None:
     """Lists all DevServers in a given namespace."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
-
+    console = Console()
     try:
         devservers = custom_objects_api.list_namespaced_custom_object(
             group="devserver.io",
@@ -27,7 +27,7 @@ def list_devservers(namespace: str = "default") -> None:
         )
 
         if not devservers["items"]:
-            print(f"No DevServers found in namespace '{namespace}'.")
+            console.print(f"No DevServers found in namespace '{namespace}'.")
             return
 
         console = Console()
@@ -44,9 +44,9 @@ def list_devservers(namespace: str = "default") -> None:
 
     except client.ApiException as e:
         if e.status == 404:
-            print("DevServer CRD not found. Is the operator installed?")
+            console.print("DevServer CRD not found. Is the operator installed?")
         else:
-            print(f"Error connecting to Kubernetes: {e}")
+            console.print(f"Error connecting to Kubernetes: {e}")
 
 
 def create_devserver(
@@ -60,16 +60,16 @@ def create_devserver(
     """Creates a new DevServer resource."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
-
+    console = Console()
     try:
         key_path = Path(ssh_public_key_file).expanduser()
         with open(key_path, "r") as f:
             ssh_public_key = f.read().strip()
     except FileNotFoundError:
-        print(f"Error: SSH public key file not found at '{key_path}'")
+        console.print(f"Error: SSH public key file not found at '{key_path}'")
         sys.exit(1)
     except Exception as e:
-        print(f"Error reading SSH public key file: {e}")
+        console.print(f"Error reading SSH public key file: {e}")
         sys.exit(1)
 
     # Construct the DevServer manifest
@@ -94,18 +94,19 @@ def create_devserver(
             plural="devservers",
             body=manifest,
         )
-        print(f"DevServer '{name}' created successfully.")
+        console.print(f"DevServer '{name}' created successfully.")
     except client.ApiException as e:
         if e.status == 409:  # Conflict
-            print(f"Error: DevServer '{name}' already exists.")
+            console.print(f"Error: DevServer '{name}' already exists.")
         else:
-            print(f"Error creating DevServer: {e.reason}")
+            console.print(f"Error creating DevServer: {e.reason}")
 
 
 def delete_devserver(name: str, namespace: str = "default") -> None:
     """Deletes a DevServer resource."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
+    console = Console()
 
     try:
         custom_objects_api.delete_namespaced_custom_object(
@@ -115,26 +116,25 @@ def delete_devserver(name: str, namespace: str = "default") -> None:
             plural="devservers",
             name=name,
         )
-        print(f"DevServer '{name}' deleted.")
+        console.print(f"DevServer '{name}' deleted.")
     except client.ApiException as e:
         if e.status == 404:
-            print(f"Error: DevServer '{name}' not found.")
+            console.print(f"Error: DevServer '{name}' not found.")
         else:
-            print(f"Error deleting DevServer: {e.reason}")
+            console.print(f"Error deleting DevServer: {e.reason}")
 
 
 def list_flavors() -> None:
     """Lists all DevServerFlavors."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
-
+    console = Console()
     try:
         flavors = custom_objects_api.list_cluster_custom_object(
             group="devserver.io",
             version="v1",
             plural="devserverflavors",
         )
-        console = Console()
         table = Table(
             show_header=True, header_style="bold magenta"
         )
@@ -148,7 +148,7 @@ def list_flavors() -> None:
 
         console.print(table)
     except client.ApiException as e:
-        print(f"Error listing DevServerFlavors: {e.reason}")
+        console.print(f"Error listing DevServerFlavors: {e.reason}")
 
 
 def ssh_devserver(
@@ -174,9 +174,9 @@ def ssh_devserver(
         )
     except client.ApiException as e:
         if e.status == 404:
-            print(f"Error: DevServer '{name}' not found.")
+            console.print(f"Error: DevServer '{name}' not found.")
         else:
-            print(f"Error connecting to Kubernetes: {e.reason}")
+            console.print(f"Error connecting to Kubernetes: {e.reason}")
         sys.exit(1)
 
     pod_name = f"{name}-0"
