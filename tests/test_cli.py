@@ -155,6 +155,55 @@ class TestCliIntegration:
         assert isinstance(cm.value, client.ApiException)
         assert cm.value.status == 404
 
+    def test_describe_command(
+        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str
+    ) -> None:
+        """Tests that the 'describe' command can see a created DevServer."""
+        custom_objects_api = k8s_clients["custom_objects_api"]
+
+        # Create a DevServer for the describe command to find
+        devserver_manifest = {
+            "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
+            "kind": "DevServer",
+            "metadata": {"name": TEST_DEVSERVER_NAME, "namespace": NAMESPACE},
+            "spec": {
+                "flavor": "any-flavor",
+                "ssh": {"publicKey": "ssh-rsa AAA..."},
+                "lifecycle": {"timeToLive": "1h"},
+            },  # Flavor doesn't need to exist for this test
+        }
+
+        custom_objects_api.create_namespaced_custom_object(
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            namespace=NAMESPACE,
+            plural=CRD_PLURAL_DEVSERVER,
+            body=devserver_manifest,
+        )
+
+        try:
+            # Capture the stdout
+            captured_output = io.StringIO()
+            sys.stdout = captured_output
+
+            handlers.describe_devserver(name=TEST_DEVSERVER_NAME, namespace=NAMESPACE)
+
+            sys.stdout = sys.__stdout__  # Restore stdout
+
+            output = captured_output.getvalue()
+            assert TEST_DEVSERVER_NAME in output
+            assert "any-flavor" in output
+
+        finally:
+            # Cleanup
+            custom_objects_api.delete_namespaced_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                namespace=NAMESPACE,
+                plural=CRD_PLURAL_DEVSERVER,
+                name=TEST_DEVSERVER_NAME,
+            )
+
 
 class TestCliParser:
     """
@@ -211,6 +260,22 @@ class TestCliParser:
             # Verify the handler was called with correct arguments
             mock_delete.assert_called_once()
             call_kwargs = mock_delete.call_args.kwargs
+            assert call_kwargs["name"] == "my-server"
+
+    def test_describe_command_parsing(self) -> None:
+        """Tests that 'describe' command arguments are parsed correctly."""
+        runner = CliRunner()
+
+        # Mock the handler to avoid actual Kubernetes interaction
+        with patch("devserver.cli.handlers.describe_devserver") as mock_describe:
+            result = runner.invoke(cli_main.main, ["describe", "my-server"])
+
+            # Check that the command succeeded
+            assert result.exit_code == 0
+
+            # Verify the handler was called with correct arguments
+            mock_describe.assert_called_once()
+            call_kwargs = mock_describe.call_args.kwargs
             assert call_kwargs["name"] == "my-server"
 
     def test_create_command_missing_flavor(self) -> None:
