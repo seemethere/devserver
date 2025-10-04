@@ -81,6 +81,13 @@ usermod -g dev -d /home/dev dev
 mkdir -p /home/dev
 chown -R dev:dev /home/dev
 
+# Unlock the user's account to allow SSH access
+# On some systems (like Fedora), an account created without a password is locked
+if command -v passwd >/dev/null 2>&1; then
+    # -d deletes the password, making it a passwordless account, which allows ssh key login
+    passwd -d dev
+fi
+
 # --- sshd user ---
 if ! getent group sshd >/dev/null; then
     groupadd -r sshd
