@@ -43,39 +43,16 @@ def build_statefulset(
                         "name": "devserver",
                         "image": image,
                         "command": ["/bin/sh", "-c"],
-                        "args": [
-                            """
-                            set -ex
-                            #
-                            # The logic is as follows:
-                            # 1. Create a 'dev' user and group.
-                            # 2. Set up their home directory and authorize the SSH public key.
-                            # 3. Create a user and group for sshd privilege separation.
-                            # 4. Start sshd.
-                            #
-                            echo "[STARTUP] Configuring user and sshd..."
-                            # Create a 'dev' user
-                            addgroup --gid 1000 dev
-                            adduser --uid 1000 --ingroup dev --home /home/dev --shell /bin/bash --disabled-password --gecos "" dev
-                            # Set up SSH for the 'dev' user
-                            mkdir -p /home/dev/.ssh
-                            echo "${SSH_PUBLIC_KEY}" > /home/dev/.ssh/authorized_keys
-                            chown -R dev:dev /home/dev/.ssh
-                            chmod 700 /home/dev/.ssh
-                            chmod 600 /home/dev/.ssh/authorized_keys
-                            # Create a user and group for privilege separation
-                            addgroup --system sshd
-                            adduser --system --no-create-home --ingroup sshd sshd
-                            # Create the privilege separation directory
-                            mkdir -p /var/empty
-                            echo "[STARTUP] Starting sshd..."
-                            exec /opt/bin/sshd -D -e -f /etc/ssh/sshd_config
-                            """
-                        ],
+                        "args": ["/devserver/startup.sh"],
                         "ports": [{"containerPort": 22}],
                         "volumeMounts": [
                             {"name": "home", "mountPath": "/home/dev"},
                             {"name": "bin", "mountPath": "/opt/bin"},
+                            {
+                                "name": "startup-script",
+                                "mountPath": "/devserver",
+                                "readOnly": True,
+                            },
                             {
                                 "name": "sshd-config",
                                 "mountPath": "/etc/ssh",
@@ -98,6 +75,13 @@ def build_statefulset(
                 ],
                 "volumes": [
                     {"name": "bin", "emptyDir": {}},
+                    {
+                        "name": "startup-script",
+                        "configMap": {
+                            "name": f"{name}-startup-script",
+                            "defaultMode": 0o755,
+                        },
+                    },
                     {
                         "name": "sshd-config",
                         "configMap": {"name": f"{name}-sshd-config"},

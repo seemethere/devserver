@@ -35,3 +35,7 @@ make down
 -   **Real Resources**: Tests create, manage, and delete real `DevServer` custom resources and verify that the operator creates the expected `StatefulSets`, `Services`, etc.
 -   **CLI Integration**: The test suite also runs `devctl` commands as subprocesses to verify the CLI's behavior against the running operator.
 -   **Session-Scoped Fixtures**: A `k3d` cluster and the running operator are managed by `pytest` session-scoped fixtures for efficiency, meaning they are set up once per test run.
+
+### Startup Script Testing
+
+A dedicated test, `test_startup_script.py`, ensures that the container's entrypoint script (`startup.sh`) works correctly across different base Docker images (e.g., `ubuntu:latest`, `fedora:latest`). This test runs the script in isolation within Docker containers to verify that user creation and environment setup are compatible with various Linux distributions.

@@ -29,3 +29,18 @@ HostKey /etc/ssh/hostkeys/ssh_host_ed25519_key
             "sshd_config": sshd_config,
         },
     }
+
+
+def build_startup_configmap(name: str, namespace: str, script_content: str) -> Dict[str, Any]:
+    """Builds the ConfigMap for the startup script."""
+    return {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+            "name": f"{name}-startup-script",
+            "namespace": namespace,
+        },
+        "data": {
+            "startup.sh": script_content,
+        },
+    }

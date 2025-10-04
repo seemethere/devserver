@@ -78,7 +78,7 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
 
         container = statefulset.spec.template.spec.containers[0]
         assert container.resources.requests["cpu"] == "100m"
-        assert "sleep infinity" in container.args[0]
+        assert "/devserver/startup.sh" in container.args[0]
 
         # 3a. Wait and check for the status update on the DevServer
         devserver_status = None

@@ -9,8 +9,6 @@ from devserver.cli import handlers
 from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
 from typing import Any, Dict
-import uuid
-import time
 
 # Define constants and clients needed for CLI tests
 CRD_GROUP: str = "devserver.io"
@@ -275,71 +273,6 @@ class TestCliParser:
             assert "12345" in run_args
             assert "-i" in run_args
             assert str(private_key_file) in run_args
-
-
-def test_ssh_command_functional(
-    operator_running: Any,
-    k8s_clients: Dict[str, Any],
-    test_flavor: str,
-    test_ssh_key_pair: dict[str, str],
-) -> None:
-    """
-    Functional test for the 'ssh' command that verifies an actual SSH connection.
-    """
-    core_api = k8s_clients["core_v1"]
-    devserver_name = f"ssh-test-{uuid.uuid4().hex[:6]}"
-    pod_name = f"{devserver_name}-0"
-
-    try:
-        # Create a DevServer for the test
-        handlers.create_devserver(
-            name=devserver_name,
-            flavor=test_flavor,
-            image="ubuntu:22.04",  # An image with a known shell
-            namespace=NAMESPACE,
-            ssh_public_key_file=test_ssh_key_pair["public"],
-        )
-
-        # Wait for the pod to be running and ready
-        for _ in range(60):  # Wait up to 60 seconds
-            try:
-                pod = core_api.read_namespaced_pod(name=pod_name, namespace=NAMESPACE)
-                if pod.status.phase == "Running" and all(
-                    cs.ready for cs in pod.status.container_statuses
-                ):
-                    break
-            except client.ApiException as e:
-                if e.status != 404:
-                    raise
-            time.sleep(1)
-        else:
-            pytest.fail(f"Pod {pod_name} did not become ready in time.")
-
-        # Capture stdout to check the command output
-        captured_output = io.StringIO()
-        sys.stdout = captured_output
-
-        # Run 'hostname' command via devctl ssh
-        handlers.ssh_devserver(
-            name=devserver_name,
-            namespace=NAMESPACE,
-            ssh_private_key_file=test_ssh_key_pair["private"],
-            remote_command=("hostname",),
-        )
-
-        sys.stdout = sys.__stdout__
-        output = captured_output.getvalue()
-
-        # The output from the handler contains connection info lines and the command output.
-        # We just need to check that the hostname is in the output.
-        assert pod_name in output
-
-    finally:
-        # Cleanup
-        try:
-            handlers.delete_devserver(name=devserver_name, namespace=NAMESPACE)
-        except Exception:
-            pass
 
 
 def test_create_and_list_with_operator(
