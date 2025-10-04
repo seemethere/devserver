@@ -58,6 +58,13 @@ def delete(name: str) -> None:
     handlers.delete_devserver(name=name)
 
 
+@main.command(help="Describe a DevServer.")
+@click.argument("name", type=str)
+def describe(name: str) -> None:
+    """Describe a DevServer."""
+    handlers.describe_devserver(name=name)
+
+
 @main.command(help="SSH into a DevServer.")
 @click.argument("name", type=str)
 @click.option(
