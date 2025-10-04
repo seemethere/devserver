@@ -202,7 +202,7 @@ def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
     devserver_names = ["test-multi-1", "test-multi-2"]
 
     try:
-        images = ["nginx:alpine", "alpine:latest"]
+        images = ["ubuntu:22.04", "fedora:38"]
         for i, name in enumerate(devserver_names):
             devserver_manifest = {
                 "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
