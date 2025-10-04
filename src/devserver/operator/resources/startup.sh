@@ -81,12 +81,15 @@ usermod -g dev -d /home/dev dev
 mkdir -p /home/dev
 chown -R dev:dev /home/dev
 
+log_info "Unlocking user's account to allow SSH access"
 # Unlock the user's account to allow SSH access
 # On some systems (like Fedora), an account created without a password is locked
-if command -v passwd >/dev/null 2>&1; then
-    # -d deletes the password, making it a passwordless account, which allows ssh key login
-    passwd -d dev
-fi
+# Give the user a bogus password to unlock them
+# TODO: actually make this random
+(
+    set -x
+    usermod -p my_random_password dev
+)
 
 # --- sshd user ---
 if ! getent group sshd >/dev/null; then
