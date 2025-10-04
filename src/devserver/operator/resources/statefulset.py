@@ -5,6 +5,7 @@ def build_statefulset(
     name: str, namespace: str, spec: Dict[str, Any], flavor: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Builds the StatefulSet for the DevServer."""
+    image = spec.get("image", "ubuntu:latest")
     statefulset_spec = {
         "replicas": 1,
         "serviceName": f"{name}-headless",
@@ -15,7 +16,26 @@ def build_statefulset(
                 "nodeSelector": flavor["spec"].get("nodeSelector"),
                 "initContainers": [
                     {
-                        "name": "ssh-setup",
+                        "name": "install-sshd",
+                        "image": "seemethere/devserver-sshd-static:latest",
+                        "imagePullPolicy": "Always",
+                        "command": ["/bin/sh", "-c"],
+                        "args": [
+                            """
+                            set -ex
+                            echo "[INIT] Copying portable binaries..."
+                            cp /usr/local/bin/sshd /opt/bin/
+                            cp /usr/local/bin/scp /opt/bin/
+                            cp /usr/local/bin/sftp-server /opt/bin/
+                            cp /usr/local/bin/ssh-keygen /opt/bin/
+                            chmod +x /opt/bin/sshd
+                            echo "[INIT] Binaries copied."
+                            """
+                        ],
+                        "volumeMounts": [{"name": "bin", "mountPath": "/opt/bin"}],
+                    },
+                    {
+                        "name": "init",
                         "image": "alpine:latest",
                         "command": ["/bin/sh", "-c"],
                         "args": [
@@ -32,66 +52,58 @@ def build_statefulset(
                             """
                         ],
                         "volumeMounts": [{"name": "home", "mountPath": "/home/dev"}],
-                    }
+                    },
                 ],
                 "containers": [
                     {
                         "name": "devserver",
-                        "image": spec.get("image", "ubuntu:latest"),
-                        "resources": flavor["spec"]["resources"],
-                        "command": ["/bin/bash", "-c"],
+                        "image": image,
+                        "command": ["/bin/sh", "-c"],
                         "args": [
-                            f"""
+                            """
                             set -ex
-                            echo "[STARTUP] Starting devserver container..."
-
-                            # Setup user and SSH (handle persistent home directory)
-                            if ! id dev &>/dev/null; then
-                                # Check if UID 1000 is taken by another user
-                                if id 1000 &>/dev/null; then
-                                    existing_user=$(id -nu 1000)
-                                    echo "[STARTUP] UID 1000 taken by $existing_user, removing..."
-                                    userdel $existing_user 2>/dev/null || true
-                                fi
-
-                                if [ -d "/home/dev" ]; then
-                                    # Home directory exists (from PVC), create user without -m flag
-                                    useradd -u 1000 -d /home/dev -s /bin/bash dev
-                                else
-                                    # Fresh start, create user with home directory
-                                    useradd -u 1000 -m -s /bin/bash dev
-                                fi
-                            fi
-                            usermod -aG sudo dev 2>/dev/null || true
-                            mkdir -p /etc/sudoers.d
-                            echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev
-                            chmod 440 /etc/sudoers.d/dev
-                            
-                            # Initialize shared storage if it exists
-                            if [ -d "/shared" ]; then
-                                echo "[STARTUP] Shared storage detected. Initializing..."
-                                USER_DIR=$(echo "{spec.get("owner", "default")}" | cut -d'@' -f1)
-                                mkdir -p "/shared/$USER_DIR"
-                                chown dev:dev "/shared/$USER_DIR"
-                                echo "[STARTUP] Shared storage setup for user $USER_DIR at /shared/$USER_DIR."
-                            fi
-
-                            # Start SSH server
-                            mkdir -p /run/sshd
-                            /usr/sbin/sshd -D -e &
-
-                            echo "[STARTUP] SSH Server started."
-                            echo "[STARTUP] Container is ready."
-
-                            # Keep container running
-                            sleep infinity
+                            echo "[STARTUP] Configuring sshd environment..."
+                            # Create a user and group for privilege separation
+                            addgroup --system sshd
+                            adduser --system --no-create-home --ingroup sshd sshd
+                            # Create the privilege separation directory
+                            mkdir -p /var/empty
+                            echo "[STARTUP] Starting sshd..."
+                            exec /opt/bin/sshd -D -e -f /etc/ssh/sshd_config
                             """
                         ],
                         "ports": [{"containerPort": 22}],
-                        "volumeMounts": [{"name": "home", "mountPath": "/home/dev"}],
+                        "volumeMounts": [
+                            {"name": "home", "mountPath": "/home/dev"},
+                            {"name": "bin", "mountPath": "/opt/bin"},
+                            {
+                                "name": "sshd-config",
+                                "mountPath": "/etc/ssh",
+                                "readOnly": True,
+                            },
+                            {
+                                "name": "host-keys",
+                                "mountPath": "/etc/ssh/hostkeys",
+                                "readOnly": True,
+                            },
+                        ],
+                        "resources": flavor["spec"]["resources"],
                     }
                 ],
-                "volumes": [],
+                "volumes": [
+                    {"name": "bin", "emptyDir": {}},
+                    {
+                        "name": "sshd-config",
+                        "configMap": {"name": f"{name}-sshd-config"},
+                    },
+                    {
+                        "name": "host-keys",
+                        "secret": {
+                            "secretName": f"{name}-host-keys",
+                            "defaultMode": 0o600,
+                        },
+                    },
+                ],
             },
         },
         "volumeClaimTemplates": [
