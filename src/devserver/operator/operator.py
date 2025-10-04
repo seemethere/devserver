@@ -84,6 +84,16 @@ def generate_and_ensure_host_keys(
     core_v1.create_namespaced_secret(namespace=namespace, body=secret_body)
     logger.info(f"Host key Secret '{secret_name}' created.")
 
+@kopf.on.startup()
+def on_startup(settings: kopf.OperatorSettings, logger: logging.Logger, **kwargs: Any) -> None:
+    """
+    Handle the startup of the operator.
+    """
+    logger.info("Operator started.")
+    # the default worker limit is unbounded which means you can EASILY flood your api server on restart unless you limit it, 1-5 are the generally accepted common sense defaults
+    settings.batching.worker_limit = 1
+    # all logs by default go to the k8s event api making api server flooding even more likely
+    settings.posting.enabled = False
 
 @kopf.on.create(CRD_GROUP, CRD_VERSION, "devservers")
 def create_devserver(
