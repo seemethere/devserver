@@ -3,10 +3,7 @@ import logging
 import os
 import subprocess
 import tempfile
-import time
-import asyncio
 from typing import Any, Dict
-from datetime import datetime
 
 import kopf
 from kubernetes import client
@@ -14,7 +11,6 @@ from kubernetes import client
 from .resources.configmap import build_configmap, build_startup_configmap
 from .resources.services import build_headless_service, build_ssh_service
 from .resources.statefulset import build_statefulset
-from ..utils.time import parse_duration
 
 # Constants
 CRD_GROUP = "devserver.io"
@@ -221,29 +217,3 @@ def delete_devserver(
     logger.warning(
         f"PersistentVolumeClaim for '{name}' will NOT be deleted automatically."
     )
-
-
-@kopf.daemon(CRD_GROUP, CRD_VERSION, "devservers")
-async def expire_devserver(body: Dict[str, Any], logger: logging.Logger, **kwargs: Any) -> None:
-    """
-    Handle the expiration of a DevServer resource.
-    """
-    name = body["metadata"]["name"]
-    namespace = body["metadata"]["namespace"]
-    # This should be fine since timeToLive is a required field
-    creation_time = datetime.fromisoformat(body["metadata"]["creationTimestamp"].replace("Z", "+00:00"))
-    diff_time = time.time() - creation_time.timestamp()
-    time_to_live_seconds = parse_duration(body["spec"]["lifecycle"]["timeToLive"])
-    sleep_time = time_to_live_seconds - diff_time
-    logger.info(f"DevServer '{name}' in namespace '{namespace}' expiry daemon started. Sleeping for {sleep_time:.2f} seconds.")
-    await asyncio.sleep(sleep_time)
-    logger.info(f"DevServer '{name}' in namespace '{namespace}' has been expired. Deleting the DevServer resource.")
-    custom_objects_api = client.CustomObjectsApi()
-    custom_objects_api.delete_namespaced_custom_object(
-        group=CRD_GROUP,
-        version=CRD_VERSION,
-        plural="devservers",
-        name=name,
-        namespace=namespace,
-    )
-    logger.info(f"DevServer '{name}' in namespace '{namespace}' has been deleted.")
