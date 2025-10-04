@@ -41,6 +41,9 @@ devctl = "devserver.cli.main:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"devserver.operator.resources" = ["*.sh"]
+
 [tool.pytest.ini_options]
 filterwarnings = [
     "ignore::DeprecationWarning:kubernetes.client.rest",

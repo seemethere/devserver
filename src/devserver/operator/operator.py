@@ -10,7 +10,7 @@ from datetime import datetime
 import kopf
 from kubernetes import client
 
-from .resources.configmap import build_configmap
+from .resources.configmap import build_configmap, build_startup_configmap
 from .resources.services import build_headless_service, build_ssh_service
 from .resources.statefulset import build_statefulset
 from ..utils.time import parse_duration
@@ -121,12 +121,20 @@ def create_devserver(
     ssh_service = build_ssh_service(name, namespace)
     statefulset = build_statefulset(name, namespace, spec, flavor)
     sshd_configmap = build_configmap(name, namespace)
+    # Read and build the startup script ConfigMap
+    script_path = os.path.join(os.path.dirname(__file__), "resources", "startup.sh")
+    with open(script_path, "r") as f:
+        startup_script_content = f.read()
+    startup_script_configmap = build_startup_configmap(
+        name, namespace, startup_script_content
+    )
 
     # Set owner references
     kopf.adopt(headless_service)
     kopf.adopt(ssh_service)
     kopf.adopt(statefulset)
     kopf.adopt(sshd_configmap)
+    kopf.adopt(startup_script_configmap)
 
     # Create the resources in Kubernetes
     core_v1 = client.CoreV1Api()
@@ -136,6 +144,18 @@ def create_devserver(
     try:
         core_v1.create_namespaced_config_map(namespace=namespace, body=sshd_configmap)
         logger.info(f"SSHD ConfigMap '{sshd_configmap['metadata']['name']}' created.")
+    except client.ApiException as e:
+        if e.status != 409:  # Ignore if it already exists
+            raise
+
+    # Create ConfigMap for startup script
+    try:
+        core_v1.create_namespaced_config_map(
+            namespace=namespace, body=startup_script_configmap
+        )
+        logger.info(
+            f"Startup script ConfigMap '{startup_script_configmap['metadata']['name']}' created."
+        )
     except client.ApiException as e:
         if e.status != 409:  # Ignore if it already exists
             raise
