@@ -2,15 +2,27 @@
 
 This directory contains the Python source code for the DevServer project.
 
-## `cli/`
+## Architecture
 
-This package contains the command-line interface (`devctl`) for interacting with DevServers.
+The project is divided into two main components:
 
-- `main.py`: The main entry point for the CLI, using `argparse` to define and handle commands.
-- `handlers.py`: Contains the functions that implement the logic for each CLI command (e.g., creating, listing, deleting DevServers) by communicating with the Kubernetes API.
+-   [`operator/`](./operator/README.md): A Kubernetes operator responsible for managing the lifecycle of `DevServer` custom resources.
+-   [`cli/`](./cli/README.md): A command-line interface (`devctl`) for users to interact with and manage their DevServers.
 
-## `devserver_operator/`
+### Core Components
 
-This package implements the Kubernetes operator for managing `DevServer` custom resources. It uses the [Kopf](https://kopf.readthedocs.io/) framework.
+```
+devserver/
+├── src/
+│   └── devserver/
+│       ├── operator/            # Kubernetes operator implementation
+│       │   ├── operator.py      # Main operator logic with Kopf handlers
+│       │   └── resources/       # Builders for Kubernetes objects
+│       └── cli/                 # Command-line interface
+│           ├── main.py          # CLI entry point with click
+│           └── handlers.py      # CLI command implementations
+├── crds/                        # Custom Resource Definitions
+└── tests/                       # Test suite
+```
 
-- `operator.py`: Contains the core operator logic, including handlers for `DevServer` resource lifecycle events (creation, deletion, etc.). When a `DevServer` is created, this operator creates a corresponding `Deployment`.
+For more detailed information, please see the `README.md` files within each component's directory.
