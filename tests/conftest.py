@@ -11,6 +11,8 @@ import kopf
 import uuid
 import os
 from typing import cast
+import subprocess
+from typing import Any
 
 # Generate a unique test namespace for each test session
 # This prevents conflicts between concurrent test runs
@@ -19,6 +21,24 @@ TEST_NAMESPACE = f"devserver-test-{uuid.uuid4().hex[:8]}"
 # Allow override via environment variable for debugging
 if os.getenv("DEVSERVER_TEST_NAMESPACE"):
     TEST_NAMESPACE = cast(str, os.getenv("DEVSERVER_TEST_NAMESPACE"))
+
+
+@pytest.fixture(scope="session")
+def test_ssh_key_pair(tmp_path_factory: Any) -> dict[str, str]:
+    """Creates a real SSH key pair for functional tests."""
+    ssh_dir = tmp_path_factory.mktemp("ssh_keys")
+    private_key_path = ssh_dir / "id_rsa"
+    public_key_path = ssh_dir / "id_rsa.pub"
+
+    subprocess.run(
+        ["ssh-keygen", "-t", "rsa", "-f", str(private_key_path), "-N", "", "-q"],
+        check=True,
+    )
+
+    return {
+        "private": str(private_key_path),
+        "public": str(public_key_path),
+    }
 
 
 @pytest.fixture(scope="session")

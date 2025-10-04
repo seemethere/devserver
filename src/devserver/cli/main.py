@@ -58,5 +58,23 @@ def delete(name: str) -> None:
     handlers.delete_devserver(name=name)
 
 
+@main.command(help="SSH into a DevServer.")
+@click.argument("name", type=str)
+@click.option(
+    "--ssh-private-key-file",
+    type=str,
+    default="~/.ssh/id_rsa",
+    help="Path to the SSH private key file.",
+)
+@click.argument("remote_command", nargs=-1)
+def ssh(name: str, ssh_private_key_file: str, remote_command: tuple[str, ...]) -> None:
+    """SSH into a DevServer."""
+    handlers.ssh_devserver(
+        name=name,
+        ssh_private_key_file=ssh_private_key_file,
+        remote_command=remote_command,
+    )
+
+
 if __name__ == "__main__":
     main()
