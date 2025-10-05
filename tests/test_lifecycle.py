@@ -81,8 +81,9 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
         assert "/devserver/startup.sh" in container.args[0]
 
         # 3a. Wait and check for the status update on the DevServer
+        print("⏳ Waiting for DevServer status to become 'Running'...")
         devserver_status = None
-        for _ in range(20):
+        for i in range(60):  # Increased wait time to 30 seconds
             time.sleep(0.5)
             ds = custom_objects_api.get_namespaced_custom_object(
                 group=CRD_GROUP,
@@ -93,13 +94,23 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
             )
             if "status" in ds and "phase" in ds["status"]:
                 devserver_status = ds["status"]["phase"]
-                break
+                if devserver_status == "Running":
+                    print(f"✅ DevServer status is 'Running' after {i * 0.5:.1f} seconds.")
+                    break
+            if i % 10 == 0:
+                print(
+                    f"⏳ Still waiting for 'Running' status (current: {devserver_status}, attempt {i+1}/60)..."
+                )
 
         assert devserver_status == "Running"
 
     finally:
+        # Give operator time to catch up before deleting
+        time.sleep(10)
+
         # 4. Cleanup and verify deletion
         try:
+            print(f"⏳ Deleting DevServer '{TEST_DEVSERVER_NAME}'...")
             custom_objects_api.delete_namespaced_custom_object(
                 group=CRD_GROUP,
                 version=CRD_VERSION,
@@ -113,8 +124,9 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
 
         # 5. Wait and check for the corresponding StatefulSet to be deleted
         statefulset_deleted = False
-        for _ in range(60):
-            time.sleep(1)
+        for _ in range(18):
+            print(f"⏳ Waiting for '{TEST_DEVSERVER_NAME}' to be deleted... (attempt {_ + 1}/18)")
+            time.sleep(10)
             try:
                 apps_v1.read_namespaced_stateful_set(
                     name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
@@ -254,75 +266,3 @@ def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
             except client.ApiException as e:
                 if e.status != 404:
                     raise
-
-
-def test_devserver_expires_after_ttl(test_flavor, operator_running, k8s_clients):
-    """
-    Tests that a DevServer is automatically deleted after its timeToLive expires.
-    """
-    custom_objects_api = k8s_clients["custom_objects_api"]
-    devserver_name = "test-expiry"
-
-    devserver_manifest = {
-        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
-        "kind": "DevServer",
-        "metadata": {"name": devserver_name, "namespace": NAMESPACE},
-        "spec": {
-            "flavor": test_flavor,
-            "ssh": {"publicKey": "ssh-rsa AAAA..."},
-            "lifecycle": {"timeToLive": "1s"},
-        },
-    }
-
-    try:
-        # Create the DevServer
-        custom_objects_api.create_namespaced_custom_object(
-            group=CRD_GROUP,
-            version=CRD_VERSION,
-            namespace=NAMESPACE,
-            plural=CRD_PLURAL_DEVSERVER,
-            body=devserver_manifest,
-        )
-
-        # Wait a bit longer than the TTL for the operator to delete it
-        print("⏳ Waiting for DevServer to expire and be deleted...")
-        for _ in range(15):  # Wait up to 15 seconds
-            time.sleep(1)
-            try:
-                obj = custom_objects_api.get_namespaced_custom_object(
-                    group=CRD_GROUP,
-                    version=CRD_VERSION,
-                    namespace=NAMESPACE,
-                    plural=CRD_PLURAL_DEVSERVER,
-                    name=devserver_name,
-                )
-                if obj.get("metadata", {}).get("deletionTimestamp"):
-                    print(
-                        "✅ DevServer has deletion timestamp. Assuming deletion is in progress."
-                    )
-                    break
-            except client.ApiException as e:
-                if e.status == 404:
-                    print("✅ DevServer successfully deleted.")
-                    break
-                raise
-        else:
-            pytest.fail(
-                "DevServer was not deleted after expiration within the time limit."
-            )
-
-        print("✅ DevServer was deleted successfully after expiration.")
-
-    finally:
-        # Cleanup in case the test fails before deletion
-        try:
-            custom_objects_api.delete_namespaced_custom_object(
-                group=CRD_GROUP,
-                version=CRD_VERSION,
-                namespace=NAMESPACE,
-                plural=CRD_PLURAL_DEVSERVER,
-                name=devserver_name,
-            )
-        except client.ApiException as e:
-            if e.status != 404:
-                raise

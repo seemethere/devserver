@@ -272,18 +272,18 @@ def operator_running(operator_runner):
 CRD_GROUP = "devserver.io"
 CRD_VERSION = "v1"
 CRD_PLURAL_FLAVOR = "devserverflavors"
-TEST_FLAVOR_NAME = "test-flavor"
 
 
 @pytest.fixture(scope="function")
 def test_flavor(request):
     """Creates a test DevServerFlavor for a single test function."""
     custom_objects_api = client.CustomObjectsApi()
+    test_flavor_name = f"test-flavor-{uuid.uuid4().hex[:8]}"
 
     flavor_manifest = {
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
         "kind": "DevServerFlavor",
-        "metadata": {"name": TEST_FLAVOR_NAME},
+        "metadata": {"name": test_flavor_name},
         "spec": {
             "resources": {
                 "requests": {"cpu": "100m", "memory": "128Mi"},
@@ -292,7 +292,7 @@ def test_flavor(request):
         },
     }
 
-    print(f"🔧 Creating test_flavor: {TEST_FLAVOR_NAME}")
+    print(f"🔧 Creating test_flavor: {test_flavor_name}")
     custom_objects_api.create_cluster_custom_object(
         group=CRD_GROUP,
         version=CRD_VERSION,
@@ -302,13 +302,13 @@ def test_flavor(request):
 
     # Use request.addfinalizer for robust cleanup
     def cleanup():
-        print(f"🧹 Cleaning up test_flavor: {TEST_FLAVOR_NAME}")
+        print(f"🧹 Cleaning up test_flavor: {test_flavor_name}")
         try:
             custom_objects_api.delete_cluster_custom_object(
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 plural=CRD_PLURAL_FLAVOR,
-                name=TEST_FLAVOR_NAME,
+                name=test_flavor_name,
             )
         except client.ApiException as e:
             if e.status != 404:
@@ -316,4 +316,4 @@ def test_flavor(request):
 
     request.addfinalizer(cleanup)
 
-    return TEST_FLAVOR_NAME
+    return test_flavor_name
