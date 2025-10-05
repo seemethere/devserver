@@ -91,6 +91,26 @@ log_info "Unlocking user's account to allow SSH access"
     usermod -p my_random_password dev
 )
 
+log_info "Configuring doas access for 'dev' user"
+# Check if static doas binary exists
+if test -f /opt/bin/doas; then
+    log_step "Creating doas configuration"
+    # Configure passwordless doas for dev user
+    mkdir -p /etc
+    echo "permit nopass dev" > /etc/doas.conf
+    chmod 600 /etc/doas.conf
+
+    # Create sudo symlink to doas for compatibility if sudo doesn't already exist
+    if ! command -v sudo >/dev/null 2>&1; then
+        log_step "Creating sudo symlink to doas for compatibility"
+        ln -sf /opt/bin/doas /usr/local/bin/sudo 2>/dev/null || true
+    else
+        log_step "sudo already exists, skipping symlink creation"
+    fi
+else
+    log_step "Warning: /opt/bin/doas not found, skipping doas configuration"
+fi
+
 # --- sshd user ---
 if ! getent group sshd >/dev/null; then
     groupadd -r sshd

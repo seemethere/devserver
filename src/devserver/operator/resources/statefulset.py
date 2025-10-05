@@ -21,7 +21,7 @@ def build_statefulset(
                 "initContainers": [
                     {
                         "name": "install-sshd",
-                        "image": "seemethere/devserver-sshd-static:latest",
+                        "image": "seemethere/devserver-static-dependencies:latest",
                         "imagePullPolicy": "Always",
                         "command": ["/bin/sh", "-c"],
                         "args": [
@@ -32,7 +32,10 @@ def build_statefulset(
                             cp /usr/local/bin/scp /opt/bin/
                             cp /usr/local/bin/sftp-server /opt/bin/
                             cp /usr/local/bin/ssh-keygen /opt/bin/
+                            cp /usr/local/bin/doas /opt/bin/
                             chmod +x /opt/bin/sshd
+                            chmod u+s /opt/bin/doas
+                            chmod +x /opt/bin/doas
                             echo "[INIT] Binaries copied."
                             """
                         ],
