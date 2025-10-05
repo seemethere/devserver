@@ -23,6 +23,7 @@ When a `DevServer` resource is created, the operator provisions the necessary Ku
 The operator injects a `startup.sh` script into the `DevServer` container. This script is responsible for:
 
 -   **User Creation**: It creates a non-root `dev` user with UID/GID `1000`. The script is designed to be idempotent and work across different Linux distributions (e.g., Debian-based and Red Hat-based) by handling cases where a user or group with that ID already exists.
+-   **Privilege Escalation**: The environment includes `doas` as a lightweight `sudo` replacement (if sudo is not already available). The `dev` user is configured with passwordless access to run commands as root (e.g., `doas apt-get update`).
 -   **SSH Setup**: It configures the `dev` user's `authorized_keys` with the public key from the `DevServer` spec.
 -   **SSHD Execution**: It starts the SSH daemon (`sshd`) as the final step, allowing the user to connect.
 
