@@ -1,0 +1,16 @@
+apiVersion: devserver.io/v1
+kind: DevServerFlavor
+metadata:
+  name: gpu-small
+spec:
+  resources:
+    requests:
+      cpu: "4"
+      memory: "16Gi"
+      nvidia.com/gpu: "1"
+    limits:
+      cpu: "8"
+      memory: "32Gi"
+      nvidia.com/gpu: "1"
+  nodeSelector:
+    kubernetes.io/arch: amd64
