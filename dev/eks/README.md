@@ -13,10 +13,9 @@ kubectl apply -f dev/eks/
 ```
 
 ## GPU Nodepool
-The `gpu-nodepool.yml` configures a GPU-accelerated nodepool using EKS Auto Mode with:
+The `gpu-nodepool.yml` configures a GPU-accelerated nodepool using Karpenter with:
 - NVIDIA GPU instance types (g6e and g6 families)
-- Automatic GPU driver management
-- Taint `nvidia.com/gpu=true:NoSchedule` to ensure only GPU workloads schedule on these nodes
+- Taint `nvidia.com/gpu:NoSchedule` to ensure only GPU workloads schedule on these nodes
 
 To use GPU nodes in your pods, add:
 ```yaml

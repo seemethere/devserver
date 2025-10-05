@@ -17,6 +17,7 @@ def build_statefulset(
             "metadata": {"labels": {"app": name}},
             "spec": {
                 "nodeSelector": flavor["spec"].get("nodeSelector"),
+                "tolerations": flavor["spec"].get("tolerations"),
                 "initContainers": [
                     {
                         "name": "install-sshd",
@@ -112,6 +113,10 @@ def build_statefulset(
     # Remove nodeSelector if it is None
     if not statefulset_spec["template"]["spec"].get("nodeSelector"):
         del statefulset_spec["template"]["spec"]["nodeSelector"]
+
+    # Remove tolerations if it is None
+    if not statefulset_spec["template"]["spec"].get("tolerations"):
+        del statefulset_spec["template"]["spec"]["tolerations"]
 
     # Add shared volume if specified
     if "sharedVolumeClaimName" in spec:

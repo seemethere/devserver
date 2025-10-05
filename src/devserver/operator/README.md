@@ -48,6 +48,8 @@ spec:
 
 `DevServerFlavor` resources are used to define "t-shirt sizes" for DevServers, specifying resource requests, limits, and node selectors.
 
+Tolerations can also be specified to allow DevServers to be scheduled on nodes with matching taints, such as GPU nodes.
+
 **Example `DevServerFlavor`:**
 
 ```yaml
@@ -64,7 +66,11 @@ spec:
       cpu: "2"
       memory: "4Gi"
   nodeSelector:
-    kubernetes.ioio/arch: amd64
+    kubernetes.io/arch: amd64
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
 ```
 
 ## Lifecycle Management

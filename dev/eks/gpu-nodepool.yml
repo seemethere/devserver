@@ -1,35 +1,33 @@
-apiVersion: eks.amazonaws.com/v1
+apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
-  name: gpu-accelerated
+  name: g6-gpu
 spec:
   disruption:
+    budgets:
+    - nodes: 10%
+    consolidateAfter: 1h
     consolidationPolicy: WhenEmpty
-    consolidateAfter: 10m
-  nodeClass:
-    ref:
-      name: default
-  taints:
-    - key: nvidia.com/gpu
-      value: "true"
-      effect: NoSchedule
-  requirements:
-    - key: node.kubernetes.io/instance-type
-      operator: In
-      values:
-        - g6e.xlarge
-        - g6e.2xlarge
-        - g6e.4xlarge
-        - g6e.8xlarge
-        - g6.xlarge
-        - g6.2xlarge
-        - g6.4xlarge
-        - g6.8xlarge
-    - key: kubernetes.io/arch
-      operator: In
-      values:
-        - amd64
-    - key: karpenter.sh/capacity-type
-      operator: In
-      values:
-        - on-demand
+  template:
+    metadata: {}
+    spec:
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: default
+      requirements:
+        - key: "karpenter.sh/capacity-type"
+          operator: In
+          values: ["on-demand"]
+        - key: "kubernetes.io/arch"
+          operator: In
+          values: ["amd64"]
+        - key: "eks.amazonaws.com/instance-family"
+          operator: In
+          values:
+          - g6e
+          - g6
+      taints:
+        - key: nvidia.com/gpu
+          effect: NoSchedule
+      terminationGracePeriod: 24h0m0s

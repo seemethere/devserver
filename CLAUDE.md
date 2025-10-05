@@ -68,6 +68,10 @@ spec:
       nvidia.com/gpu: 1
   nodeSelector:
     instance-type: g4dn.xlarge
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
 ```
 
 ---
