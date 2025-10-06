@@ -303,22 +303,13 @@ class TestCliParser:
         # We need to mock all interactions with the outside world
         with patch("devserver.cli.handlers.ssh.config.load_kube_config"), \
              patch("devserver.cli.handlers.ssh.client.CustomObjectsApi") as mock_custom_api, \
-             patch("devserver.cli.handlers.ssh.client.CoreV1Api"), \
-             patch("devserver.cli.handlers.ssh.portforward") as mock_portforward, \
-             patch("devserver.cli.handlers.ssh.socket.socket") as mock_socket, \
-             patch("devserver.cli.handlers.ssh.threading.Thread"), \
+             patch("devserver.cli.handlers.ssh.kubernetes_port_forward") as mock_portforward, \
              patch("devserver.cli.handlers.ssh.subprocess.run") as mock_run:
 
             # Mock the K8s API to return a dummy DevServer
             mock_custom_api.return_value.get_namespaced_custom_object.return_value = {}
 
-            # Mock the local server socket
-            mock_server_socket = mock_socket.return_value
-            mock_server_socket.getsockname.return_value = ("127.0.0.1", 12345)
-            
-            # Mock the portforward
-            mock_pf = mock_portforward.return_value
-            mock_pf.socket.return_value  # Create the socket mock but don't assign it
+            mock_portforward.return_value.__enter__.return_value = 12345
 
             result = runner.invoke(
                 cli_main.main,
@@ -328,13 +319,9 @@ class TestCliParser:
             # Check that the command succeeded
             assert result.exit_code == 0
             
-            # Verify that portforward was called correctly
-            mock_portforward.assert_called_once()
-            call_args = mock_portforward.call_args
-            # First arg is the connection method, second is pod name, third is namespace
-            assert call_args[0][1] == "my-server-0"  # pod name
-            assert call_args[0][2] == "default"  # namespace
-            assert call_args[1]["ports"] == "22"  # port
+            mock_portforward.assert_called_once_with(
+                pod_name="my-server-0", namespace="default", pod_port=22
+            )
             
             # Verify that ssh was called correctly
             mock_run.assert_called_once()
