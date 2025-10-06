@@ -26,8 +26,13 @@ def main() -> None:
     default="4h",
     help="The time to live for the DevServer.",
 )
+@click.option(
+    "--wait",
+    is_flag=True,
+    help="Wait for the DevServer to be ready.",
+)
 def create(
-    name: str, flavor: str, image: str, ssh_public_key_file: str, time_to_live: str
+    name: str, flavor: str, image: str, ssh_public_key_file: str, time_to_live: str, wait: bool
 ) -> None:
     """Create a new DevServer."""
     handlers.create_devserver(
@@ -36,6 +41,7 @@ def create(
         image=image,
         ssh_public_key_file=ssh_public_key_file,
         time_to_live=time_to_live,
+        wait=wait,
     )
 
 
