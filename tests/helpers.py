@@ -1,0 +1,161 @@
+import time
+import pytest
+from kubernetes import client
+from typing import Any
+
+# Constants for polling
+POLL_INTERVAL = 0.5
+
+# Constants from the main test file
+CRD_GROUP = "devserver.io"
+CRD_VERSION = "v1"
+CRD_PLURAL_DEVSERVER = "devservers"
+
+
+def wait_for_statefulset_to_exist(
+    apps_v1_api: client.AppsV1Api, name: str, namespace: str, timeout: int = 30
+) -> Any:
+    """Waits for a StatefulSet to exist and returns it."""
+    print(f"⏳ Waiting for statefulset '{name}' to be created by operator...")
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            statefulset = apps_v1_api.read_namespaced_stateful_set(
+                name=name, namespace=namespace
+            )
+            print(f"✅ StatefulSet '{name}' found.")
+            return statefulset
+        except client.ApiException as e:
+            if e.status == 404:
+                time.sleep(POLL_INTERVAL)
+            else:
+                raise
+    pytest.fail(f"StatefulSet '{name}' did not appear within {timeout} seconds.")
+
+
+def wait_for_statefulset_to_be_deleted(
+    apps_v1_api: client.AppsV1Api, name: str, namespace: str, timeout: int = 60
+):
+    """Waits for a StatefulSet to be deleted."""
+    print(f"⏳ Waiting for statefulset '{name}' to be deleted...")
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            apps_v1_api.read_namespaced_stateful_set(name=name, namespace=namespace)
+            time.sleep(POLL_INTERVAL)
+        except client.ApiException as e:
+            if e.status == 404:
+                print(f"✅ StatefulSet '{name}' deleted.")
+                return
+            else:
+                raise
+    pytest.fail(f"StatefulSet '{name}' was not deleted within {timeout} seconds.")
+
+
+def wait_for_devserver_to_be_deleted(
+    custom_objects_api: client.CustomObjectsApi,
+    name: str,
+    namespace: str,
+    timeout: int = 30,
+):
+    """Waits for a DevServer to be deleted."""
+    print(f"⏳ Waiting for DevServer '{name}' to be deleted...")
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            custom_objects_api.get_namespaced_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                namespace=namespace,
+                plural=CRD_PLURAL_DEVSERVER,
+                name=name,
+            )
+            time.sleep(POLL_INTERVAL)
+        except client.ApiException as e:
+            if e.status == 404:
+                print(f"✅ DevServer '{name}' deleted.")
+                return
+            else:
+                raise
+    pytest.fail(f"DevServer '{name}' was not deleted within {timeout} seconds.")
+
+
+def wait_for_pvc_to_exist(
+    core_v1_api: client.CoreV1Api, name: str, namespace: str, timeout: int = 30
+) -> Any:
+    """Waits for a PVC to exist and returns it."""
+    print(f"⏳ Waiting for PVC '{name}' to appear...")
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            pvc = core_v1_api.read_namespaced_persistent_volume_claim(
+                name=name, namespace=namespace
+            )
+            print(f"✅ PVC '{name}' found.")
+            return pvc
+        except client.ApiException as e:
+            if e.status == 404:
+                time.sleep(POLL_INTERVAL)
+            else:
+                raise
+    pytest.fail(f"PVC '{name}' did not appear within {timeout} seconds.")
+
+
+def wait_for_devserver_status(
+    custom_objects_api: client.CustomObjectsApi,
+    name: str,
+    namespace: str,
+    expected_status: str = "Running",
+    timeout: int = 30,
+):
+    """Waits for a DevServer to reach a specific status."""
+    print(f"⏳ Waiting for DevServer '{name}' status to become '{expected_status}'...")
+    start_time = time.time()
+    current_status = None
+    while time.time() - start_time < timeout:
+        try:
+            ds = custom_objects_api.get_namespaced_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                namespace=namespace,
+                plural=CRD_PLURAL_DEVSERVER,
+                name=name,
+            )
+            if "status" in ds and "phase" in ds["status"]:
+                current_status = ds["status"]["phase"]
+                if current_status == expected_status:
+                    print(f"✅ DevServer '{name}' reached status '{expected_status}'.")
+                    return
+            time.sleep(POLL_INTERVAL)
+        except client.ApiException as e:
+            if e.status == 404:
+                # It might not have been created yet
+                time.sleep(POLL_INTERVAL)
+            else:
+                raise
+    pytest.fail(
+        f"DevServer '{name}' did not reach status '{expected_status}' within {timeout} seconds. "
+        f"Last known status: {current_status}"
+    )
+
+
+def cleanup_devserver(
+    custom_objects_api: client.CustomObjectsApi, name: str, namespace: str
+):
+    """Safely delete a DevServer, ignoring not-found errors."""
+    try:
+        print(f"🧹 Cleaning up DevServer '{name}' in namespace '{namespace}'...")
+        custom_objects_api.delete_namespaced_custom_object(
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            namespace=namespace,
+            plural=CRD_PLURAL_DEVSERVER,
+            name=name,
+            body=client.V1DeleteOptions(),
+        )
+    except client.ApiException as e:
+        if e.status == 404:
+            print(f"ℹ️ DevServer '{name}' was already deleted.")
+        else:
+            print(f"⚠️ Error during cleanup of DevServer '{name}': {e}")
+            raise
