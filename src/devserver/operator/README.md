@@ -15,7 +15,7 @@ When a `DevServer` resource is created, the operator provisions the necessary Ku
 
 -   A `StatefulSet` to manage the pod.
 -   `Services` for network access (including SSH).
--   A `Secret` for SSH host keys.
+-   A `Secret` for SSH host keys. The operator will automatically generate this secret if it doesn't exist.
 -   A `ConfigMap` for the SSH daemon configuration.
 
 ### Container Startup Script

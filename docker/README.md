@@ -6,4 +6,4 @@ These images are typically built and pushed to a container registry, then refere
 
 ## Images
 
--   `sshd/`: Contains the `Dockerfile` for building a multi-architecture, fully static `sshd` binary. This is used by an `initContainer` to provide a consistent SSH server to all devserver environments.
+-   `static-dependencies/`: Contains the `Dockerfile` for building a multi-architecture, fully static `sshd` binary. This is used by an `initContainer` to provide a consistent SSH server to all devserver environments.
