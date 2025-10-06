@@ -301,10 +301,10 @@ class TestCliParser:
         private_key_file.touch()
 
         # We need to mock all interactions with the outside world
-        with patch("devserver.cli.handlers.config.load_kube_config"), \
-             patch("devserver.cli.handlers.client.CustomObjectsApi") as mock_custom_api, \
-             patch("devserver.cli.handlers.subprocess.Popen") as mock_popen, \
-             patch("devserver.cli.handlers.subprocess.run") as mock_run:
+        with patch("devserver.cli.handlers.ssh.config.load_kube_config"), \
+             patch("devserver.cli.handlers.ssh.client.CustomObjectsApi") as mock_custom_api, \
+             patch("devserver.cli.handlers.ssh.subprocess.Popen") as mock_popen, \
+             patch("devserver.cli.handlers.ssh.subprocess.run") as mock_run:
 
             # Mock the K8s API to return a dummy DevServer
             mock_custom_api.return_value.get_namespaced_custom_object.return_value = {}
