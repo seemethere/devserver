@@ -266,3 +266,103 @@ def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
             except client.ApiException as e:
                 if e.status != 404:
                     raise
+
+
+def test_devserver_expires_after_ttl(test_flavor, operator_running, k8s_clients):
+    """
+    Tests that a DevServer with a short TTL is automatically deleted
+    by the operator's cleanup process.
+    """
+    apps_v1 = k8s_clients["apps_v1"]
+    custom_objects_api = k8s_clients["custom_objects_api"]
+    devserver_name = "test-ttl-expiry"
+    ttl_seconds = 5
+    wait_buffer = 15  # Wait longer than TTL + expiration interval
+
+    devserver_manifest = {
+        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
+        "kind": "DevServer",
+        "metadata": {"name": devserver_name, "namespace": NAMESPACE},
+        "spec": {
+            "flavor": test_flavor,
+            "ssh": {"publicKey": "ssh-rsa AAAA..."},
+            "lifecycle": {"timeToLive": f"{ttl_seconds}s"},
+        },
+    }
+
+    try:
+        print(f"📝 Creating DevServer '{devserver_name}' with a {ttl_seconds}s TTL...")
+        custom_objects_api.create_namespaced_custom_object(
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            namespace=NAMESPACE,
+            plural=CRD_PLURAL_DEVSERVER,
+            body=devserver_manifest,
+        )
+
+        # 1. Verify StatefulSet is created
+        print(f"⏳ Waiting for statefulset '{devserver_name}' to be created...")
+        statefulset_found = False
+        for _ in range(10):
+            time.sleep(1)
+            try:
+                apps_v1.read_namespaced_stateful_set(
+                    name=devserver_name, namespace=NAMESPACE
+                )
+                statefulset_found = True
+                print("✅ StatefulSet found.")
+                break
+            except client.ApiException as e:
+                if e.status != 404:
+                    raise
+        assert statefulset_found, "StatefulSet was not created for the DevServer."
+
+        # 2. Wait for the DevServer to be garbage collected
+        print(
+            f"⏳ Waiting {wait_buffer}s for DevServer '{devserver_name}' to be deleted..."
+        )
+        time.sleep(wait_buffer)
+
+        # 3. Verify the DevServer is gone
+        devserver_deleted = False
+        try:
+            custom_objects_api.get_namespaced_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                namespace=NAMESPACE,
+                plural=CRD_PLURAL_DEVSERVER,
+                name=devserver_name,
+            )
+        except client.ApiException as e:
+            if e.status == 404:
+                devserver_deleted = True
+                print("✅ DevServer has been deleted as expected.")
+        assert devserver_deleted, "DevServer was not deleted after its TTL expired."
+
+        # 4. Verify StatefulSet is also gone (garbage collected)
+        statefulset_deleted = False
+        try:
+            apps_v1.read_namespaced_stateful_set(
+                name=devserver_name, namespace=NAMESPACE
+            )
+        except client.ApiException as e:
+            if e.status == 404:
+                statefulset_deleted = True
+                print("✅ StatefulSet has been garbage collected.")
+        assert (
+            statefulset_deleted
+        ), "StatefulSet was not garbage collected after DevServer deletion."
+
+    finally:
+        # Cleanup in case the test failed before auto-deletion
+        try:
+            custom_objects_api.delete_namespaced_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                namespace=NAMESPACE,
+                plural=CRD_PLURAL_DEVSERVER,
+                name=devserver_name,
+            )
+        except client.ApiException as e:
+            if e.status != 404:
+                print(f"Cleanup failed for DevServer '{devserver_name}': {e}")

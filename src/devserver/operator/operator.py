@@ -3,14 +3,22 @@ import logging
 import os
 import subprocess
 import tempfile
+import asyncio
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict
 
 import kopf
-from kubernetes import client
+from kubernetes import client, config
 
 from .resources.configmap import build_configmap, build_startup_configmap
 from .resources.services import build_headless_service, build_ssh_service
 from .resources.statefulset import build_statefulset
+from ..utils.time import parse_duration
+
+try:
+    config.load_incluster_config()
+except config.ConfigException:
+    config.load_kube_config()
 
 # Constants
 CRD_GROUP = "devserver.io"
@@ -18,7 +26,69 @@ CRD_VERSION = "v1"
 FINALIZER = f"finalizer.{CRD_GROUP}"
 
 # Operator settings
-EXPIRATION_INTERVAL = int(os.environ.get("DEVSERVER_EXPIRATION_INTERVAL", 30))
+EXPIRATION_INTERVAL = int(os.environ.get("DEVSERVER_EXPIRATION_INTERVAL", 60))
+
+
+async def cleanup_expired_devservers(
+    custom_objects_api: client.CustomObjectsApi, logger: logging.Logger
+) -> None:
+    """Periodically scan for and delete expired DevServers."""
+    while True:
+        try:
+            logger.info("Running expiration check for DevServers...")
+            devservers = custom_objects_api.list_cluster_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                plural="devservers",
+            )
+
+            now = datetime.now(timezone.utc)
+            for ds in devservers["items"]:
+                try:
+                    spec = ds.get("spec", {})
+                    ttl_str = spec.get("lifecycle", {}).get("timeToLive")
+                    if not ttl_str:
+                        continue
+
+                    ttl = parse_duration(ttl_str)
+                    if ttl > timedelta(hours=24):
+                        ttl = timedelta(hours=24)
+
+                    meta = ds.get("metadata", {})
+                    creation_timestamp_str = meta["creationTimestamp"]
+                    creation_timestamp = datetime.fromisoformat(
+                        creation_timestamp_str.replace("Z", "+00:00")
+                    )
+                    expiration_ts = creation_timestamp + ttl
+
+                    if now >= expiration_ts:
+                        name = meta["name"]
+                        namespace = meta["namespace"]
+                        logger.info(
+                            f"DevServer '{name}' in namespace '{namespace}' has expired. Deleting."
+                        )
+                        custom_objects_api.delete_namespaced_custom_object(
+                            group=CRD_GROUP,
+                            version=CRD_VERSION,
+                            plural="devservers",
+                            name=name,
+                            namespace=namespace,
+                            body=client.V1DeleteOptions(),
+                        )
+                except (ValueError, TypeError) as e:
+                    name = ds.get("metadata", {}).get("name", "unknown")
+                    logger.error(
+                        f"Error processing expiration for DevServer '{name}': {e}"
+                    )
+
+        except client.ApiException as e:
+            logger.error(f"API error during expiration check: {e}")
+        except Exception as e:
+            logger.error(
+                f"An unexpected error occurred during expiration check: {e}"
+            )
+
+        await asyncio.sleep(EXPIRATION_INTERVAL)
 
 
 def generate_and_ensure_host_keys(
@@ -81,7 +151,9 @@ def generate_and_ensure_host_keys(
     logger.info(f"Host key Secret '{secret_name}' created.")
 
 @kopf.on.startup()
-def on_startup(settings: kopf.OperatorSettings, logger: logging.Logger, **kwargs: Any) -> None:
+async def on_startup(
+    settings: kopf.OperatorSettings, logger: logging.Logger, **kwargs: Any
+) -> None:
     """
     Handle the startup of the operator.
     """
@@ -90,6 +162,13 @@ def on_startup(settings: kopf.OperatorSettings, logger: logging.Logger, **kwargs
     settings.batching.worker_limit = 1
     # all logs by default go to the k8s event api making api server flooding even more likely
     settings.posting.enabled = False
+    # Start the background cleanup task
+    loop = asyncio.get_running_loop()
+    custom_objects_api = client.CustomObjectsApi()
+    loop.create_task(
+        cleanup_expired_devservers(custom_objects_api=custom_objects_api, logger=logger)
+    )
+
 
 @kopf.on.create(CRD_GROUP, CRD_VERSION, "devservers")
 def create_devserver(
@@ -98,12 +177,28 @@ def create_devserver(
     namespace: str,
     logger: logging.Logger,
     patch: Dict[str, Any],
+    meta: Dict[str, Any],
     **kwargs: Any,
 ) -> None:
     """
     Handle the creation of a new DevServer resource.
     """
     logger.info(f"Creating DevServer '{name}' in namespace '{namespace}'...")
+
+    # Validate and process timeToLive
+    ttl_str = spec.get("lifecycle", {}).get("timeToLive")
+    if not ttl_str:
+        raise kopf.PermanentError("spec.lifecycle.timeToLive is required.")
+
+    try:
+        ttl = parse_duration(ttl_str)
+        if ttl.total_seconds() <= 0:
+            raise ValueError("Duration must be positive.")
+        if ttl > timedelta(hours=24):
+            logger.warning(f"timeToLive '{ttl_str}' exceeds 24h, capping at 24h.")
+            ttl = timedelta(hours=24)
+    except ValueError as e:
+        raise kopf.PermanentError(f"Invalid timeToLive format: {e}")
 
     # Get the DevServerFlavor to determine resources
     custom_objects_api = client.CustomObjectsApi()
