@@ -1,19 +1,25 @@
-import base64
+"""
+Kubernetes operator for DevServer custom resources.
+
+This module contains the main Kopf handlers for the DevServer CRD.
+The handlers are kept thin and delegate to specialized modules for:
+- Validation (validation.py)
+- Host key generation (host_keys.py)
+- Resource reconciliation (reconciler.py)
+- Lifecycle management (lifecycle.py)
+"""
+import asyncio
 import logging
 import os
-import subprocess
-import tempfile
-import asyncio
-from datetime import datetime, timezone, timedelta
 from typing import Any, Dict
 
 import kopf
 from kubernetes import client, config
 
-from .resources.configmap import build_configmap, build_startup_configmap
-from .resources.services import build_headless_service, build_ssh_service
-from .resources.statefulset import build_statefulset
-from ..utils.time import parse_duration
+from .validation import validate_and_normalize_ttl
+from .host_keys import ensure_host_keys_secret
+from .reconciler import reconcile_devserver
+from .lifecycle import cleanup_expired_devservers
 
 try:
     config.load_incluster_config()
@@ -29,144 +35,37 @@ FINALIZER = f"finalizer.{CRD_GROUP}"
 EXPIRATION_INTERVAL = int(os.environ.get("DEVSERVER_EXPIRATION_INTERVAL", 60))
 
 
-async def cleanup_expired_devservers(
-    custom_objects_api: client.CustomObjectsApi, logger: logging.Logger
-) -> None:
-    """Periodically scan for and delete expired DevServers."""
-    while True:
-        try:
-            logger.info("Running expiration check for DevServers...")
-            devservers = custom_objects_api.list_cluster_custom_object(
-                group=CRD_GROUP,
-                version=CRD_VERSION,
-                plural="devservers",
-            )
-
-            now = datetime.now(timezone.utc)
-            for ds in devservers["items"]:
-                try:
-                    spec = ds.get("spec", {})
-                    ttl_str = spec.get("lifecycle", {}).get("timeToLive")
-                    if not ttl_str:
-                        continue
-
-                    ttl = parse_duration(ttl_str)
-                    if ttl > timedelta(hours=24):
-                        ttl = timedelta(hours=24)
-
-                    meta = ds.get("metadata", {})
-                    creation_timestamp_str = meta["creationTimestamp"]
-                    creation_timestamp = datetime.fromisoformat(
-                        creation_timestamp_str.replace("Z", "+00:00")
-                    )
-                    expiration_ts = creation_timestamp + ttl
-
-                    if now >= expiration_ts:
-                        name = meta["name"]
-                        namespace = meta["namespace"]
-                        logger.info(
-                            f"DevServer '{name}' in namespace '{namespace}' has expired. Deleting."
-                        )
-                        custom_objects_api.delete_namespaced_custom_object(
-                            group=CRD_GROUP,
-                            version=CRD_VERSION,
-                            plural="devservers",
-                            name=name,
-                            namespace=namespace,
-                            body=client.V1DeleteOptions(),
-                        )
-                except (ValueError, TypeError) as e:
-                    name = ds.get("metadata", {}).get("name", "unknown")
-                    logger.error(
-                        f"Error processing expiration for DevServer '{name}': {e}"
-                    )
-
-        except client.ApiException as e:
-            logger.error(f"API error during expiration check: {e}")
-        except Exception as e:
-            logger.error(
-                f"An unexpected error occurred during expiration check: {e}"
-            )
-
-        await asyncio.sleep(EXPIRATION_INTERVAL)
-
-
-def generate_and_ensure_host_keys(
-    name: str, namespace: str, logger: logging.Logger
-) -> None:
-    """
-    Checks for the existence of a Secret containing SSH host keys.
-    If it does not exist, it generates them and creates the Secret.
-    """
-    secret_name = f"{name}-host-keys"
-    core_v1 = client.CoreV1Api()
-
-    try:
-        core_v1.read_namespaced_secret(name=secret_name, namespace=namespace)
-        logger.info(f"Host key Secret '{secret_name}' already exists.")
-        return
-    except client.ApiException as e:
-        if e.status != 404:
-            raise
-
-    logger.info(f"Host key Secret '{secret_name}' not found. Generating keys...")
-
-    # Generate keys in a temporary directory
-    with tempfile.TemporaryDirectory() as temp_dir:
-        key_types = ["rsa", "ecdsa", "ed25519"]
-        key_data = {}
-
-        for key_type in key_types:
-            private_key_path = os.path.join(temp_dir, f"ssh_host_{key_type}_key")
-            public_key_path = f"{private_key_path}.pub"
-
-            subprocess.run(
-                ["ssh-keygen", "-t", key_type, "-f", private_key_path, "-N", "", "-q"],
-                check=True,
-            )
-
-            with open(private_key_path, "r") as f:
-                key_data[f"ssh_host_{key_type}_key"] = base64.b64encode(
-                    f.read().encode("utf-8")
-                ).decode("utf-8")
-            with open(public_key_path, "r") as f:
-                key_data[f"ssh_host_{key_type}_key.pub"] = base64.b64encode(
-                    f.read().encode("utf-8")
-                ).decode("utf-8")
-
-    secret_body = {
-        "apiVersion": "v1",
-        "kind": "Secret",
-        "metadata": {"name": secret_name, "namespace": namespace},
-        "type": "Opaque",
-        "data": key_data,
-    }
-
-    # Set owner reference for the new Secret
-    # This requires being in the context of a Kopf handler.
-    # We will call kopf.adopt on this object in the main handler.
-    kopf.adopt(secret_body)
-
-    core_v1.create_namespaced_secret(namespace=namespace, body=secret_body)
-    logger.info(f"Host key Secret '{secret_name}' created.")
-
 @kopf.on.startup()
 async def on_startup(
     settings: kopf.OperatorSettings, logger: logging.Logger, **kwargs: Any
 ) -> None:
     """
     Handle the startup of the operator.
+    
+    This sets operator-wide settings and starts background tasks.
     """
     logger.info("Operator started.")
-    # the default worker limit is unbounded which means you can EASILY flood your api server on restart unless you limit it, 1-5 are the generally accepted common sense defaults
+    
+    # The default worker limit is unbounded which means you can EASILY flood
+    # your API server on restart unless you limit it. 1-5 are the generally
+    # accepted common sense defaults. This is intentionally conservative and
+    # can be tuned based on your cluster's capabilities.
+    # TODO: Make this configurable via environment variable
     settings.batching.worker_limit = 1
-    # all logs by default go to the k8s event api making api server flooding even more likely
+    
+    # All logs by default go to the k8s event api making api server flooding
+    # even more likely. Disable event posting to reduce API load.
     settings.posting.enabled = False
-    # Start the background cleanup task
+    
+    # Start the background cleanup task for TTL expiration
     loop = asyncio.get_running_loop()
     custom_objects_api = client.CustomObjectsApi()
     loop.create_task(
-        cleanup_expired_devservers(custom_objects_api=custom_objects_api, logger=logger)
+        cleanup_expired_devservers(
+            custom_objects_api=custom_objects_api,
+            logger=logger,
+            interval_seconds=EXPIRATION_INTERVAL,
+        )
     )
 
 
@@ -182,25 +81,21 @@ def create_devserver(
 ) -> None:
     """
     Handle the creation of a new DevServer resource.
+    
+    This handler orchestrates:
+    1. TTL validation and normalization
+    2. Flavor fetching
+    3. SSH host key generation
+    4. Kubernetes resource creation
+    5. Status updates
     """
     logger.info(f"Creating DevServer '{name}' in namespace '{namespace}'...")
 
-    # Validate and process timeToLive
+    # Step 1: Validate TTL
     ttl_str = spec.get("lifecycle", {}).get("timeToLive")
-    if not ttl_str:
-        raise kopf.PermanentError("spec.lifecycle.timeToLive is required.")
+    validate_and_normalize_ttl(ttl_str, logger)
 
-    try:
-        ttl = parse_duration(ttl_str)
-        if ttl.total_seconds() <= 0:
-            raise ValueError("Duration must be positive.")
-        if ttl > timedelta(hours=24):
-            logger.warning(f"timeToLive '{ttl_str}' exceeds 24h, capping at 24h.")
-            ttl = timedelta(hours=24)
-    except ValueError as e:
-        raise kopf.PermanentError(f"Invalid timeToLive format: {e}")
-
-    # Get the DevServerFlavor to determine resources
+    # Step 2: Get the DevServerFlavor
     custom_objects_api = client.CustomObjectsApi()
     try:
         flavor = custom_objects_api.get_cluster_custom_object(
@@ -215,83 +110,23 @@ def create_devserver(
             raise kopf.PermanentError(f"Flavor '{spec['flavor']}' not found.")
         raise
 
-    # Ensure SSH host keys exist in a Secret
-    generate_and_ensure_host_keys(name, namespace, logger)
+    # Step 3: Ensure SSH host keys exist
+    # Build owner reference metadata for proper garbage collection
+    owner_meta = {
+        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
+        "kind": "DevServer",
+        "name": name,
+        "uid": meta["uid"],
+    }
+    ensure_host_keys_secret(name, namespace, owner_meta, logger)
 
-    # Build the required Kubernetes objects
-    headless_service = build_headless_service(name, namespace)
-    ssh_service = build_ssh_service(name, namespace)
-    statefulset = build_statefulset(name, namespace, spec, flavor)
-    sshd_configmap = build_configmap(name, namespace)
-    # Read and build the startup script ConfigMap
-    script_path = os.path.join(os.path.dirname(__file__), "resources", "startup.sh")
-    with open(script_path, "r") as f:
-        startup_script_content = f.read()
-    startup_script_configmap = build_startup_configmap(
-        name, namespace, startup_script_content
-    )
+    # Step 4: Reconcile all Kubernetes resources
+    status_message = reconcile_devserver(name, namespace, spec, flavor, logger)
 
-    # Set owner references
-    kopf.adopt(headless_service)
-    kopf.adopt(ssh_service)
-    kopf.adopt(statefulset)
-    kopf.adopt(sshd_configmap)
-    kopf.adopt(startup_script_configmap)
-
-    # Create the resources in Kubernetes
-    core_v1 = client.CoreV1Api()
-    apps_v1 = client.AppsV1Api()
-
-    # Create ConfigMap for sshd
-    try:
-        core_v1.create_namespaced_config_map(namespace=namespace, body=sshd_configmap)
-        logger.info(f"SSHD ConfigMap '{sshd_configmap['metadata']['name']}' created.")
-    except client.ApiException as e:
-        if e.status != 409:  # Ignore if it already exists
-            raise
-
-    # Create ConfigMap for startup script
-    try:
-        core_v1.create_namespaced_config_map(
-            namespace=namespace, body=startup_script_configmap
-        )
-        logger.info(
-            f"Startup script ConfigMap '{startup_script_configmap['metadata']['name']}' created."
-        )
-    except client.ApiException as e:
-        if e.status != 409:  # Ignore if it already exists
-            raise
-
-    # Create Services
-    try:
-        core_v1.create_namespaced_service(namespace=namespace, body=headless_service)
-        logger.info(
-            f"Headless Service '{headless_service['metadata']['name']}' created."
-        )
-    except client.ApiException as e:
-        if e.status != 409:  # Ignore if it already exists
-            raise
-
-    if spec.get("enableSSH", False):
-        try:
-            core_v1.create_namespaced_service(namespace=namespace, body=ssh_service)
-            logger.info(f"SSH Service '{ssh_service['metadata']['name']}' created.")
-        except client.ApiException as e:
-            if e.status != 409:
-                raise
-
-    # Create StatefulSet
-    try:
-        apps_v1.create_namespaced_stateful_set(body=statefulset, namespace=namespace)
-        logger.info(f"StatefulSet '{name}' created for DevServer.")
-    except client.ApiException as e:
-        if e.status != 409:  # Ignore if it already exists
-            raise
-
-    # Update the status
+    # Step 5: Update status
     patch["status"] = {
         "phase": "Running",
-        "message": f"StatefulSet '{name}' created successfully.",
+        "message": status_message,
     }
 
 
@@ -301,13 +136,14 @@ def delete_devserver(
 ) -> None:
     """
     Handle the deletion of a DevServer resource.
-    The StatefulSet and Services are owned by the DevServer and will be garbage collected.
+    
+    The StatefulSet and Services are owned by the DevServer via owner
+    references and will be garbage collected automatically.
+    
+    Note: PVCs from StatefulSets are NOT automatically deleted to prevent
+    data loss. Administrators may need to clean them up manually.
     """
     logger.info(f"DevServer '{name}' in namespace '{namespace}' is being deleted.")
-
-    # The owner reference handles cleanup of StatefulSet and Services.
-    # PVCs from StatefulSets are not automatically deleted to prevent data loss.
-    # An administrator may need to clean them up manually.
     logger.info("Associated StatefulSet and Services will be garbage collected.")
     logger.warning(
         f"PersistentVolumeClaim for '{name}' will NOT be deleted automatically."
