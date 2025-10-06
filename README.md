@@ -16,6 +16,7 @@ A Kubernetes-native operator for managing development servers, particularly desi
 
 - Python 3.8+
 - Docker
+- [uv](https://github.com/astral-sh/uv)
 - [k3d](https://k3d.io/)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 - A Kubernetes cluster (local k3d or remote)
@@ -26,10 +27,10 @@ A Kubernetes-native operator for managing development servers, particularly desi
 
 ```bash
 # Create a local k3d cluster
-make up
+k3d cluster create devserver-cluster
 
 # Install Python dependencies
-python3 -m venv .venv
+uv venv -p 3.13 .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 ```
@@ -37,18 +38,15 @@ pip install -e ".[dev]"
 ### 2. Deploy the CRDs and Flavors
 
 ```bash
-# Apply the Custom Resource Definitions
-kubectl apply -f crds/
-
-# Create a sample flavor
-kubectl apply -f examples/flavors/cpu-small.yaml
+# Apply the Custom Resource Definitions and Flavors
+make install-crds
 ```
 
 ### 3. Run the Operator
 
 ```bash
 # Start the operator in development mode
-kopf run -m devserver.operator
+make run
 ```
 
 ### 4. Use the CLI
@@ -78,6 +76,12 @@ For more detailed documentation, please see the following `README.md` files:
 ## 🤝 Contributing
 
 Contributions are welcome! Please see the `PROJECT.md` for the development plan.
+
+Before submitting a pull request, please run the pre-commit checks to ensure your changes adhere to the project's coding standards:
+
+```bash
+make pre-commit
+```
 
 1.  Fork the repository.
 2.  Create a feature branch.
