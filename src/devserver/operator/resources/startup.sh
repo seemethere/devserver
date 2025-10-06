@@ -101,7 +101,7 @@ if test -f /opt/bin/doas; then
     chmod 600 /etc/doas.conf
 
     # Create sudo symlink to doas for compatibility if sudo doesn't already exist
-    if ! command -v sudo >/dev/null 2>&1; then
+    if ! test -f /usr/local/bin/sudo >/dev/null 2>&1; then
         log_step "Creating sudo symlink to doas for compatibility"
         ln -sf /opt/bin/doas /usr/local/bin/sudo 2>/dev/null || true
     else
