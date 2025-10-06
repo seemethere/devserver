@@ -2,6 +2,12 @@ import time
 import pytest
 from kubernetes import client
 from tests.conftest import TEST_NAMESPACE
+from tests.helpers import (
+    wait_for_pvc_to_exist,
+    wait_for_statefulset_to_exist,
+    wait_for_statefulset_to_be_deleted,
+    cleanup_devserver,
+)
 
 # Constants from the main test file
 CRD_GROUP = "devserver.io"
@@ -45,53 +51,23 @@ def test_devserver_persistent_storage(test_flavor, operator_running, k8s_clients
         )
 
         # 1. Verify the StatefulSet's volumeClaimTemplate has the correct size
-        statefulset = None
-        for _ in range(30):
-            time.sleep(0.5)
-            try:
-                statefulset = apps_v1.read_namespaced_stateful_set(
-                    name=devserver_name, namespace=NAMESPACE
-                )
-                break
-            except client.ApiException as e:
-                if e.status == 404:
-                    continue
-                raise
+        statefulset = wait_for_statefulset_to_exist(
+            apps_v1, name=devserver_name, namespace=NAMESPACE
+        )
 
         assert statefulset is not None
         vct = statefulset.spec.volume_claim_templates[0]
         assert vct.spec.resources.requests["storage"] == storage_size
 
         # 2. Verify the PVC is created by the StatefulSet controller
-        pvc = None
-        for _ in range(30):
-            time.sleep(0.5)
-            try:
-                pvc = core_v1.read_namespaced_persistent_volume_claim(
-                    name=pvc_name, namespace=NAMESPACE
-                )
-                break
-            except client.ApiException as e:
-                if e.status == 404:
-                    continue
-                raise
+        pvc = wait_for_pvc_to_exist(core_v1, name=pvc_name, namespace=NAMESPACE)
 
         assert pvc is not None, f"PVC '{pvc_name}' was not created."
         assert pvc.spec.resources.requests["storage"] == storage_size
 
     finally:
         # Cleanup
-        try:
-            custom_objects_api.delete_namespaced_custom_object(
-                group=CRD_GROUP,
-                version=CRD_VERSION,
-                namespace=NAMESPACE,
-                plural=CRD_PLURAL_DEVSERVER,
-                name=devserver_name,
-            )
-        except client.ApiException as e:
-            if e.status != 404:
-                raise
+        cleanup_devserver(custom_objects_api, name=devserver_name, namespace=NAMESPACE)
 
         # Note: The PVC created by the StatefulSet is not automatically
         # garbage collected to prevent data loss. It would need to be
@@ -137,19 +113,8 @@ def test_persistent_storage_retains_on_recreation(
         )
 
         # Wait for PVC to be created
-        for _ in range(30):
-            time.sleep(0.5)
-            try:
-                core_v1.read_namespaced_persistent_volume_claim(
-                    name=pvc_name, namespace=NAMESPACE
-                )
-                print(f"✅ PVC '{pvc_name}' created.")
-                break
-            except client.ApiException as e:
-                if e.status != 404:
-                    raise
-        else:
-            pytest.fail(f"PVC '{pvc_name}' was not created in phase 1.")
+        wait_for_pvc_to_exist(core_v1, name=pvc_name, namespace=NAMESPACE)
+        print(f"✅ PVC '{pvc_name}' created.")
 
         # 2. Deletion
         print("PHASE 2: Deleting DevServer, verifying PVC remains...")
@@ -162,18 +127,10 @@ def test_persistent_storage_retains_on_recreation(
         )
 
         # Wait for StatefulSet to be deleted
-        for _ in range(60):
-            time.sleep(1)
-            try:
-                apps_v1.read_namespaced_stateful_set(
-                    name=devserver_name, namespace=NAMESPACE
-                )
-            except client.ApiException as e:
-                if e.status == 404:
-                    print(f"✅ StatefulSet '{devserver_name}' deleted.")
-                    break
-        else:
-            pytest.fail(f"StatefulSet '{devserver_name}' was not deleted in phase 2.")
+        wait_for_statefulset_to_be_deleted(
+            apps_v1, name=devserver_name, namespace=NAMESPACE
+        )
+        print(f"✅ StatefulSet '{devserver_name}' deleted.")
 
         # Assert that the PVC still exists
         try:
@@ -199,6 +156,11 @@ def test_persistent_storage_retains_on_recreation(
         )
 
         # Wait for StatefulSet to be re-created and become ready
+        wait_for_statefulset_to_exist(
+            apps_v1, name=devserver_name, namespace=NAMESPACE
+        )
+
+        # A further wait for it to be ready
         for _ in range(60):  # Longer wait for re-attachment
             time.sleep(1)
             try:
@@ -216,14 +178,4 @@ def test_persistent_storage_retains_on_recreation(
 
     finally:
         # Final cleanup
-        try:
-            custom_objects_api.delete_namespaced_custom_object(
-                group=CRD_GROUP,
-                version=CRD_VERSION,
-                namespace=NAMESPACE,
-                plural=CRD_PLURAL_DEVSERVER,
-                name=devserver_name,
-            )
-        except client.ApiException as e:
-            if e.status != 404:
-                raise
+        cleanup_devserver(custom_objects_api, name=devserver_name, namespace=NAMESPACE)

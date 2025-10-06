@@ -9,6 +9,8 @@ from devserver.cli import handlers
 from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
 from typing import Any, Dict
+from tests.helpers import wait_for_devserver_status, cleanup_devserver
+
 
 # Define constants and clients needed for CLI tests
 CRD_GROUP: str = "devserver.io"
@@ -64,12 +66,8 @@ class TestCliIntegration:
 
         finally:
             # Cleanup
-            custom_objects_api.delete_namespaced_custom_object(
-                group=CRD_GROUP,
-                version=CRD_VERSION,
-                namespace=NAMESPACE,
-                plural=CRD_PLURAL_DEVSERVER,
-                name=TEST_DEVSERVER_NAME,
+            cleanup_devserver(
+                custom_objects_api, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
             )
 
     def test_create_command(
@@ -103,17 +101,9 @@ class TestCliIntegration:
 
         finally:
             # Cleanup
-            try:
-                custom_objects_api.delete_namespaced_custom_object(
-                    group=CRD_GROUP,
-                    version=CRD_VERSION,
-                    namespace=NAMESPACE,
-                    plural=CRD_PLURAL_DEVSERVER,
-                    name=TEST_DEVSERVER_NAME,
-                )
-            except client.ApiException as e:
-                if e.status != 404:
-                    raise
+            cleanup_devserver(
+                custom_objects_api, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
+            )
 
     def test_delete_command(
         self, k8s_clients: Dict[str, Any], test_ssh_public_key: str
@@ -196,12 +186,8 @@ class TestCliIntegration:
 
         finally:
             # Cleanup
-            custom_objects_api.delete_namespaced_custom_object(
-                group=CRD_GROUP,
-                version=CRD_VERSION,
-                namespace=NAMESPACE,
-                plural=CRD_PLURAL_DEVSERVER,
-                name=TEST_DEVSERVER_NAME,
+            cleanup_devserver(
+                custom_objects_api, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
             )
 
 
@@ -365,18 +351,19 @@ def test_create_and_list_with_operator(
 
     try:
         # Create a DevServer using the CLI
+        devserver_name = "cli-test-server"
         handlers.create_devserver(
-            name="cli-test-server",
+            name=devserver_name,
             flavor="cli-test-flavor",
             image="alpine:latest",
             namespace=NAMESPACE,
             ssh_public_key_file=test_ssh_public_key,
         )
 
-        # Give the operator time to process
-        import time
-
-        time.sleep(3)
+        # Give the operator time to process and set the status to Running
+        wait_for_devserver_status(
+            custom_objects_api, name=devserver_name, namespace=NAMESPACE
+        )
 
         # Verify it appears in the list command
         captured_output = io.StringIO()
@@ -385,7 +372,7 @@ def test_create_and_list_with_operator(
         sys.stdout = sys.__stdout__
 
         output = captured_output.getvalue()
-        assert "cli-test-server" in output
+        assert devserver_name in output
 
         # If operator is working, we should see Running status eventually
         # Note: This might show "Unknown" initially before operator processes it
