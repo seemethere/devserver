@@ -84,11 +84,10 @@ chown -R dev:dev /home/dev
 log_info "Unlocking user's account to allow SSH access"
 # Unlock the user's account to allow SSH access
 # On some systems (like Fedora), an account created without a password is locked
-# Give the user a bogus password to unlock them
-# TODO: actually make this random
+RANDOM_PASSWORD=$(head -c 32 /dev/urandom | tr -dc 'a-zA-Z0-9')
 (
     set -x
-    usermod -p my_random_password dev
+    usermod -p "${RANDOM_PASSWORD}" dev
 )
 
 log_info "Configuring doas access for 'dev' user"
