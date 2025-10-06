@@ -41,7 +41,7 @@ pip install -e ".[dev]"
 kubectl apply -f crds/
 
 # Create a sample flavor
-kubectl apply -f examples/flavor-cpu-small.yaml
+kubectl apply -f examples/flavors/cpu-small.yaml
 ```
 
 ### 3. Run the Operator
