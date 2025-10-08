@@ -80,6 +80,41 @@ def wait_for_devserver_to_be_deleted(
     pytest.fail(f"DevServer '{name}' was not deleted within {timeout} seconds.")
 
 
+def wait_for_devserver_to_exist(
+    custom_objects_api: client.CustomObjectsApi, name: str, namespace: str, timeout: int = 10
+) -> Any:
+    """
+    Waits for a DevServer custom resource object to exist in the Kubernetes API.
+
+    This function only confirms the object's presence in the API server. It does
+    not wait for the operator to reconcile the object or for any underlying
+    resources (like Pods) to be created or become ready.
+
+    Use this when you need to test logic that happens before the operator has
+    acted, such as verifying the behavior of a CLI command that reads the object
+    immediately after creation.
+    """
+    print(f"⏳ Waiting for DevServer '{name}' to exist...")
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            devserver = custom_objects_api.get_namespaced_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                namespace=namespace,
+                plural=CRD_PLURAL_DEVSERVER,
+                name=name,
+            )
+            print(f"✅ DevServer '{name}' found.")
+            return devserver
+        except client.ApiException as e:
+            if e.status == 404:
+                time.sleep(POLL_INTERVAL)
+            else:
+                raise
+    pytest.fail(f"DevServer '{name}' did not appear within {timeout} seconds.")
+
+
 def wait_for_pvc_to_exist(
     core_v1_api: client.CoreV1Api, name: str, namespace: str, timeout: int = 30
 ) -> Any:
@@ -108,7 +143,17 @@ def wait_for_devserver_status(
     expected_status: str = "Running",
     timeout: int = 30,
 ):
-    """Waits for a DevServer to reach a specific status."""
+    """
+    Waits for a DevServer to reach a specific status in its `.status.phase` field.
+
+    This function waits for the operator to act on the DevServer object and
+    update its status. It implies that the object exists and that the
+    reconciliation loop has progressed to a certain point.
+
+    Use this for end-to-end tests where you need the underlying resources
+    (e.g., the Pod) to be in a certain state (e.g., 'Running') before
+    proceeding with the test.
+    """
     print(f"⏳ Waiting for DevServer '{name}' status to become '{expected_status}'...")
     start_time = time.time()
     current_status = None

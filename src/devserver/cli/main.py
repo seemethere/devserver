@@ -1,11 +1,26 @@
 import click
+from rich.console import Console
+
 from . import handlers
+from .ssh_config import ensure_ssh_config_include, set_ssh_config_permission
 
 
 @click.group()
-def main() -> None:
+@click.option(
+    "--config-dir",
+    type=click.Path(),
+    default=None,
+    help="Path to the devserver config directory.",
+)
+@click.option(
+    "--assume-yes", is_flag=True, help="Automatically answer yes to all prompts."
+)
+@click.pass_context
+def main(ctx, config_dir, assume_yes) -> None:
     """A CLI to manage DevServers."""
-    pass
+    ctx.ensure_object(dict)
+    ctx.obj["CONFIG_DIR"] = config_dir
+    ctx.obj["ASSUME_YES"] = assume_yes
 
 
 @main.command(help="Create a new DevServer.")
@@ -45,23 +60,12 @@ def create(
     )
 
 
-@main.command(help="List all DevServers.")
-def list() -> None:
-    """List all DevServers."""
-    handlers.list_devservers()
-
-
-@main.command(help="Show the available flavors.")
-def flavors() -> None:
-    """Show the available flavors."""
-    handlers.list_flavors()
-
-
 @main.command(help="Delete a DevServer.")
 @click.argument("name", type=str)
-def delete(name: str) -> None:
+@click.pass_context
+def delete(ctx, name: str) -> None:
     """Delete a DevServer."""
-    handlers.delete_devserver(name=name)
+    handlers.delete_devserver(name=name, config_dir_override=ctx.obj["CONFIG_DIR"])
 
 
 @main.command(help="Describe a DevServer.")
@@ -71,22 +75,83 @@ def describe(name: str) -> None:
     handlers.describe_devserver(name=name)
 
 
+@main.command(name="list", help="List all DevServers.")
+def list_command() -> None:
+    """List all DevServers."""
+    handlers.list_devservers()
+
+
 @main.command(help="SSH into a DevServer.")
 @click.argument("name", type=str)
 @click.option(
-    "--ssh-private-key-file",
+    "-i",
+    "--identity-file",
+    "ssh_private_key_file",
     type=str,
     default="~/.ssh/id_rsa",
     help="Path to the SSH private key file.",
 )
+@click.option(
+    "--proxy-mode",
+    is_flag=True,
+    hidden=True,
+    help="Run in proxy mode for SSH ProxyCommand.",
+)
 @click.argument("remote_command", nargs=-1)
-def ssh(name: str, ssh_private_key_file: str, remote_command: tuple[str, ...]) -> None:
+@click.pass_context
+def ssh(
+    ctx, name: str, ssh_private_key_file: str, proxy_mode: bool, remote_command: tuple[str, ...]
+) -> None:
     """SSH into a DevServer."""
     handlers.ssh_devserver(
         name=name,
         ssh_private_key_file=ssh_private_key_file,
+        proxy_mode=proxy_mode,
         remote_command=remote_command,
+        config_dir_override=ctx.obj["CONFIG_DIR"],
+        assume_yes=ctx.obj["ASSUME_YES"],
     )
+
+
+@main.group()
+def config() -> None:
+    """Manage devctl configuration."""
+    pass
+
+
+@config.command(name="ssh-include")
+@click.argument("action", type=click.Choice(["enable", "disable"]))
+@click.pass_context
+def ssh_include(ctx, action: str):
+    """Enable or disable SSH config Include directive."""
+    console = Console()
+    config_dir_override = ctx.obj["CONFIG_DIR"]
+    assume_yes = ctx.obj["ASSUME_YES"]
+
+    if action.lower() == "enable":
+        set_ssh_config_permission(True, config_dir_override=config_dir_override)
+        if ensure_ssh_config_include(
+            assume_yes=assume_yes, config_dir_override=config_dir_override
+        ):
+            console.print("[green]✅ Enabled SSH config Include directive.[/green]")
+            if config_dir_override:
+                config_dir = config_dir_override
+            else:
+                from .ssh_config import get_config_dir
+
+                config_dir = get_config_dir()
+            console.print(
+                f"[cyan]Added 'Include {config_dir}/*.sshconfig' to ~/.ssh/config[/cyan]"
+            )
+        else:
+            console.print("[yellow]SSH config Include was not enabled.[/yellow]")
+    elif action.lower() == "disable":
+        set_ssh_config_permission(False, config_dir_override=config_dir_override)
+        console.print("[yellow]✅ Disabled automatic SSH config Include.[/yellow]")
+        console.print("[dim]Note: Existing Include directive in ~/.ssh/config not removed.[/dim]")
+        console.print(
+            "[dim]You can manually remove the 'Include ~/.config/devserver/*.sshconfig' line if desired.[/dim]"
+        )
 
 
 if __name__ == "__main__":
