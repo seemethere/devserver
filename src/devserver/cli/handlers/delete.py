@@ -5,7 +5,7 @@ from typing import Optional
 from kubernetes import client, config
 from rich.console import Console
 
-from devserver.cli.ssh_config import remove_ssh_config_for_devserver
+from ..ssh_config import remove_ssh_config_for_devserver
 
 
 def delete_devserver(

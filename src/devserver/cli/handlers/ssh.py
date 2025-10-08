@@ -8,11 +8,11 @@ from typing import Optional
 from kubernetes import client, config
 from rich.console import Console
 
-from devserver.cli.ssh_config import (
+from ..ssh_config import (
     create_ssh_config_for_devserver,
     remove_ssh_config_for_devserver,
 )
-from devserver.utils.network import PortForwardError, kubernetes_port_forward
+from ...utils.network import PortForwardError, kubernetes_port_forward
 
 
 def ssh_devserver(
