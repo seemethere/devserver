@@ -4,10 +4,12 @@ import uuid
 import time
 import io
 import sys
+from pathlib import Path
 
 from devserver.cli import handlers
 from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
+from tests.helpers import wait_for_devserver_to_exist
 
 
 @pytest.mark.parametrize("image", ["ubuntu:latest", "fedora:latest"])
@@ -80,3 +82,89 @@ def test_ssh_command_functional_on_various_images(
             handlers.delete_devserver(name=devserver_name, namespace=TEST_NAMESPACE)
         except Exception:
             pass
+
+
+def test_ssh_config_file_management(
+    operator_running: Any,
+    k8s_clients: Dict[str, Any],
+    test_flavor: str,
+    test_ssh_key_pair: dict[str, str],
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """
+    Tests the creation, content, and cleanup of the devserver SSH config files.
+    """
+    # Patch Path.home() to use a temporary directory for config files
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    devserver_name = f"ssh-config-test-{uuid.uuid4().hex[:6]}"
+    config_dir = tmp_path / ".config" / "devserver"
+    config_file = config_dir / f"{devserver_name}.sshconfig"
+
+    # We need to run ssh with a dummy command, but since port-forwarding will fail
+    # in a non-interactive test, we'll patch subprocess.run to prevent it from blocking.
+    def mock_subprocess_run(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr("subprocess.run", mock_subprocess_run)
+
+    try:
+        # 1. Test config file creation
+        handlers.create_devserver(
+            name=devserver_name,
+            flavor=test_flavor,
+            namespace=TEST_NAMESPACE,
+            ssh_public_key_file=test_ssh_key_pair["public"],
+        )
+
+        # Wait for the DevServer CRD object to be available via the API
+        wait_for_devserver_to_exist(
+            k8s_clients["custom_objects_api"], devserver_name, TEST_NAMESPACE
+        )
+
+        handlers.ssh_devserver(
+            name=devserver_name,
+            namespace=TEST_NAMESPACE,
+            ssh_private_key_file=test_ssh_key_pair["private"],
+            config_dir_override=config_dir,
+            assume_yes=True,
+        )
+
+        assert config_file.exists()
+
+        # 2. Test config file content
+        content = config_file.read_text()
+        python_executable = sys.executable
+        expected_proxy_command = (
+            f"ProxyCommand {python_executable} -m devserver.cli.main ssh --proxy-mode {devserver_name}"
+        )
+        assert f"Host {devserver_name}" in content
+        assert expected_proxy_command in content
+
+    finally:
+        # 3. Test cleanup on deletion
+        handlers.delete_devserver(
+            name=devserver_name,
+            namespace=TEST_NAMESPACE,
+            config_dir_override=config_dir,
+        )
+        assert not config_file.exists()
+
+    # 4. Test cleanup of stale config for expired/non-existent devserver
+    # Manually create a stale config file
+    config_dir.mkdir(parents=True, exist_ok=True)
+    stale_config_name = "stale-devserver"
+    stale_config_file = config_dir / f"{stale_config_name}.sshconfig"
+    stale_config_file.write_text("dummy content")
+
+    # The ssh command should exit, so we catch the SystemExit exception
+    with pytest.raises(SystemExit):
+        handlers.ssh_devserver(
+            name=stale_config_name,
+            namespace=TEST_NAMESPACE,
+            ssh_private_key_file=test_ssh_key_pair["private"],
+            config_dir_override=config_dir,
+        )
+
+    assert not stale_config_file.exists()

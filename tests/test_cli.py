@@ -290,20 +290,25 @@ class TestCliParser:
         with patch("devserver.cli.handlers.ssh.config.load_kube_config"), \
              patch("devserver.cli.handlers.ssh.client.CustomObjectsApi") as mock_custom_api, \
              patch("devserver.cli.handlers.ssh.kubernetes_port_forward") as mock_portforward, \
-             patch("devserver.cli.handlers.ssh.subprocess.run") as mock_run:
+             patch("devserver.cli.handlers.ssh.subprocess.run") as mock_run, \
+             patch("devserver.cli.handlers.ssh.create_ssh_config_for_devserver") as mock_create_config:
 
             # Mock the K8s API to return a dummy DevServer
             mock_custom_api.return_value.get_namespaced_custom_object.return_value = {}
+
+            # Mock the ssh config creation to simulate the user saying "no" to the prompt
+            mock_create_config.return_value = (None, False)
 
             mock_portforward.return_value.__enter__.return_value = 12345
 
             result = runner.invoke(
                 cli_main.main,
-                ["ssh", "my-server", "--ssh-private-key-file", str(private_key_file)]
+                ["ssh", "my-server", "--identity-file", str(private_key_file)]
             )
 
             # Check that the command succeeded
             assert result.exit_code == 0
+            assert "Connecting to devserver 'my-server' via port-forward on localhost:12345..." in result.output
             
             mock_portforward.assert_called_once_with(
                 pod_name="my-server-0", namespace="default", pod_port=22
