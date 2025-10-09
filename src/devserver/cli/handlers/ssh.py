@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 import socket
 import select
+from typing import Optional
 
 from kubernetes import client, config
 from rich.console import Console
@@ -18,7 +19,7 @@ from ..config import Configuration
 def ssh_devserver(
     configuration: Configuration,
     name: str,
-    ssh_private_key_file: str,
+    ssh_private_key_file: Optional[str],
     proxy_mode: bool,
     remote_command: tuple[str, ...],
     assume_yes: bool = False,
@@ -29,6 +30,8 @@ def ssh_devserver(
     custom_objects_api = client.CustomObjectsApi()
 
     console = Console()
+
+    key_path_str = ssh_private_key_file or configuration.ssh_private_key_file
 
     try:
         # Check if DevServer exists
@@ -55,7 +58,7 @@ def ssh_devserver(
         _, use_include = create_ssh_config_for_devserver(
             configuration.ssh_config_dir,
             name,
-            ssh_private_key_file,
+            key_path_str,
             assume_yes=assume_yes,
         )
         if use_include:
@@ -106,7 +109,7 @@ def ssh_devserver(
                 f"Connecting to devserver '{name}' via port-forward on localhost:{local_port}..."
             )
 
-            key_path = Path(ssh_private_key_file).expanduser()
+            key_path = Path(key_path_str).expanduser()
             if not key_path.is_file():
                 console.print(
                     f"[red]Error: SSH private key file not found at '{key_path}'[/red]"

@@ -108,7 +108,7 @@ def list_command() -> None:
     "--identity-file",
     "ssh_private_key_file",
     type=str,
-    default="~/.ssh/id_rsa",
+    default=None,
     help="Path to the SSH private key file.",
 )
 @click.option(

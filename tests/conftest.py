@@ -38,6 +38,7 @@ def test_config(tmp_path: Path, test_ssh_key_pair: dict[str, str]) -> Configurat
         "devctl-ssh-config-dir": str(ssh_config_dir),
         "ssh": {
             "public_key_file": test_ssh_key_pair["public"],
+            "private_key_file": test_ssh_key_pair["private"],
         },
     }
     return Configuration(config_data)
