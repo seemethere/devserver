@@ -20,6 +20,7 @@ def test_ssh_command_functional_on_various_images(
     test_flavor: str,
     test_ssh_key_pair: dict[str, str],
     image: str,
+    test_config: Configuration,
 ) -> None:
     """
     Functional test for the 'ssh' command that verifies an actual SSH connection
@@ -34,6 +35,7 @@ def test_ssh_command_functional_on_various_images(
     try:
         # Create a DevServer for the test
         handlers.create_devserver(
+            configuration=test_config,
             name=devserver_name,
             flavor=test_flavor,
             image=image,
@@ -65,6 +67,7 @@ def test_ssh_command_functional_on_various_images(
 
         # Run 'whoami' command via devctl ssh to confirm user
         handlers.ssh_devserver(
+            configuration=test_config,
             name=devserver_name,
             namespace=TEST_NAMESPACE,
             ssh_private_key_file=test_ssh_key_pair["private"],
@@ -82,7 +85,7 @@ def test_ssh_command_functional_on_various_images(
     finally:
         # Cleanup
         try:
-            handlers.delete_devserver(name=devserver_name, namespace=TEST_NAMESPACE)
+            handlers.delete_devserver(configuration=test_config, name=devserver_name, namespace=TEST_NAMESPACE)
         except Exception:
             pass
 
@@ -103,7 +106,7 @@ def test_ssh_config_file_management(
     config_dir.mkdir()
     config_file = config_dir / f"{devserver_name}.sshconfig"
 
-    test_config = Configuration({
+    test_config_with_path = Configuration({
         "devctl-ssh-config-dir": str(config_dir),
     })
 
@@ -117,7 +120,7 @@ def test_ssh_config_file_management(
     try:
         # 1. Test config file creation
         handlers.create_devserver(
-            configuration=test_config,
+            configuration=test_config_with_path,
             name=devserver_name,
             flavor=test_flavor,
             namespace=TEST_NAMESPACE,
@@ -130,7 +133,7 @@ def test_ssh_config_file_management(
         )
 
         handlers.ssh_devserver(
-            configuration=test_config,
+            configuration=test_config_with_path,
             name=devserver_name,
             namespace=TEST_NAMESPACE,
             ssh_private_key_file=test_ssh_key_pair["private"],
@@ -153,7 +156,7 @@ def test_ssh_config_file_management(
     finally:
         # 3. Test cleanup on deletion
         handlers.delete_devserver(
-            configuration=test_config,
+            configuration=test_config_with_path,
             name=devserver_name,
             namespace=TEST_NAMESPACE,
         )
@@ -168,7 +171,7 @@ def test_ssh_config_file_management(
     # The ssh command should exit, so we catch the SystemExit exception
     with pytest.raises(SystemExit):
         handlers.ssh_devserver(
-            configuration=test_config,
+            configuration=test_config_with_path,
             name=stale_config_name,
             namespace=TEST_NAMESPACE,
             ssh_private_key_file=test_ssh_key_pair["private"],

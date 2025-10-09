@@ -13,6 +13,8 @@ import os
 from typing import cast
 import subprocess
 from typing import Any
+from devserver.cli.config import Configuration
+from pathlib import Path
 
 # Generate a unique test namespace for each test session
 # This prevents conflicts between concurrent test runs
@@ -21,6 +23,24 @@ TEST_NAMESPACE = f"devserver-test-{uuid.uuid4().hex[:8]}"
 # Allow override via environment variable for debugging
 if os.getenv("DEVSERVER_TEST_NAMESPACE"):
     TEST_NAMESPACE = cast(str, os.getenv("DEVSERVER_TEST_NAMESPACE"))
+
+
+@pytest.fixture
+def test_config(tmp_path: Path, test_ssh_key_pair: dict[str, str]) -> Configuration:
+    """
+    Provides a Configuration object for tests, pointing to temporary paths for
+    SSH keys and config directories.
+    """
+    ssh_config_dir = tmp_path / "ssh_config"
+    ssh_config_dir.mkdir()
+
+    config_data = {
+        "devctl-ssh-config-dir": str(ssh_config_dir),
+        "ssh": {
+            "public_key_file": test_ssh_key_pair["public"],
+        },
+    }
+    return Configuration(config_data)
 
 
 @pytest.fixture(scope="session")

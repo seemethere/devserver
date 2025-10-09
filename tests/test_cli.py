@@ -10,6 +10,7 @@ from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
 from typing import Any, Dict
 from tests.helpers import wait_for_devserver_status, cleanup_devserver
+from devserver.cli.config import Configuration
 
 
 # Define constants and clients needed for CLI tests
@@ -26,7 +27,7 @@ class TestCliIntegration:
     """
 
     def test_list_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str
+        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
     ) -> None:
         """Tests that the 'list' command can see a created DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
@@ -71,7 +72,7 @@ class TestCliIntegration:
             )
 
     def test_create_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str
+        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
     ) -> None:
         """Tests that the 'create' command successfully creates a DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
@@ -79,6 +80,7 @@ class TestCliIntegration:
         try:
             # Call the handler to create the DevServer
             handlers.create_devserver(
+                configuration=test_config,
                 name=TEST_DEVSERVER_NAME,
                 flavor="test-flavor",
                 image="nginx:latest",
@@ -106,7 +108,7 @@ class TestCliIntegration:
             )
 
     def test_delete_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str
+        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
     ) -> None:
         """Tests that the 'delete' command successfully deletes a DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
@@ -131,7 +133,7 @@ class TestCliIntegration:
         )
 
         # Call the handler to delete the DevServer
-        handlers.delete_devserver(name=TEST_DEVSERVER_NAME, namespace=NAMESPACE)
+        handlers.delete_devserver(configuration=test_config, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE)
 
         # Verify the resource was deleted
         with pytest.raises(client.ApiException) as cm:
@@ -146,7 +148,7 @@ class TestCliIntegration:
         assert cm.value.status == 404
 
     def test_describe_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str
+        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
     ) -> None:
         """Tests that the 'describe' command can see a created DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
@@ -197,7 +199,7 @@ class TestCliParser:
     These tests do not interact with Kubernetes.
     """
 
-    def test_create_command_parsing(self) -> None:
+    def test_create_command_parsing(self, test_config: Configuration) -> None:
         """Tests that 'create' command arguments are parsed correctly."""
         runner = CliRunner()
         
@@ -214,6 +216,7 @@ class TestCliParser:
             # Verify the handler was called with correct arguments
             mock_create.assert_called_once()
             call_kwargs = mock_create.call_args.kwargs
+            assert isinstance(call_kwargs["configuration"], Configuration)
             assert call_kwargs["name"] == "my-server"
             assert call_kwargs["flavor"] == "cpu-small"
             assert call_kwargs["image"] == "ubuntu:22.04"
@@ -232,7 +235,7 @@ class TestCliParser:
             # Verify the handler was called
             mock_list.assert_called_once()
 
-    def test_delete_command_parsing(self) -> None:
+    def test_delete_command_parsing(self, test_config: Configuration) -> None:
         """Tests that 'delete' command arguments are parsed correctly."""
         runner = CliRunner()
         
@@ -246,6 +249,7 @@ class TestCliParser:
             # Verify the handler was called with correct arguments
             mock_delete.assert_called_once()
             call_kwargs = mock_delete.call_args.kwargs
+            assert isinstance(call_kwargs["configuration"], Configuration)
             assert call_kwargs["name"] == "my-server"
 
     def test_describe_command_parsing(self) -> None:
@@ -278,7 +282,7 @@ class TestCliParser:
         assert "flavor" in result.output.lower() or "required" in result.output.lower()
 
 
-    def test_ssh_command_parsing(self, tmp_path: Any) -> None:
+    def test_ssh_command_parsing(self, tmp_path: Any, test_config: Configuration) -> None:
         """Tests that 'ssh' command arguments are parsed and handled correctly."""
         runner = CliRunner()
         
@@ -326,7 +330,7 @@ class TestCliParser:
 
 
 def test_create_and_list_with_operator(
-    operator_running: Any, k8s_clients: Dict[str, Any], test_ssh_public_key: str
+    operator_running: Any, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
 ) -> None:
     """
     Integration test for the CLI that works with the actual operator running.
@@ -358,6 +362,7 @@ def test_create_and_list_with_operator(
         # Create a DevServer using the CLI
         devserver_name = "cli-test-server"
         handlers.create_devserver(
+            configuration=test_config,
             name=devserver_name,
             flavor="cli-test-flavor",
             image="alpine:latest",
@@ -385,7 +390,7 @@ def test_create_and_list_with_operator(
     finally:
         # Cleanup
         try:
-            handlers.delete_devserver(name="cli-test-server", namespace=NAMESPACE)
+            handlers.delete_devserver(configuration=test_config, name="cli-test-server", namespace=NAMESPACE)
         except Exception:
             pass
 
