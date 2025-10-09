@@ -8,6 +8,7 @@ from rich.prompt import Confirm
 
 def _get_permission_file(config_dir: Path) -> Path:
     """Returns the path to the SSH config permission file."""
+    config_dir.mkdir(mode=0o700, exist_ok=True)
     return config_dir / "ssh-config-permission"
 
 
