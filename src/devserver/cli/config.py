@@ -3,12 +3,14 @@ from pathlib import Path
 from typing import Optional, Any, Dict
 from rich.console import Console
 
+DEFAULT_CONFIG_DIR = Path.home() / ".config" / "devctl"
+DEFAULT_CONFIG_PATH = DEFAULT_CONFIG_DIR / "config.yml"
 DEFAULT_CONFIG = {
     "ssh": {
         "public_key_file": "~/.ssh/id_rsa.pub",
         "private_key_file": "~/.ssh/id_rsa",
     },
-    "devctl-ssh-config-dir": "~/.config/devserver/ssh/",
+    "devctl-ssh-config-dir": str(DEFAULT_CONFIG_DIR / "ssh/"),
 }
 
 
@@ -31,13 +33,13 @@ class Configuration:
     @property
     def ssh_config_dir(self) -> Path:
         path_str = self._config.get(
-            "devctl-ssh-config-dir", "~/.config/devserver/ssh/"
+            "devctl-ssh-config-dir", str(DEFAULT_CONFIG_DIR / "ssh/")
         )
         return Path(path_str).expanduser()
 
 
 def get_default_config_path() -> Path:
-    return Path.home() / ".config" / "devserver" / "config.yml"
+    return DEFAULT_CONFIG_PATH
 
 
 def create_default_config(path: Path):
