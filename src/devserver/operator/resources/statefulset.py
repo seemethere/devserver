@@ -59,12 +59,13 @@ def build_statefulset(
                             },
                             {
                                 "name": "sshd-config",
-                                "mountPath": "/etc/ssh",
+                                "mountPath": "/opt/ssh/sshd_config",
+                                "subPath": "sshd_config",
                                 "readOnly": True,
                             },
                             {
                                 "name": "host-keys",
-                                "mountPath": "/etc/ssh/hostkeys",
+                                "mountPath": "/opt/ssh/hostkeys",
                                 "readOnly": True,
                             },
                         ],
