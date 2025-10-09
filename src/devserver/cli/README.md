@@ -66,3 +66,24 @@ devctl config ssh-include enable
 # Manually disable the feature
 devctl config ssh-include disable
 ```
+
+## Configuration
+
+`devctl` can be configured via a YAML file located at `~/.config/devserver/config.yml`. The first time you run `devctl`, a default configuration file will be created if one does not already exist.
+
+### Default Configuration
+
+Here is the default configuration:
+
+```yaml
+ssh:
+  public_key_file: "~/.ssh/id_rsa.pub"
+  private_key_file: "~/.ssh/id_rsa"
+devctl-ssh-config-dir: "~/.config/devserver/ssh/"
+```
+
+### Options
+
+*   `ssh.public_key_file`: Path to your SSH public key.
+*   `ssh.private_key_file`: Path to your SSH private key.
+*   `devctl-ssh-config-dir`: Directory where `devctl` stores its generated SSH configuration files.
