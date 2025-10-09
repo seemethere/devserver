@@ -121,6 +121,7 @@ def create_ssh_config_for_devserver(
     ssh_config_dir: Path,
     name: str,
     ssh_private_key_file: str,
+    ssh_forward_agent: bool = False,
     assume_yes: bool = False,
 ) -> tuple[Path, bool]:
     """
@@ -130,6 +131,7 @@ def create_ssh_config_for_devserver(
         ssh_config_dir: The path to the devserver ssh config directory.
         name: The name of the devserver.
         ssh_private_key_file: Path to the SSH private key file.
+        ssh_forward_agent: If True, forward the SSH agent. Default is False.
         assume_yes: If True, automatically grant permission without prompting.
 
     Returns:
@@ -151,6 +153,7 @@ Host {name}
     User dev
     ProxyCommand {python_executable} -m devserver.cli.main ssh --proxy-mode {name}
     IdentityFile {key_path}
+    ForwardAgent {"yes" if ssh_forward_agent else "no"}
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
 """

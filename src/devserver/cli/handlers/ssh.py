@@ -59,6 +59,7 @@ def ssh_devserver(
             configuration.ssh_config_dir,
             name,
             key_path_str,
+            ssh_forward_agent=configuration.ssh_forward_agent,
             assume_yes=assume_yes,
         )
         if use_include:

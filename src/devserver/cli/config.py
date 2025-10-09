@@ -9,6 +9,7 @@ DEFAULT_CONFIG = {
     "ssh": {
         "public_key_file": "~/.ssh/id_rsa.pub",
         "private_key_file": "~/.ssh/id_rsa",
+        "forward_agent": False,
     },
     "devctl-ssh-config-dir": str(DEFAULT_CONFIG_DIR / "ssh/"),
 }
@@ -36,6 +37,12 @@ class Configuration:
             "devctl-ssh-config-dir", str(DEFAULT_CONFIG_DIR / "ssh/")
         )
         return Path(path_str).expanduser()
+
+    @property
+    def ssh_forward_agent(self) -> bool:
+        return self._config.get("ssh", {}).get(
+            "forward_agent", False
+        )
 
 
 def get_default_config_path() -> Path:
