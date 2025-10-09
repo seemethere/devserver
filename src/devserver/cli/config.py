@@ -6,6 +6,7 @@ from rich.console import Console
 DEFAULT_CONFIG = {
     "ssh": {
         "public_key_file": "~/.ssh/id_rsa.pub",
+        "private_key_file": "~/.ssh/id_rsa",
     },
     "devctl-ssh-config-dir": "~/.config/devserver/ssh/",
 }
@@ -19,6 +20,12 @@ class Configuration:
     def ssh_public_key_file(self) -> str:
         return self._config.get("ssh", {}).get(
             "public_key_file", "~/.ssh/id_rsa.pub"
+        )
+
+    @property
+    def ssh_private_key_file(self) -> str:
+        return self._config.get("ssh", {}).get(
+            "private_key_file", "~/.ssh/id_rsa"
         )
 
     @property
