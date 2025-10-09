@@ -131,6 +131,27 @@ chmod 600 /home/dev/.ssh/authorized_keys
 # Create the privilege separation directory
 mkdir -p /var/empty
 
+log_info "Configuring sshd..."
+if [ -n "$DEVSERVER_TEST_MODE" ]; then
+    log_info "Test mode: skipping sshd configuration."
+else
+    log_step "Copying sshd_config and host keys and setting permissions"
+    (
+        set -x
+        mkdir -p /etc/ssh
+        cp /opt/ssh/sshd_config /etc/ssh/sshd_config
+        if [ -d "/opt/ssh/hostkeys" ] && [ -n "$(ls -A /opt/ssh/hostkeys)" ]; then
+            cp -L /opt/ssh/hostkeys/* /etc/ssh/
+        else
+            log_step "Warning: /opt/ssh/hostkeys is empty or not a directory, host keys will be missing."
+        fi
+
+        chmod 644 /etc/ssh/sshd_config
+        chmod 600 /etc/ssh/ssh_host_*_key
+        chmod 644 /etc/ssh/ssh_host_*_key.pub
+    )
+fi
+
 log_info "Starting sshd..."
 if [ -n "$DEVSERVER_TEST_MODE" ]; then
     log_info "Test mode: skipping sshd execution."
