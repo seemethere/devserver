@@ -11,6 +11,7 @@ The handlers are kept thin and delegate to specialized modules for:
 import asyncio
 import logging
 import os
+import sys
 from typing import Any, Dict
 
 import kopf
@@ -19,6 +20,7 @@ from kubernetes import client, config
 from .validation import validate_and_normalize_ttl
 from .host_keys import ensure_host_keys_secret
 from .reconciler import reconcile_devserver
+from .user_reconciler import reconcile_user, on_user_delete
 from .lifecycle import cleanup_expired_devservers
 
 try:
@@ -46,6 +48,24 @@ async def on_startup(
     """
     logger.info("Operator started.")
     
+    # Verify that required ClusterRoles exist
+    rbac_api = client.RbacAuthorizationV1Api()
+    required_cluster_roles = ["devserver-user", "devserver-admin"]
+    for role_name in required_cluster_roles:
+        try:
+            rbac_api.read_cluster_role(name=role_name)
+            logger.info(f"Found required ClusterRole: {role_name}")
+        except client.ApiException as e:
+            if e.status == 404:
+                logger.fatal(
+                    f"Required ClusterRole '{role_name}' not found. "
+                    "Please apply the RBAC manifests from the rbac/ directory before running the operator."
+                )
+                sys.exit(1)
+            else:
+                logger.fatal(f"Error checking for ClusterRole '{role_name}': {e}")
+                sys.exit(1)
+
     # The default worker limit is unbounded which means you can EASILY flood
     # your API server on restart unless you limit it. 1-5 are the generally
     # accepted common sense defaults. This is intentionally conservative and
@@ -148,3 +168,20 @@ def delete_devserver(
     logger.warning(
         f"PersistentVolumeClaim for '{name}' will NOT be deleted automatically."
     )
+
+
+@kopf.on.create(CRD_GROUP, CRD_VERSION, "devserverusers")
+@kopf.on.update(CRD_GROUP, CRD_VERSION, "devserverusers")
+def user_reconciler_handler(spec: Dict[str, Any], name: str, uid: str, logger: logging.Logger, body: Dict[str, Any], **kwargs: Any) -> None:
+    """
+    Handle the creation and updates of a new User resource.
+    """
+    reconcile_user(spec=spec, name=name, uid=uid, logger=logger, body=body, **kwargs)
+
+
+@kopf.on.delete(CRD_GROUP, CRD_VERSION, "devserverusers")
+def on_user_delete_handler(spec: Dict[str, Any], name: str, logger: logging.Logger, body: Dict[str, Any], **kwargs: Any) -> None:
+    """
+    Handle the deletion of a User resource.
+    """
+    on_user_delete(spec=spec, name=name, logger=logger, body=body, **kwargs)

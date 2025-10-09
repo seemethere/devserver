@@ -1,10 +1,12 @@
 from kubernetes import client, config
 from rich.console import Console
 from rich.pretty import Pretty
+from ..utils import get_user_namespace
 
 
-def describe_devserver(name: str, namespace: str = "default") -> None:
+def describe_devserver(name: str) -> None:
     """Describes a DevServer resource."""
+    namespace = get_user_namespace()
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()

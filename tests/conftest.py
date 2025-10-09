@@ -15,6 +15,7 @@ import subprocess
 from typing import Any
 from devserver.cli.config import Configuration
 from pathlib import Path
+from devserver.operator.user_reconciler import get_user_namespace
 
 # Generate a unique test namespace for each test session
 # This prevents conflicts between concurrent test runs
@@ -83,6 +84,7 @@ def k8s_clients():
         "apps_v1": client.AppsV1Api(),
         "core_v1": client.CoreV1Api(),
         "custom_objects_api": client.CustomObjectsApi(),
+        "rbac_v1": client.RbacAuthorizationV1Api(),
     }
 
 
@@ -124,9 +126,21 @@ def apply_crds():
         else:
             raise
 
+    # Apply RBAC first
+    print("🔧 Applying RBAC manifests...")
+    try:
+        utils.create_from_directory(k8s_client, "rbac", apply=True)
+        print("✅ RBAC manifests applied successfully")
+    except Exception as e:
+        print(f"⚠️ RBAC application failed: {e}")
+
     # Check for any existing CRDs and handle terminating state
     api_extensions_v1 = client.ApiextensionsV1Api()
-    crd_names = ["devservers.devserver.io", "devserverflavors.devserver.io"]
+    crd_names = [
+        "devservers.devserver.io",
+        "devserverflavors.devserver.io",
+        "devserverusers.devserver.io",
+    ]
 
     for crd_name in crd_names:
         print(f"⏳ Checking if CRD {crd_name} exists...")
@@ -164,12 +178,7 @@ def apply_crds():
     # Apply CRDs using server-side apply for idempotency
     print("🔧 Applying DevServer CRDs...")
     try:
-        utils.create_from_yaml(
-            k8s_client, "crds/devserver.io_devservers.yaml", apply=True
-        )
-        utils.create_from_yaml(
-            k8s_client, "crds/devserver.io_devserverflavors.yaml", apply=True
-        )
+        utils.create_from_directory(k8s_client, "crds", apply=True)
         print("✅ CRDs applied successfully")
     except Exception as e:
         print(f"⚠️ CRD application failed: {e}")
@@ -211,7 +220,11 @@ def apply_crds():
     if os.getenv("CLEANUP_CRDS", "false").lower() == "true":
         print("🧹 Deleting CRDs (CLEANUP_CRDS=true)...")
         api_extensions_v1 = client.ApiextensionsV1Api()
-        for crd_name in ["devservers.devserver.io", "devserverflavors.devserver.io"]:
+        for crd_name in [
+            "devservers.devserver.io",
+            "devserverflavors.devserver.io",
+            "devserverusers.devserver.io",
+        ]:
             try:
                 api_extensions_v1.delete_custom_resource_definition(name=crd_name)
                 print(f"✅ Deleted CRD: {crd_name}")
@@ -293,6 +306,64 @@ def operator_running(operator_runner):
 CRD_GROUP = "devserver.io"
 CRD_VERSION = "v1"
 CRD_PLURAL_FLAVOR = "devserverflavors"
+CRD_PLURAL_DEVSERVERUSER = "devserverusers"
+TEST_USER_NAME = "test-cli-user"
+
+
+@pytest.fixture(scope="function")
+def test_user(request, k8s_clients):
+    """
+    Creates a DevServerUser and its corresponding namespace for a test.
+    The operator (if running) will react to this by creating the namespace.
+    """
+    custom_objects_api = k8s_clients["custom_objects_api"]
+    core_v1_api = k8s_clients["core_v1"]
+    user_namespace = get_user_namespace(TEST_USER_NAME)
+
+    user_manifest = {
+        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
+        "kind": "DevServerUser",
+        "metadata": {"name": TEST_USER_NAME},
+        "spec": {"username": TEST_USER_NAME},
+    }
+
+    # Create the DevServerUser
+    custom_objects_api.create_cluster_custom_object(
+        group=CRD_GROUP,
+        version=CRD_VERSION,
+        plural=CRD_PLURAL_DEVSERVERUSER,
+        body=user_manifest,
+    )
+
+    # Wait for the namespace to be created by the operator
+    for _ in range(10):
+        try:
+            core_v1_api.read_namespace(name=user_namespace)
+            break
+        except client.ApiException as e:
+            if e.status == 404:
+                time.sleep(1)
+            else:
+                raise
+    else:
+        pytest.fail(f"Namespace {user_namespace} was not created by the operator.")
+
+    def cleanup():
+        try:
+            custom_objects_api.delete_cluster_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                plural=CRD_PLURAL_DEVSERVERUSER,
+                name=TEST_USER_NAME,
+            )
+        except client.ApiException as e:
+            if e.status != 404:
+                print(f"⚠️ Error cleaning up DevServerUser: {e}")
+        # The namespace should be cleaned up by the operator's finalizer logic
+
+    request.addfinalizer(cleanup)
+
+    return {"name": TEST_USER_NAME, "namespace": user_namespace}
 
 
 @pytest.fixture(scope="function")

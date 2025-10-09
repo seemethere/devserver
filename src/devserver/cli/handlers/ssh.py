@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 import socket
 import select
+import os
 from typing import Optional
 
 from kubernetes import client, config
@@ -14,6 +15,7 @@ from ..ssh_config import (
 )
 from ...utils.network import PortForwardError, kubernetes_port_forward
 from ..config import Configuration
+from ..utils import get_user_namespace
 
 
 def ssh_devserver(
@@ -23,9 +25,9 @@ def ssh_devserver(
     proxy_mode: bool,
     remote_command: tuple[str, ...],
     assume_yes: bool = False,
-    namespace: str = "default",
 ) -> None:
     """SSH into a DevServer."""
+    namespace = get_user_namespace()
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
 
@@ -88,7 +90,7 @@ def ssh_devserver(
                             r, _, _ = select.select([sys.stdin, sock], [], [])
                             for readable in r:
                                 if readable is sys.stdin:
-                                    data = sys.stdin.buffer.read1(4096)
+                                    data = os.read(sys.stdin.fileno(), 4096)
                                     if not data:
                                         return
                                     sock.sendall(data)
