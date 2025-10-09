@@ -1,0 +1,8 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devserver-admin
+rules:
+  - apiGroups: ["devserver.io"]
+    resources: ["devserverusers"]
+    verbs: ["get", "list", "create", "delete", "update", "patch"]

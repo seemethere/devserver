@@ -2,6 +2,7 @@ import click
 from rich.console import Console
 from rich.prompt import Confirm
 from pathlib import Path
+from kubernetes import client as k8s_client, config as k8s_config
 
 from . import handlers
 from .ssh_config import ensure_ssh_config_include, set_ssh_config_permission
@@ -26,8 +27,15 @@ from .config import (
 @click.pass_context
 def main(ctx, config_path, assume_yes) -> None:
     """A CLI to manage DevServers."""
-    ctx.ensure_object(dict)
     console = Console()
+    try:
+        k8s_config.load_kube_config()
+        k8s_client.CoreV1Api().list_namespace()
+    except Exception:
+        console.print("[red]Error: Could not connect to a Kubernetes cluster. Please check your kubeconfig.[/red]")
+        exit(1)
+
+    ctx.ensure_object(dict)
 
     default_config_path = get_default_config_path()
     effective_config_path = config_path if config_path else default_config_path
@@ -96,9 +104,10 @@ def describe(name: str) -> None:
 
 
 @main.command(name="list", help="List all DevServers.")
-def list_command() -> None:
+@click.option("--all-namespaces", is_flag=True, help="List devservers in all namespaces.")
+def list_command(all_namespaces: bool) -> None:
     """List all DevServers."""
-    handlers.list_devservers()
+    handlers.list_devservers(all_namespaces=all_namespaces)
 
 
 @main.command(help="SSH into a DevServer.")

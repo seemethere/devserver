@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.status import Status
 
 from ..config import Configuration
+from ..utils import get_user_namespace
 
 
 def _wait_for_crd_running(name: str, namespace: str, status: Status) -> None:
@@ -96,11 +97,11 @@ def create_devserver(
     flavor: str,
     image: Optional[str] = None,
     ssh_public_key_file: Optional[str] = None,
-    namespace: str = "default",
     time_to_live: str = "4h",
     wait: bool = False,
 ) -> None:
     """Creates a new DevServer resource."""
+    namespace = get_user_namespace()
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()

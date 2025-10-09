@@ -3,10 +3,12 @@ from rich.console import Console
 
 from ..ssh_config import remove_ssh_config_for_devserver
 from ..config import Configuration
+from ..utils import get_user_namespace
 
 
-def delete_devserver(configuration: Configuration, name: str, namespace: str = "default") -> None:
+def delete_devserver(configuration: Configuration, name: str) -> None:
     """Delete a DevServer."""
+    namespace = get_user_namespace()
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
 

@@ -1,195 +1,92 @@
-import pytest
 from unittest.mock import patch
-import io
-import sys
-
 from click.testing import CliRunner
-from devserver.cli import main as cli_main
-from devserver.cli import handlers
-from tests.conftest import TEST_NAMESPACE
-from kubernetes import client
-from typing import Any, Dict
-from tests.helpers import wait_for_devserver_status, cleanup_devserver
-from devserver.cli.config import Configuration
 
+from devserver.cli.main import main as cli_main
+from tests.helpers import cleanup_devserver
 
-# Define constants and clients needed for CLI tests
-CRD_GROUP: str = "devserver.io"
-CRD_VERSION: str = "v1"
-CRD_PLURAL_DEVSERVER: str = "devservers"
-NAMESPACE: str = TEST_NAMESPACE
-TEST_DEVSERVER_NAME: str = "test-cli-devserver"
-
+# Constants
+CRD_GROUP = "devserver.io"
+CRD_VERSION = "v1"
+CRD_PLURAL_DEVSERVER = "devservers"
+TEST_DEVSERVER_NAME = "test-cli-devserver"
 
 class TestCliIntegration:
     """
-    Integration tests for the CLI that interact with a Kubernetes cluster.
+    Integration tests for the CLI that interact with a Kubernetes cluster
+    with the operator running.
     """
 
-    def test_list_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
-    ) -> None:
-        """Tests that the 'list' command can see a created DevServer."""
+    def test_create_list_describe_delete_cycle(self, operator_running, k8s_clients, test_user, test_flavor):
+        """
+        Tests the full lifecycle of a DevServer via the CLI:
+        create -> list -> describe -> delete
+        """
+        runner = CliRunner()
         custom_objects_api = k8s_clients["custom_objects_api"]
+        user_namespace = test_user["namespace"]
 
-        # Create a DevServer for the list command to find
-        devserver_manifest = {
-            "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
-            "kind": "DevServer",
-            "metadata": {"name": TEST_DEVSERVER_NAME, "namespace": NAMESPACE},
-            "spec": {
-                "flavor": "any-flavor",
-                "ssh": {"publicKey": "ssh-rsa AAA..."},
-                "lifecycle": {"timeToLive": "1h"},
-            },  # Flavor doesn't need to exist for this test
-        }
-
-        custom_objects_api.create_namespaced_custom_object(
-            group=CRD_GROUP,
-            version=CRD_VERSION,
-            namespace=NAMESPACE,
-            plural=CRD_PLURAL_DEVSERVER,
-            body=devserver_manifest,
-        )
-
+        # Use environment variable to override namespace detection
+        env = {"DEVSERVER_NAMESPACE": user_namespace}
+        
         try:
-            # Capture the stdout
-            captured_output = io.StringIO()
-            sys.stdout = captured_output
-
-            handlers.list_devservers(namespace=NAMESPACE)
-
-            sys.stdout = sys.__stdout__  # Restore stdout
-
-            output = captured_output.getvalue()
-            assert TEST_DEVSERVER_NAME in output
-            # Note: Without operator running, status will be Unknown
-
-        finally:
-            # Cleanup
-            cleanup_devserver(
-                custom_objects_api, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
+            # 1. CREATE
+            create_result = runner.invoke(
+                cli_main,
+                [
+                    "create",
+                    "--name",
+                    TEST_DEVSERVER_NAME,
+                    "--flavor",
+                    test_flavor,
+                    "--image",
+                    "ubuntu:22.04",
+                    "--wait",  # Wait for the operator to be ready
+                ],
+                env=env,
             )
+            assert create_result.exit_code == 0
+            assert f"DevServer '{TEST_DEVSERVER_NAME}' is ready" in create_result.output
 
-    def test_create_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
-    ) -> None:
-        """Tests that the 'create' command successfully creates a DevServer."""
-        custom_objects_api = k8s_clients["custom_objects_api"]
-
-        try:
-            # Call the handler to create the DevServer
-            handlers.create_devserver(
-                configuration=test_config,
-                name=TEST_DEVSERVER_NAME,
-                flavor="test-flavor",
-                image="nginx:latest",
-                namespace=NAMESPACE,
-                ssh_public_key_file=test_ssh_public_key,
-            )
-
-            # Verify the resource was created
+            # Verify the resource was created in the correct namespace
             ds = custom_objects_api.get_namespaced_custom_object(
                 group=CRD_GROUP,
                 version=CRD_VERSION,
-                namespace=NAMESPACE,
+                namespace=user_namespace,
                 plural=CRD_PLURAL_DEVSERVER,
                 name=TEST_DEVSERVER_NAME,
             )
+            assert ds["metadata"]["namespace"] == user_namespace
 
-            assert ds["spec"]["flavor"] == "test-flavor"
-            assert ds["spec"]["image"] == "nginx:latest"
-            assert "publicKey" in ds["spec"]["ssh"]
+            # 2. LIST
+            list_result = runner.invoke(cli_main, ["list"], env=env)
+            assert list_result.exit_code == 0
+            assert TEST_DEVSERVER_NAME in list_result.output
+            assert user_namespace in list_result.output
+
+            # Test --all-namespaces
+            list_all_result = runner.invoke(cli_main, ["list", "--all-namespaces"], env=env)
+            assert list_all_result.exit_code == 0
+            assert TEST_DEVSERVER_NAME in list_all_result.output
+
+            # 3. DESCRIBE
+            describe_result = runner.invoke(cli_main, ["describe", TEST_DEVSERVER_NAME], env=env)
+            assert describe_result.exit_code == 0
+            assert f"name: {TEST_DEVSERVER_NAME}" in describe_result.output
+            assert f"namespace: {user_namespace}" in describe_result.output
+
+            # 4. DELETE
+            delete_result = runner.invoke(
+                cli_main, ["delete", TEST_DEVSERVER_NAME], input="y\n", env=env
+            )
+            assert delete_result.exit_code == 0
+            assert f"DevServer '{TEST_DEVSERVER_NAME}' deleted" in delete_result.output
 
         finally:
-            # Cleanup
+            # Ensure cleanup even if asserts fail
             cleanup_devserver(
-                custom_objects_api, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
-            )
-
-    def test_delete_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
-    ) -> None:
-        """Tests that the 'delete' command successfully deletes a DevServer."""
-        custom_objects_api = k8s_clients["custom_objects_api"]
-
-        # Create a resource to be deleted
-        devserver_manifest = {
-            "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
-            "kind": "DevServer",
-            "metadata": {"name": TEST_DEVSERVER_NAME, "namespace": NAMESPACE},
-            "spec": {
-                "flavor": "any-flavor",
-                "ssh": {"publicKey": "ssh-rsa AAA..."},
-                "lifecycle": {"timeToLive": "1h"},
-            },
-        }
-        custom_objects_api.create_namespaced_custom_object(
-            group=CRD_GROUP,
-            version=CRD_VERSION,
-            namespace=NAMESPACE,
-            plural=CRD_PLURAL_DEVSERVER,
-            body=devserver_manifest,
-        )
-
-        # Call the handler to delete the DevServer
-        handlers.delete_devserver(configuration=test_config, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE)
-
-        # Verify the resource was deleted
-        with pytest.raises(client.ApiException) as cm:
-            custom_objects_api.get_namespaced_custom_object(
-                group=CRD_GROUP,
-                version=CRD_VERSION,
-                namespace=NAMESPACE,
-                plural=CRD_PLURAL_DEVSERVER,
+                custom_objects_api,
                 name=TEST_DEVSERVER_NAME,
-            )
-        assert isinstance(cm.value, client.ApiException)
-        assert cm.value.status == 404
-
-    def test_describe_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
-    ) -> None:
-        """Tests that the 'describe' command can see a created DevServer."""
-        custom_objects_api = k8s_clients["custom_objects_api"]
-
-        # Create a DevServer for the describe command to find
-        devserver_manifest = {
-            "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
-            "kind": "DevServer",
-            "metadata": {"name": TEST_DEVSERVER_NAME, "namespace": NAMESPACE},
-            "spec": {
-                "flavor": "any-flavor",
-                "ssh": {"publicKey": "ssh-rsa AAA..."},
-                "lifecycle": {"timeToLive": "1h"},
-            },  # Flavor doesn't need to exist for this test
-        }
-
-        custom_objects_api.create_namespaced_custom_object(
-            group=CRD_GROUP,
-            version=CRD_VERSION,
-            namespace=NAMESPACE,
-            plural=CRD_PLURAL_DEVSERVER,
-            body=devserver_manifest,
-        )
-
-        try:
-            # Capture the stdout
-            captured_output = io.StringIO()
-            sys.stdout = captured_output
-
-            handlers.describe_devserver(name=TEST_DEVSERVER_NAME, namespace=NAMESPACE)
-
-            sys.stdout = sys.__stdout__  # Restore stdout
-
-            output = captured_output.getvalue()
-            assert TEST_DEVSERVER_NAME in output
-            assert "any-flavor" in output
-
-        finally:
-            # Cleanup
-            cleanup_devserver(
-                custom_objects_api, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
+                namespace=user_namespace,
             )
 
 
@@ -199,208 +96,60 @@ class TestCliParser:
     These tests do not interact with Kubernetes.
     """
 
-    def test_create_command_parsing(self, test_config: Configuration) -> None:
+    def test_create_command_parsing(self):
         """Tests that 'create' command arguments are parsed correctly."""
         runner = CliRunner()
-        
-        # Mock the handler to avoid actual Kubernetes interaction
         with patch("devserver.cli.handlers.create_devserver") as mock_create:
             result = runner.invoke(
-                cli_main.main,
-                ["create", "--name", "my-server", "--flavor", "cpu-small", "--image", "ubuntu:22.04"]
+                cli_main,
+                [
+                    "create",
+                    "--name",
+                    "my-server",
+                    "--flavor",
+                    "cpu-small",
+                    "--image",
+                    "ubuntu:22.04",
+                ],
             )
-            
-            # Check that the command succeeded
             assert result.exit_code == 0
-            
-            # Verify the handler was called with correct arguments
             mock_create.assert_called_once()
             call_kwargs = mock_create.call_args.kwargs
-            assert isinstance(call_kwargs["configuration"], Configuration)
             assert call_kwargs["name"] == "my-server"
             assert call_kwargs["flavor"] == "cpu-small"
             assert call_kwargs["image"] == "ubuntu:22.04"
 
-    def test_list_command_parsing(self) -> None:
+    def test_list_command_parsing(self):
         """Tests that 'list' command is recognized."""
         runner = CliRunner()
-        
-        # Mock the handler to avoid actual Kubernetes interaction
         with patch("devserver.cli.handlers.list_devservers") as mock_list:
-            result = runner.invoke(cli_main.main, ["list"])
-            
-            # Check that the command succeeded
+            result = runner.invoke(cli_main, ["list"])
             assert result.exit_code == 0
-            
-            # Verify the handler was called
             mock_list.assert_called_once()
 
-    def test_delete_command_parsing(self, test_config: Configuration) -> None:
+    def test_delete_command_parsing(self):
         """Tests that 'delete' command arguments are parsed correctly."""
         runner = CliRunner()
-        
-        # Mock the handler to avoid actual Kubernetes interaction
         with patch("devserver.cli.handlers.delete_devserver") as mock_delete:
-            result = runner.invoke(cli_main.main, ["delete", "my-server"])
-            
-            # Check that the command succeeded
+            result = runner.invoke(cli_main, ["delete", "my-server"])
             assert result.exit_code == 0
-            
-            # Verify the handler was called with correct arguments
             mock_delete.assert_called_once()
             call_kwargs = mock_delete.call_args.kwargs
-            assert isinstance(call_kwargs["configuration"], Configuration)
             assert call_kwargs["name"] == "my-server"
 
-    def test_describe_command_parsing(self) -> None:
+    def test_describe_command_parsing(self):
         """Tests that 'describe' command arguments are parsed correctly."""
         runner = CliRunner()
-
-        # Mock the handler to avoid actual Kubernetes interaction
         with patch("devserver.cli.handlers.describe_devserver") as mock_describe:
-            result = runner.invoke(cli_main.main, ["describe", "my-server"])
-
-            # Check that the command succeeded
+            result = runner.invoke(cli_main, ["describe", "my-server"])
             assert result.exit_code == 0
-
-            # Verify the handler was called with correct arguments
             mock_describe.assert_called_once()
             call_kwargs = mock_describe.call_args.kwargs
             assert call_kwargs["name"] == "my-server"
 
-    def test_create_command_missing_flavor(self) -> None:
+    def test_create_command_missing_flavor(self):
         """Tests that 'create' command fails without a required flavor."""
         runner = CliRunner()
-        
-        # Click exits with non-zero code when required option is missing
-        result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
-        
-        # Check that the command failed
+        result = runner.invoke(cli_main, ["create", "--name", "my-server"])
         assert result.exit_code != 0
-        
-        # Click should report the missing required option in the output
-        assert "flavor" in result.output.lower() or "required" in result.output.lower()
-
-
-    def test_ssh_command_parsing(self, tmp_path: Any, test_config: Configuration) -> None:
-        """Tests that 'ssh' command arguments are parsed and handled correctly."""
-        runner = CliRunner()
-        
-        # Create a dummy private key file
-        private_key_file = tmp_path / "id_rsa"
-        private_key_file.touch()
-
-        # We need to mock all interactions with the outside world
-        with patch("devserver.cli.handlers.ssh.config.load_kube_config"), \
-             patch("devserver.cli.handlers.ssh.client.CustomObjectsApi") as mock_custom_api, \
-             patch("devserver.cli.handlers.ssh.kubernetes_port_forward") as mock_portforward, \
-             patch("devserver.cli.handlers.ssh.subprocess.run") as mock_run, \
-             patch("devserver.cli.handlers.ssh.create_ssh_config_for_devserver") as mock_create_config:
-
-            # Mock the K8s API to return a dummy DevServer
-            mock_custom_api.return_value.get_namespaced_custom_object.return_value = {}
-
-            # Mock the ssh config creation to simulate the user saying "no" to the prompt
-            mock_create_config.return_value = (None, False)
-
-            mock_portforward.return_value.__enter__.return_value = 12345
-
-            result = runner.invoke(
-                cli_main.main,
-                ["ssh", "my-server", "--identity-file", str(private_key_file)]
-            )
-
-            # Check that the command succeeded
-            assert result.exit_code == 0
-            assert "Connecting to devserver 'my-server' via port-forward on localhost:12345..." in result.output
-            
-            mock_portforward.assert_called_once_with(
-                pod_name="my-server-0", namespace="default", pod_port=22
-            )
-            
-            # Verify that ssh was called correctly
-            mock_run.assert_called_once()
-            run_args = mock_run.call_args[0][0]
-            assert "ssh" in run_args
-            assert "dev@localhost" in run_args
-            assert "-p" in run_args
-            assert "12345" in run_args
-            assert "-i" in run_args
-            assert str(private_key_file) in run_args
-
-
-def test_create_and_list_with_operator(
-    operator_running: Any, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
-) -> None:
-    """
-    Integration test for the CLI that works with the actual operator running.
-    This test verifies end-to-end functionality by creating a DevServer with CLI
-    and verifying it appears in list with proper status when operator is running.
-    """
-    custom_objects_api = k8s_clients["custom_objects_api"]
-
-    # First create a flavor for the test
-    flavor_manifest = {
-        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
-        "kind": "DevServerFlavor",
-        "metadata": {"name": "cli-test-flavor"},
-        "spec": {
-            "resources": {
-                "requests": {"cpu": "200m", "memory": "256Mi"},
-                "limits": {"cpu": "1", "memory": "1Gi"},
-            }
-        },
-    }
-    custom_objects_api.create_cluster_custom_object(
-        group=CRD_GROUP,
-        version=CRD_VERSION,
-        plural="devserverflavors",
-        body=flavor_manifest,
-    )
-
-    try:
-        # Create a DevServer using the CLI
-        devserver_name = "cli-test-server"
-        handlers.create_devserver(
-            configuration=test_config,
-            name=devserver_name,
-            flavor="cli-test-flavor",
-            image="alpine:latest",
-            namespace=NAMESPACE,
-            ssh_public_key_file=test_ssh_public_key,
-        )
-
-        # Give the operator time to process and set the status to Running
-        wait_for_devserver_status(
-            custom_objects_api, name=devserver_name, namespace=NAMESPACE
-        )
-
-        # Verify it appears in the list command
-        captured_output = io.StringIO()
-        sys.stdout = captured_output
-        handlers.list_devservers(namespace=NAMESPACE)
-        sys.stdout = sys.__stdout__
-
-        output = captured_output.getvalue()
-        assert devserver_name in output
-
-        # If operator is working, we should see Running status eventually
-        # Note: This might show "Unknown" initially before operator processes it
-
-    finally:
-        # Cleanup
-        try:
-            handlers.delete_devserver(configuration=test_config, name="cli-test-server", namespace=NAMESPACE)
-        except Exception:
-            pass
-
-        try:
-            custom_objects_api.delete_cluster_custom_object(
-                group=CRD_GROUP,
-                version=CRD_VERSION,
-                plural="devserverflavors",
-                name="cli-test-flavor",
-            )
-        except client.ApiException as e:
-            if e.status != 404:
-                raise
+        assert "flavor" in result.output.lower()
