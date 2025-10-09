@@ -13,16 +13,17 @@ from ..ssh_config import (
     remove_ssh_config_for_devserver,
 )
 from ...utils.network import PortForwardError, kubernetes_port_forward
+from ..config import Configuration
 
 
 def ssh_devserver(
+    configuration: Configuration,
     name: str,
-    ssh_private_key_file: str = "~/.ssh/id_rsa",
-    namespace: str = "default",
-    remote_command: tuple[str, ...] = (),
-    proxy_mode: bool = False,
-    config_dir_override: Optional[str] = None,
+    ssh_private_key_file: Optional[str],
+    proxy_mode: bool,
+    remote_command: tuple[str, ...],
     assume_yes: bool = False,
+    namespace: str = "default",
 ) -> None:
     """SSH into a DevServer."""
     config.load_kube_config()
@@ -30,7 +31,7 @@ def ssh_devserver(
 
     console = Console()
 
-    config_path = Path(config_dir_override) if config_dir_override else None
+    key_path_str = ssh_private_key_file or configuration.ssh_private_key_file
 
     try:
         # Check if DevServer exists
@@ -45,18 +46,19 @@ def ssh_devserver(
         if e.status == 404:
             console.print(f"[yellow]DevServer '{name}' not found. It may have expired.[/yellow]")
             console.print(f"Cleaning up stale SSH configuration for '{name}'...")
-            remove_ssh_config_for_devserver(name, config_dir_override=config_path)
+            remove_ssh_config_for_devserver(configuration.ssh_config_dir, name)
         else:
             console.print(f"Error connecting to Kubernetes: {e.reason}")
         sys.exit(1)
 
+    # TODO: The pod name should be dynamically retrieved from the DevServer's status field instead of being hardcoded.
     pod_name = f"{name}-0"
 
     if not proxy_mode:
         _, use_include = create_ssh_config_for_devserver(
+            configuration.ssh_config_dir,
             name,
-            ssh_private_key_file,
-            config_dir_override=config_path,
+            key_path_str,
             assume_yes=assume_yes,
         )
         if use_include:
@@ -85,7 +87,7 @@ def ssh_devserver(
                             r, _, _ = select.select([sys.stdin, sock], [], [])
                             for readable in r:
                                 if readable is sys.stdin:
-                                    data = sys.stdin.buffer.read1(4096)  # type: ignore[attr-defined]
+                                    data = sys.stdin.buffer.read1(4096)
                                     if not data:
                                         return
                                     sock.sendall(data)
@@ -107,7 +109,7 @@ def ssh_devserver(
                 f"Connecting to devserver '{name}' via port-forward on localhost:{local_port}..."
             )
 
-            key_path = Path(ssh_private_key_file).expanduser()
+            key_path = Path(key_path_str).expanduser()
             if not key_path.is_file():
                 console.print(
                     f"[red]Error: SSH private key file not found at '{key_path}'[/red]"

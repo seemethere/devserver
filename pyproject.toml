@@ -21,6 +21,7 @@ dependencies = [
     "kubernetes>=28.1.0",  # Use newer version to avoid deprecation warnings
     "rich",
     "click>=8.0",
+    "PyYAML>=6.0.1",
 ]
 
 [project.optional-dependencies]
