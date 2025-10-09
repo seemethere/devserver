@@ -12,9 +12,11 @@ from ..ssh_config import (
     remove_ssh_config_for_devserver,
 )
 from ...utils.network import PortForwardError, kubernetes_port_forward
+from ..config import Configuration
 
 
 def ssh_devserver(
+    configuration: Configuration,
     name: str,
     ssh_private_key_file: str,
     proxy_mode: bool,
@@ -41,7 +43,7 @@ def ssh_devserver(
         if e.status == 404:
             console.print(f"[yellow]DevServer '{name}' not found. It may have expired.[/yellow]")
             console.print(f"Cleaning up stale SSH configuration for '{name}'...")
-            remove_ssh_config_for_devserver(name)
+            remove_ssh_config_for_devserver(configuration.ssh_config_dir, name)
         else:
             console.print(f"Error connecting to Kubernetes: {e.reason}")
         sys.exit(1)
@@ -51,6 +53,7 @@ def ssh_devserver(
 
     if not proxy_mode:
         _, use_include = create_ssh_config_for_devserver(
+            configuration.ssh_config_dir,
             name,
             ssh_private_key_file,
             assume_yes=assume_yes,

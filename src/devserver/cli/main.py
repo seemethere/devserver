@@ -4,8 +4,12 @@ from rich.prompt import Confirm
 from pathlib import Path
 
 from . import handlers
-from .ssh_config import ensure_ssh_config_include, set_ssh_config_permission, get_config_dir
-from .config import load_config, get_default_config_path, create_default_config
+from .ssh_config import ensure_ssh_config_include, set_ssh_config_permission
+from .config import (
+    load_config,
+    get_default_config_path,
+    create_default_config,
+)
 
 
 @click.group()
@@ -65,11 +69,8 @@ def create(
     ctx, name: str, flavor: str, image: str, ssh_public_key_file: str, time_to_live: str, wait: bool
 ) -> None:
     """Create a new DevServer."""
-    config = ctx.obj["CONFIG"]
-    if ssh_public_key_file is None:
-        ssh_public_key_file = config["ssh"]["public_key_file"]
-    
     handlers.create_devserver(
+        configuration=ctx.obj["CONFIG"],
         name=name,
         flavor=flavor,
         image=image,
@@ -84,7 +85,7 @@ def create(
 @click.pass_context
 def delete(ctx, name: str) -> None:
     """Delete a DevServer."""
-    handlers.delete_devserver(name=name)
+    handlers.delete_devserver(configuration=ctx.obj["CONFIG"], name=name)
 
 
 @main.command(help="Describe a DevServer.")
@@ -123,6 +124,7 @@ def ssh(
 ) -> None:
     """SSH into a DevServer."""
     handlers.ssh_devserver(
+        configuration=ctx.obj["CONFIG"],
         name=name,
         ssh_private_key_file=ssh_private_key_file,
         proxy_mode=proxy_mode,
@@ -143,23 +145,22 @@ def config() -> None:
 def ssh_include(ctx, action: str):
     """Enable or disable SSH config Include directive."""
     console = Console()
+    config = ctx.obj["CONFIG"]
     assume_yes = ctx.obj["ASSUME_YES"]
 
     if action.lower() == "enable":
-        set_ssh_config_permission(True)
+        set_ssh_config_permission(config.ssh_config_dir, True)
         if ensure_ssh_config_include(
-            assume_yes=assume_yes
+            config.ssh_config_dir, assume_yes=assume_yes
         ):
             console.print("[green]✅ Enabled SSH config Include directive.[/green]")
-
-            config_dir = get_config_dir()
             console.print(
-                f"[cyan]Added 'Include {config_dir}/*.sshconfig' to ~/.ssh/config[/cyan]"
+                f"[cyan]Added 'Include {config.ssh_config_dir}/*.sshconfig' to ~/.ssh/config[/cyan]"
             )
         else:
             console.print("[yellow]SSH config Include was not enabled.[/yellow]")
     elif action.lower() == "disable":
-        set_ssh_config_permission(False)
+        set_ssh_config_permission(config.ssh_config_dir, False)
         console.print("[yellow]✅ Disabled automatic SSH config Include.[/yellow]")
         console.print("[dim]Note: Existing Include directive in ~/.ssh/config not removed.[/dim]")
         console.print(

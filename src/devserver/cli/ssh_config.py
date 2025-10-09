@@ -1,26 +1,9 @@
 import sys
 from pathlib import Path
 
+from rich.console import Console
+from rich.prompt import Confirm
 
-def get_config_dir() -> Path:
-    """Returns the path to the devserver config directory."""
-    import click
-
-    try:
-        ctx = click.get_current_context(silent=True)
-        if ctx:
-            config = ctx.obj.get("CONFIG")
-            if config:
-                return Path(config["devctl-ssh-config-dir"]).expanduser()
-    except RuntimeError:
-        pass  # Not in a click context
-        
-    # Fallback for when not in a click context (e.g. tests)
-    from .config import DEFAULT_CONFIG
-
-    base_dir = Path(DEFAULT_CONFIG["devctl-ssh-config-dir"]).expanduser()
-    base_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    return base_dir
 
 
 def _get_permission_file(config_dir: Path) -> Path:
@@ -29,6 +12,7 @@ def _get_permission_file(config_dir: Path) -> Path:
 
 
 def check_ssh_config_permission(
+    ssh_config_dir: Path,
     ask_prompt: bool = False,
     assume_yes: bool = False,
 ) -> bool:
@@ -36,14 +20,14 @@ def check_ssh_config_permission(
     Checks if the user has given permission to modify ~/.ssh/config.
 
     Args:
+        ssh_config_dir: The path to the devserver ssh config directory.
         ask_prompt: If True, prompt the user for permission if not already given.
         assume_yes: If True, automatically grant permission without prompting.
 
     Returns:
         True if permission is granted, False otherwise.
     """
-    config_dir = get_config_dir()
-    permission_file = _get_permission_file(config_dir)
+    permission_file = _get_permission_file(ssh_config_dir)
 
     if permission_file.exists():
         return permission_file.read_text().strip() == "yes"
@@ -56,16 +40,13 @@ def check_ssh_config_permission(
     if ssh_config.exists():
         try:
             content = ssh_config.read_text()
-            if f"Include {config_dir}/*.sshconfig" in content:
+            if f"Include {ssh_config_dir}/*.sshconfig" in content:
                 permission_file.write_text("yes")
                 return True
         except Exception:
             pass
 
     if ask_prompt:
-        from rich.console import Console
-        from rich.prompt import Confirm
-
         console = Console()
         console.print(
             "\n[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]"
@@ -74,7 +55,7 @@ def check_ssh_config_permission(
         console.print("To enable easy SSH access and VS Code Remote connections,")
         console.print("we can add devserver configs to your ~/.ssh/config file.")
         console.print("\n[dim]This adds one line at the top of ~/.ssh/config:[/dim]")
-        console.print(f"[dim]  Include {config_dir}/*.sshconfig[/dim]\n")
+        console.print(f"[dim]  Include {ssh_config_dir}/*.sshconfig[/dim]\n")
         console.print("[green]Benefits:[/green]")
         console.print("  • Simple commands: [green]ssh <devserver-name>[/green]")
         console.print(
@@ -91,6 +72,7 @@ def check_ssh_config_permission(
 
 
 def ensure_ssh_config_include(
+    ssh_config_dir: Path,
     assume_yes: bool = False,
 ) -> bool:
     """
@@ -100,20 +82,19 @@ def ensure_ssh_config_include(
         True if the Include directive is present or was added, False otherwise.
     """
     if not check_ssh_config_permission(
-        ask_prompt=True, assume_yes=assume_yes
+        ssh_config_dir, ask_prompt=True, assume_yes=assume_yes
     ):
         return False
 
-    config_dir = get_config_dir()
     ssh_dir = Path.home() / ".ssh"
     ssh_dir.mkdir(mode=0o700, exist_ok=True)
 
     ssh_config_path = ssh_dir / "config"
-    include_line = f"Include {config_dir}/*.sshconfig\n"
+    include_line = f"Include {ssh_config_dir}/*.sshconfig\n"
 
     try:
         content = ssh_config_path.read_text() if ssh_config_path.exists() else ""
-        if f"Include {config_dir}/" in content:
+        if f"Include {ssh_config_dir}/" in content:
             return True
 
         new_content = include_line + "\n" + content
@@ -125,17 +106,18 @@ def ensure_ssh_config_include(
 
 
 def set_ssh_config_permission(
+    ssh_config_dir: Path,
     enabled: bool,
 ):
     """
     Sets the permission for modifying the SSH config.
     """
-    config_dir = get_config_dir()
-    permission_file = _get_permission_file(config_dir)
+    permission_file = _get_permission_file(ssh_config_dir)
     permission_file.write_text("yes" if enabled else "no")
 
 
 def create_ssh_config_for_devserver(
+    ssh_config_dir: Path,
     name: str,
     ssh_private_key_file: str,
     assume_yes: bool = False,
@@ -144,6 +126,7 @@ def create_ssh_config_for_devserver(
     Creates an SSH config file for a devserver.
 
     Args:
+        ssh_config_dir: The path to the devserver ssh config directory.
         name: The name of the devserver.
         ssh_private_key_file: Path to the SSH private key file.
         assume_yes: If True, automatically grant permission without prompting.
@@ -153,12 +136,12 @@ def create_ssh_config_for_devserver(
         if the Include directive is being used.
     """
     ensure_ssh_config_include(
+        ssh_config_dir,
         assume_yes=assume_yes,
     )
 
-    config_dir = get_config_dir()
     key_path = Path(ssh_private_key_file).expanduser()
-    config_path = config_dir / f"{name}.sshconfig"
+    config_path = ssh_config_dir / f"{name}.sshconfig"
 
     python_executable = Path(sys.executable)
 
@@ -173,16 +156,16 @@ Host {name}
     config_path.write_text(config_content)
     config_path.chmod(0o600)
 
-    return config_path, check_ssh_config_permission()
+    return config_path, check_ssh_config_permission(ssh_config_dir)
 
 
 def remove_ssh_config_for_devserver(
+    ssh_config_dir: Path,
     name: str,
 ):
     """
     Removes the SSH config file for a devserver.
     """
-    config_dir = get_config_dir()
-    config_path = config_dir / f"{name}.sshconfig"
+    config_path = ssh_config_dir / f"{name}.sshconfig"
     if config_path.exists():
         config_path.unlink()

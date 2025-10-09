@@ -2,9 +2,10 @@ from kubernetes import client, config
 from rich.console import Console
 
 from ..ssh_config import remove_ssh_config_for_devserver
+from ..config import Configuration
 
 
-def delete_devserver(name: str, namespace: str = "default") -> None:
+def delete_devserver(configuration: Configuration, name: str, namespace: str = "default") -> None:
     """Delete a DevServer."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
@@ -28,8 +29,8 @@ def delete_devserver(name: str, namespace: str = "default") -> None:
             plural="devservers",
             name=name,
         )
-
-        remove_ssh_config_for_devserver(name)
+        
+        remove_ssh_config_for_devserver(configuration.ssh_config_dir, name)
 
         console.print(f"DevServer '{name}' deleted.")
     except client.ApiException as e:

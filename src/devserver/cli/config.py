@@ -1,6 +1,7 @@
 import yaml
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional, Any, Dict
+from rich.console import Console
 
 DEFAULT_CONFIG = {
     "ssh": {
@@ -10,14 +11,30 @@ DEFAULT_CONFIG = {
 }
 
 
+class Configuration:
+    def __init__(self, config_data: Dict[str, Any]):
+        self._config = config_data
+
+    @property
+    def ssh_public_key_file(self) -> str:
+        return self._config.get("ssh", {}).get(
+            "public_key_file", "~/.ssh/id_rsa.pub"
+        )
+
+    @property
+    def ssh_config_dir(self) -> Path:
+        path_str = self._config.get(
+            "devctl-ssh-config-dir", "~/.config/devserver/ssh/"
+        )
+        return Path(path_str).expanduser()
+
+
 def get_default_config_path() -> Path:
     return Path.home() / ".config" / "devserver" / "config.yml"
 
 
 def create_default_config(path: Path):
     """Creates a default configuration file at the specified path."""
-    from rich.console import Console
-
     console = Console()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -37,11 +54,11 @@ def deep_merge(source, destination):
             destination[key] = value
     return destination
 
-def load_config(config_path: Optional[Path]) -> dict[str, Any]:
-    config = DEFAULT_CONFIG.copy()
+def load_config(config_path: Optional[Path]) -> Configuration:
+    config_data = DEFAULT_CONFIG.copy()
     if config_path and config_path.exists():
         with open(config_path, "r") as f:
             user_config = yaml.safe_load(f)
         if user_config:
-            config = deep_merge(user_config, config)
-    return config
+            config_data = deep_merge(user_config, config_data)
+    return Configuration(config_data)

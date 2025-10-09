@@ -6,6 +6,8 @@ from kubernetes import client, config, watch
 from rich.console import Console
 from rich.status import Status
 
+from ..config import Configuration
+
 
 def _wait_for_crd_running(name: str, namespace: str, status: Status) -> None:
     """Watches the DevServer CR until its phase is 'Running'."""
@@ -89,10 +91,11 @@ def _wait_for_devserver_ready(name: str, namespace: str, console: Console) -> No
 
 
 def create_devserver(
+    configuration: Configuration,
     name: str,
     flavor: str,
     image: Optional[str] = None,
-    ssh_public_key_file: str = "~/.ssh/id_rsa.pub",
+    ssh_public_key_file: Optional[str] = None,
     namespace: str = "default",
     time_to_live: str = "4h",
     wait: bool = False,
@@ -101,8 +104,10 @@ def create_devserver(
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
+
+    key_path_str = ssh_public_key_file or configuration.ssh_public_key_file
     try:
-        key_path = Path(ssh_public_key_file).expanduser()
+        key_path = Path(key_path_str).expanduser()
         with open(key_path, "r") as f:
             ssh_public_key = f.read().strip()
     except FileNotFoundError:
