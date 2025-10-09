@@ -4,7 +4,7 @@ from rich.prompt import Confirm
 from pathlib import Path
 
 from . import handlers
-from .ssh_config import ensure_ssh_config_include, set_ssh_config_permission
+from .ssh_config import ensure_ssh_config_include, set_ssh_config_permission, get_config_dir
 from .config import load_config, get_default_config_path, create_default_config
 
 
@@ -151,7 +151,6 @@ def ssh_include(ctx, action: str):
             assume_yes=assume_yes
         ):
             console.print("[green]✅ Enabled SSH config Include directive.[/green]")
-            from .ssh_config import get_config_dir
 
             config_dir = get_config_dir()
             console.print(
