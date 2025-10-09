@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 import socket
 import select
-from typing import Optional
 
 from kubernetes import client, config
 from rich.console import Console
@@ -17,20 +16,17 @@ from ...utils.network import PortForwardError, kubernetes_port_forward
 
 def ssh_devserver(
     name: str,
-    ssh_private_key_file: str = "~/.ssh/id_rsa",
-    namespace: str = "default",
-    remote_command: tuple[str, ...] = (),
-    proxy_mode: bool = False,
-    config_dir_override: Optional[str] = None,
+    ssh_private_key_file: str,
+    proxy_mode: bool,
+    remote_command: tuple[str, ...],
     assume_yes: bool = False,
+    namespace: str = "default",
 ) -> None:
     """SSH into a DevServer."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
 
     console = Console()
-
-    config_path = Path(config_dir_override) if config_dir_override else None
 
     try:
         # Check if DevServer exists
@@ -45,18 +41,18 @@ def ssh_devserver(
         if e.status == 404:
             console.print(f"[yellow]DevServer '{name}' not found. It may have expired.[/yellow]")
             console.print(f"Cleaning up stale SSH configuration for '{name}'...")
-            remove_ssh_config_for_devserver(name, config_dir_override=config_path)
+            remove_ssh_config_for_devserver(name)
         else:
             console.print(f"Error connecting to Kubernetes: {e.reason}")
         sys.exit(1)
 
+    # TODO: The pod name should be dynamically retrieved from the DevServer's status field instead of being hardcoded.
     pod_name = f"{name}-0"
 
     if not proxy_mode:
         _, use_include = create_ssh_config_for_devserver(
             name,
             ssh_private_key_file,
-            config_dir_override=config_path,
             assume_yes=assume_yes,
         )
         if use_include:
@@ -85,7 +81,7 @@ def ssh_devserver(
                             r, _, _ = select.select([sys.stdin, sock], [], [])
                             for readable in r:
                                 if readable is sys.stdin:
-                                    data = sys.stdin.buffer.read1(4096)  # type: ignore[attr-defined]
+                                    data = sys.stdin.buffer.read1(4096)
                                     if not data:
                                         return
                                     sock.sendall(data)

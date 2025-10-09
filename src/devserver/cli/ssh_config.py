@@ -1,15 +1,24 @@
 import sys
 from pathlib import Path
-from typing import Optional
 
 
-def get_config_dir(config_dir_override: Optional[Path] = None) -> Path:
+def get_config_dir() -> Path:
     """Returns the path to the devserver config directory."""
-    base_dir = (
-        config_dir_override
-        if config_dir_override
-        else Path.home() / ".config" / "devserver"
-    )
+    import click
+
+    try:
+        ctx = click.get_current_context(silent=True)
+        if ctx:
+            config = ctx.obj.get("CONFIG")
+            if config:
+                return Path(config["devctl-ssh-config-dir"]).expanduser()
+    except RuntimeError:
+        pass  # Not in a click context
+        
+    # Fallback for when not in a click context (e.g. tests)
+    from .config import DEFAULT_CONFIG
+
+    base_dir = Path(DEFAULT_CONFIG["devctl-ssh-config-dir"]).expanduser()
     base_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     return base_dir
 
@@ -22,7 +31,6 @@ def _get_permission_file(config_dir: Path) -> Path:
 def check_ssh_config_permission(
     ask_prompt: bool = False,
     assume_yes: bool = False,
-    config_dir_override: Optional[Path] = None,
 ) -> bool:
     """
     Checks if the user has given permission to modify ~/.ssh/config.
@@ -30,12 +38,11 @@ def check_ssh_config_permission(
     Args:
         ask_prompt: If True, prompt the user for permission if not already given.
         assume_yes: If True, automatically grant permission without prompting.
-        config_dir_override: An alternative path for the config directory.
 
     Returns:
         True if permission is granted, False otherwise.
     """
-    config_dir = get_config_dir(config_dir_override)
+    config_dir = get_config_dir()
     permission_file = _get_permission_file(config_dir)
 
     if permission_file.exists():
@@ -84,7 +91,7 @@ def check_ssh_config_permission(
 
 
 def ensure_ssh_config_include(
-    assume_yes: bool = False, config_dir_override: Optional[Path] = None
+    assume_yes: bool = False,
 ) -> bool:
     """
     Ensures the Include directive for devserver configs is present in ~/.ssh/config.
@@ -93,11 +100,11 @@ def ensure_ssh_config_include(
         True if the Include directive is present or was added, False otherwise.
     """
     if not check_ssh_config_permission(
-        ask_prompt=True, assume_yes=assume_yes, config_dir_override=config_dir_override
+        ask_prompt=True, assume_yes=assume_yes
     ):
         return False
 
-    config_dir = get_config_dir(config_dir_override)
+    config_dir = get_config_dir()
     ssh_dir = Path.home() / ".ssh"
     ssh_dir.mkdir(mode=0o700, exist_ok=True)
 
@@ -118,12 +125,12 @@ def ensure_ssh_config_include(
 
 
 def set_ssh_config_permission(
-    enabled: bool, config_dir_override: Optional[Path] = None
+    enabled: bool,
 ):
     """
     Sets the permission for modifying the SSH config.
     """
-    config_dir = get_config_dir(config_dir_override)
+    config_dir = get_config_dir()
     permission_file = _get_permission_file(config_dir)
     permission_file.write_text("yes" if enabled else "no")
 
@@ -132,7 +139,6 @@ def create_ssh_config_for_devserver(
     name: str,
     ssh_private_key_file: str,
     assume_yes: bool = False,
-    config_dir_override: Optional[Path] = None,
 ) -> tuple[Path, bool]:
     """
     Creates an SSH config file for a devserver.
@@ -141,17 +147,16 @@ def create_ssh_config_for_devserver(
         name: The name of the devserver.
         ssh_private_key_file: Path to the SSH private key file.
         assume_yes: If True, automatically grant permission without prompting.
-        config_dir_override: An alternative path for the config directory.
 
     Returns:
         A tuple containing the path to the config file and a boolean indicating
         if the Include directive is being used.
     """
     ensure_ssh_config_include(
-        assume_yes=assume_yes, config_dir_override=config_dir_override
+        assume_yes=assume_yes,
     )
 
-    config_dir = get_config_dir(config_dir_override)
+    config_dir = get_config_dir()
     key_path = Path(ssh_private_key_file).expanduser()
     config_path = config_dir / f"{name}.sshconfig"
 
@@ -168,18 +173,16 @@ Host {name}
     config_path.write_text(config_content)
     config_path.chmod(0o600)
 
-    return config_path, check_ssh_config_permission(
-        config_dir_override=config_dir_override
-    )
+    return config_path, check_ssh_config_permission()
 
 
 def remove_ssh_config_for_devserver(
-    name: str, config_dir_override: Optional[Path] = None
+    name: str,
 ):
     """
     Removes the SSH config file for a devserver.
     """
-    config_dir = get_config_dir(config_dir_override)
+    config_dir = get_config_dir()
     config_path = config_dir / f"{name}.sshconfig"
     if config_path.exists():
         config_path.unlink()
