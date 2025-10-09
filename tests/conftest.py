@@ -260,12 +260,12 @@ def operator_runner():
         asyncio.set_event_loop(loop)
 
         try:
-            print(f"🚀 Starting operator in namespace: {TEST_NAMESPACE}")
+            print("🚀 Starting operator (cluster-wide)")
             loop.run_until_complete(
                 kopf.run(
                     registry=kopf.get_default_registry(),
                     priority=0,
-                    namespaces=[TEST_NAMESPACE],
+                    cluster_wide=True,
                 )
             )
         except Exception:
@@ -307,9 +307,6 @@ CRD_GROUP = "devserver.io"
 CRD_VERSION = "v1"
 CRD_PLURAL_FLAVOR = "devserverflavors"
 CRD_PLURAL_DEVSERVERUSER = "devserverusers"
-TEST_USER_NAME = "test-cli-user"
-
-
 @pytest.fixture(scope="function")
 def test_user(request, k8s_clients):
     """
@@ -318,15 +315,18 @@ def test_user(request, k8s_clients):
     """
     custom_objects_api = k8s_clients["custom_objects_api"]
     core_v1_api = k8s_clients["core_v1"]
-    user_namespace = get_user_namespace(TEST_USER_NAME)
+    # Generate unique user name for each test run to avoid conflicts
+    test_user_name = f"test-cli-user-{uuid.uuid4().hex[:8]}"
+    user_namespace = get_user_namespace(test_user_name)
 
     user_manifest = {
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
         "kind": "DevServerUser",
-        "metadata": {"name": TEST_USER_NAME},
-        "spec": {"username": TEST_USER_NAME},
+        "metadata": {"name": test_user_name},
+        "spec": {"username": test_user_name},
     }
 
+    print(f"🔧 Creating test_user: {test_user_name}")
     # Create the DevServerUser
     custom_objects_api.create_cluster_custom_object(
         group=CRD_GROUP,
@@ -349,12 +349,13 @@ def test_user(request, k8s_clients):
         pytest.fail(f"Namespace {user_namespace} was not created by the operator.")
 
     def cleanup():
+        print(f"🧹 Cleaning up test_user: {test_user_name}")
         try:
             custom_objects_api.delete_cluster_custom_object(
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 plural=CRD_PLURAL_DEVSERVERUSER,
-                name=TEST_USER_NAME,
+                name=test_user_name,
             )
         except client.ApiException as e:
             if e.status != 404:
@@ -363,7 +364,7 @@ def test_user(request, k8s_clients):
 
     request.addfinalizer(cleanup)
 
-    return {"name": TEST_USER_NAME, "namespace": user_namespace}
+    return {"name": test_user_name, "namespace": user_namespace}
 
 
 @pytest.fixture(scope="function")

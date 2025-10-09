@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch
 from click.testing import CliRunner
 
@@ -11,15 +10,13 @@ CRD_VERSION = "v1"
 CRD_PLURAL_DEVSERVER = "devservers"
 TEST_DEVSERVER_NAME = "test-cli-devserver"
 
-
-@pytest.mark.usefixtures("operator_running")
 class TestCliIntegration:
     """
     Integration tests for the CLI that interact with a Kubernetes cluster
     with the operator running.
     """
 
-    def test_create_list_describe_delete_cycle(self, k8s_clients, test_user, test_flavor):
+    def test_create_list_describe_delete_cycle(self, operator_running, k8s_clients, test_user, test_flavor):
         """
         Tests the full lifecycle of a DevServer via the CLI:
         create -> list -> describe -> delete
@@ -28,67 +25,69 @@ class TestCliIntegration:
         custom_objects_api = k8s_clients["custom_objects_api"]
         user_namespace = test_user["namespace"]
 
-        # Mock get_user_namespace to return our test user's namespace
-        with patch("devserver.cli.handlers.get_user_namespace", return_value=user_namespace):
-            try:
-                # 1. CREATE
-                create_result = runner.invoke(
-                    cli_main,
-                    [
-                        "create",
-                        "--name",
-                        TEST_DEVSERVER_NAME,
-                        "--flavor",
-                        test_flavor,
-                        "--image",
-                        "ubuntu:22.04",
-                        "--wait",  # Wait for the operator to be ready
-                    ],
-                )
-                assert create_result.exit_code == 0
-                assert f"DevServer '{TEST_DEVSERVER_NAME}' is ready" in create_result.output
+        # Use environment variable to override namespace detection
+        env = {"DEVSERVER_NAMESPACE": user_namespace}
+        
+        try:
+            # 1. CREATE
+            create_result = runner.invoke(
+                cli_main,
+                [
+                    "create",
+                    "--name",
+                    TEST_DEVSERVER_NAME,
+                    "--flavor",
+                    test_flavor,
+                    "--image",
+                    "ubuntu:22.04",
+                    "--wait",  # Wait for the operator to be ready
+                ],
+                env=env,
+            )
+            assert create_result.exit_code == 0
+            assert f"DevServer '{TEST_DEVSERVER_NAME}' is ready" in create_result.output
 
-                # Verify the resource was created in the correct namespace
-                ds = custom_objects_api.get_namespaced_custom_object(
-                    group=CRD_GROUP,
-                    version=CRD_VERSION,
-                    namespace=user_namespace,
-                    plural=CRD_PLURAL_DEVSERVER,
-                    name=TEST_DEVSERVER_NAME,
-                )
-                assert ds["metadata"]["namespace"] == user_namespace
+            # Verify the resource was created in the correct namespace
+            ds = custom_objects_api.get_namespaced_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                namespace=user_namespace,
+                plural=CRD_PLURAL_DEVSERVER,
+                name=TEST_DEVSERVER_NAME,
+            )
+            assert ds["metadata"]["namespace"] == user_namespace
 
-                # 2. LIST
-                list_result = runner.invoke(cli_main, ["list"])
-                assert list_result.exit_code == 0
-                assert TEST_DEVSERVER_NAME in list_result.output
-                assert user_namespace in list_result.output
+            # 2. LIST
+            list_result = runner.invoke(cli_main, ["list"], env=env)
+            assert list_result.exit_code == 0
+            assert TEST_DEVSERVER_NAME in list_result.output
+            assert user_namespace in list_result.output
 
-                # Test --all-namespaces
-                list_all_result = runner.invoke(cli_main, ["list", "--all-namespaces"])
-                assert list_all_result.exit_code == 0
-                assert TEST_DEVSERVER_NAME in list_all_result.output
+            # Test --all-namespaces
+            list_all_result = runner.invoke(cli_main, ["list", "--all-namespaces"], env=env)
+            assert list_all_result.exit_code == 0
+            assert TEST_DEVSERVER_NAME in list_all_result.output
 
-                # 3. DESCRIBE
-                describe_result = runner.invoke(cli_main, ["describe", TEST_DEVSERVER_NAME])
-                assert describe_result.exit_code == 0
-                assert f"name: {TEST_DEVSERVER_NAME}" in describe_result.output
-                assert f"namespace: {user_namespace}" in describe_result.output
+            # 3. DESCRIBE
+            describe_result = runner.invoke(cli_main, ["describe", TEST_DEVSERVER_NAME], env=env)
+            assert describe_result.exit_code == 0
+            assert f"name: {TEST_DEVSERVER_NAME}" in describe_result.output
+            assert f"namespace: {user_namespace}" in describe_result.output
 
-                # 4. DELETE
-                delete_result = runner.invoke(
-                    cli_main, ["delete", TEST_DEVSERVER_NAME], input="y\n"
-                )
-                assert delete_result.exit_code == 0
-                assert f"DevServer '{TEST_DEVSERVER_NAME}' deleted" in delete_result.output
+            # 4. DELETE
+            delete_result = runner.invoke(
+                cli_main, ["delete", TEST_DEVSERVER_NAME], input="y\n", env=env
+            )
+            assert delete_result.exit_code == 0
+            assert f"DevServer '{TEST_DEVSERVER_NAME}' deleted" in delete_result.output
 
-            finally:
-                # Ensure cleanup even if asserts fail
-                cleanup_devserver(
-                    custom_objects_api,
-                    name=TEST_DEVSERVER_NAME,
-                    namespace=user_namespace,
-                )
+        finally:
+            # Ensure cleanup even if asserts fail
+            cleanup_devserver(
+                custom_objects_api,
+                name=TEST_DEVSERVER_NAME,
+                namespace=user_namespace,
+            )
 
 
 class TestCliParser:

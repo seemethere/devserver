@@ -1,3 +1,4 @@
+import os
 from kubernetes import client, config
 from kubernetes.config import ConfigException
 from kubernetes.client.exceptions import ApiException
@@ -8,7 +9,13 @@ def get_user_namespace() -> str:
 
     It discovers the namespace by querying for the User resource associated 
     with the current Kubernetes user. If no user is found, it defaults to "default".
+    
+    Can be overridden by setting the DEVSERVER_NAMESPACE environment variable.
     """
+    # Allow override via environment variable (useful for testing)
+    if env_namespace := os.environ.get("DEVSERVER_NAMESPACE"):
+        return env_namespace
+    
     try:
         config.load_kube_config()
         username = config.list_kube_config_contexts()[1].get('context', {}).get('user')
