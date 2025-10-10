@@ -1,7 +1,7 @@
 """
 Kubernetes operator for DevServer custom resources.
 
-This module contains the main Kopf handlers for the DevServer CRD.
+This module contains the main Kopf handlers for the DevServer and DevServerUser CRDs.
 The handlers are kept thin and delegate to specialized modules for:
 - Validation (validation.py)
 - Host key generation (host_keys.py)
@@ -14,17 +14,17 @@ import os
 from typing import Any, Dict
 
 import kopf
-from kubernetes import client, config
+from kubernetes import client
 
 from .validation import validate_and_normalize_ttl
 from .host_keys import ensure_host_keys_secret
 from .reconciler import reconcile_devserver
 from .lifecycle import cleanup_expired_devservers
+from .user_reconciler import DevServerUserReconciler
 
-try:
-    config.load_incluster_config()
-except config.ConfigException:
-    config.load_kube_config()
+# Kubernetes client configuration is set up lazily per handler so that unit
+# tests can monkeypatch client objects without triggering a real kube-config
+# load at import time.
 
 # Constants
 CRD_GROUP = "devserver.io"
@@ -148,3 +148,56 @@ def delete_devserver(
     logger.warning(
         f"PersistentVolumeClaim for '{name}' will NOT be deleted automatically."
     )
+
+
+@kopf.on.create(CRD_GROUP, CRD_VERSION, "devserverusers")
+def create_devserver_user(
+    spec: Dict[str, Any],
+    meta: Dict[str, Any],
+    logger: logging.Logger,
+    patch: Dict[str, Any],
+    **kwargs: Any,
+) -> None:
+    """Provision namespace and RBAC for DevServerUser creation."""
+
+    reconciler = DevServerUserReconciler(spec=spec, metadata=meta)
+    result = reconciler.reconcile(logger)
+    patch.setdefault("status", {})
+    patch["status"].update({
+        "phase": "Ready",
+        "message": result.message,
+        "namespace": result.namespace,
+    })
+
+
+@kopf.on.update(CRD_GROUP, CRD_VERSION, "devserverusers")
+def update_devserver_user(
+    spec: Dict[str, Any],
+    meta: Dict[str, Any],
+    logger: logging.Logger,
+    patch: Dict[str, Any],
+    **kwargs: Any,
+) -> None:
+    """Reconcile DevServerUser updates idempotently."""
+
+    reconciler = DevServerUserReconciler(spec=spec, metadata=meta)
+    result = reconciler.reconcile(logger)
+    patch.setdefault("status", {})
+    patch["status"].update({
+        "phase": "Ready",
+        "message": result.message,
+        "namespace": result.namespace,
+    })
+
+
+@kopf.on.delete(CRD_GROUP, CRD_VERSION, "devserverusers")
+def delete_devserver_user(
+    spec: Dict[str, Any],
+    meta: Dict[str, Any],
+    logger: logging.Logger,
+    **kwargs: Any,
+) -> None:
+    """Handle cleanup when a DevServerUser is deleted."""
+
+    reconciler = DevServerUserReconciler(spec=spec, metadata=meta)
+    reconciler.cleanup(logger)
