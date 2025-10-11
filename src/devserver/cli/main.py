@@ -134,6 +134,38 @@ def ssh(
 
 
 @main.group()
+def admin() -> None:
+    """Administrative commands for managing DevServers."""
+    pass
+
+
+@admin.group()
+def user() -> None:
+    """Manage DevServer users."""
+    pass
+
+
+@user.command(name="create", help="Create a new DevServer user.")
+@click.argument("username", type=str)
+def user_create(username: str) -> None:
+    """Create a new DevServer user."""
+    handlers.create_user(username=username)
+
+
+@user.command(name="delete", help="Delete a DevServer user.")
+@click.argument("username", type=str)
+def user_delete(username: str) -> None:
+    """Delete a DevServer user."""
+    handlers.delete_user(username=username)
+
+
+@user.command(name="list", help="List all DevServer users.")
+def user_list() -> None:
+    """List all DevServer users."""
+    handlers.list_users()
+
+
+@main.group()
 def config() -> None:
     """Manage devctl configuration."""
     pass
