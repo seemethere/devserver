@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from typing import Optional
 
 from rich.console import Console
 from rich.prompt import Confirm
@@ -121,6 +122,9 @@ def create_ssh_config_for_devserver(
     ssh_config_dir: Path,
     name: str,
     ssh_private_key_file: str,
+    user: Optional[str] = None,
+    namespace: Optional[str] = None,
+    kubeconfig_path: Optional[str] = None,
     ssh_forward_agent: bool = False,
     assume_yes: bool = False,
 ) -> tuple[Path, bool]:
@@ -131,6 +135,9 @@ def create_ssh_config_for_devserver(
         ssh_config_dir: The path to the devserver ssh config directory.
         name: The name of the devserver.
         ssh_private_key_file: Path to the SSH private key file.
+        user: The user associated with the devserver.
+        namespace: The namespace of the devserver.
+        kubeconfig_path: Optional path to the kubeconfig file.
         ssh_forward_agent: If True, forward the SSH agent. Default is False.
         assume_yes: If True, automatically grant permission without prompting.
 
@@ -144,14 +151,17 @@ def create_ssh_config_for_devserver(
     )
 
     key_path = Path(ssh_private_key_file).expanduser()
-    config_path = ssh_config_dir / f"{name}.sshconfig"
+    config_filename = f"{user}-{name}.sshconfig" if user else f"{name}.sshconfig"
+    config_path = ssh_config_dir / config_filename
 
     python_executable = Path(sys.executable)
+    namespace_arg = f"--namespace {namespace}" if namespace else ""
+    proxy_command_env = f"KUBECONFIG={kubeconfig_path} " if kubeconfig_path else ""
 
     config_content = f"""
 Host {name}
     User dev
-    ProxyCommand {python_executable} -m devserver.cli.main ssh --proxy-mode {name}
+    ProxyCommand {proxy_command_env}{python_executable} -m devserver.cli.main ssh --proxy-mode {name} {namespace_arg}
     IdentityFile {key_path}
     ForwardAgent {"yes" if ssh_forward_agent else "no"}
     StrictHostKeyChecking no
@@ -166,10 +176,12 @@ Host {name}
 def remove_ssh_config_for_devserver(
     ssh_config_dir: Path,
     name: str,
+    user: Optional[str] = None,
 ):
     """
     Removes the SSH config file for a devserver.
     """
-    config_path = ssh_config_dir / f"{name}.sshconfig"
+    config_filename = f"{user}-{name}.sshconfig" if user else f"{name}.sshconfig"
+    config_path = ssh_config_dir / config_filename
     if config_path.exists():
         config_path.unlink()

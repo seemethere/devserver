@@ -2,6 +2,7 @@ import click
 from rich.console import Console
 from rich.prompt import Confirm
 from pathlib import Path
+from typing import Optional
 
 from . import handlers
 from .ssh_config import ensure_ssh_config_include, set_ssh_config_permission
@@ -112,6 +113,14 @@ def list_command() -> None:
     help="Path to the SSH private key file.",
 )
 @click.option(
+    "-n",
+    "--namespace",
+    type=str,
+    default=None,
+    help="The namespace to use.",
+    hidden=True,
+)  # Hidden from user help
+@click.option(
     "--proxy-mode",
     is_flag=True,
     hidden=True,
@@ -120,13 +129,19 @@ def list_command() -> None:
 @click.argument("remote_command", nargs=-1)
 @click.pass_context
 def ssh(
-    ctx, name: str, ssh_private_key_file: str, proxy_mode: bool, remote_command: tuple[str, ...]
+    ctx,
+    name: str,
+    ssh_private_key_file: str,
+    namespace: Optional[str],
+    proxy_mode: bool,
+    remote_command: tuple[str, ...],
 ) -> None:
     """SSH into a DevServer."""
     handlers.ssh_devserver(
         configuration=ctx.obj["CONFIG"],
         name=name,
         ssh_private_key_file=ssh_private_key_file,
+        namespace=namespace,
         proxy_mode=proxy_mode,
         remote_command=remote_command,
         assume_yes=ctx.obj["ASSUME_YES"],

@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.status import Status
 
 from ..config import Configuration
+from ..utils import get_current_context
 
 
 def _wait_for_crd_running(name: str, namespace: str, status: Status) -> None:
@@ -96,7 +97,7 @@ def create_devserver(
     flavor: str,
     image: Optional[str] = None,
     ssh_public_key_file: Optional[str] = None,
-    namespace: str = "default",
+    namespace: Optional[str] = None,
     time_to_live: str = "4h",
     wait: bool = False,
 ) -> None:
@@ -104,6 +105,10 @@ def create_devserver(
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
+
+    _, target_namespace = get_current_context()
+    if namespace:
+        target_namespace = namespace
 
     key_path_str = ssh_public_key_file or configuration.ssh_public_key_file
     try:
@@ -121,7 +126,7 @@ def create_devserver(
     manifest = {
         "apiVersion": "devserver.io/v1",
         "kind": "DevServer",
-        "metadata": {"name": name, "namespace": namespace},
+        "metadata": {"name": name, "namespace": target_namespace},
         "spec": {
             "flavor": flavor,
             "image": image or "ubuntu:22.04",  # Default image
@@ -135,13 +140,14 @@ def create_devserver(
         custom_objects_api.create_namespaced_custom_object(
             group="devserver.io",
             version="v1",
-            namespace=namespace,
+            namespace=target_namespace,
             plural="devservers",
             body=manifest,
         )
-        console.print(f"DevServer '{name}' created successfully.")
+        console.print(f"DevServer '{name}' created successfully in namespace '{target_namespace}'.")
         if wait:
-            _wait_for_devserver_ready(name, namespace, console)
+            assert target_namespace is not None
+            _wait_for_devserver_ready(name, target_namespace, console)
     except client.ApiException as e:
         if e.status == 409:  # Conflict
             console.print(f"Error: DevServer '{name}' already exists.")

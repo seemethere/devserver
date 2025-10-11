@@ -7,6 +7,7 @@ from typing import Iterator
 from kubernetes import client
 from kubernetes.stream import portforward
 from kubernetes.stream.ws_client import PortForward
+from rich.console import Console
 
 
 class PortForwardError(Exception):
@@ -96,6 +97,8 @@ def kubernetes_port_forward(
         namespace,
         ports=str(pod_port),
     )
+    console = Console()
+    console.print(f"[bold red]DEBUG: PortForward call args: name={pod_name}, namespace={namespace}, ports={pod_port}[/bold red]")
 
     setup_finished = threading.Event()
     forward_thread = threading.Thread(

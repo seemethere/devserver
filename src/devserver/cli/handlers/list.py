@@ -1,43 +1,54 @@
 from kubernetes import client, config
 from rich.console import Console
-from rich.pretty import Pretty
 from rich.table import Table
+from rich.pretty import Pretty
+from typing import Optional
+
+from ..utils import get_current_context
 
 
-def list_devservers(namespace: str = "default") -> None:
+def list_devservers(namespace: Optional[str] = None) -> None:
     """Lists all DevServers in a given namespace."""
     config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
+
+    _, target_namespace = get_current_context()
+    if namespace:
+        target_namespace = namespace
+
     try:
         devservers = custom_objects_api.list_namespaced_custom_object(
             group="devserver.io",
             version="v1",
-            namespace=namespace,
+            namespace=target_namespace,
             plural="devservers",
         )
 
+        table = Table(title=f"DevServers in namespace [bold]{target_namespace}[/bold]")
+        table.add_column("Name", style="cyan")
+        table.add_column("Status", style="green")
+        table.add_column("Image", style="magenta")
+        table.add_column("Flavor", style="yellow")
+        table.add_column("TTL", style="red")
+
         if not devservers["items"]:
-            console.print(f"No DevServers found in namespace '{namespace}'.")
+            console.print(f"No DevServers found in namespace '{target_namespace}'.")
             return
 
-        console = Console()
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("NAME", style="dim", width=20)
-        table.add_column("STATUS")
-
-        for ds in devservers["items"]:
-            name = ds["metadata"]["name"]
-            status = ds.get("status", {}).get("phase", "Unknown")
-            table.add_row(name, status)
-
+        for devserver in devservers["items"]:
+            status = devserver.get("status", {})
+            table.add_row(
+                devserver["metadata"]["name"],
+                status.get("phase", "Unknown"),
+                devserver["spec"].get("image", "default"),
+                devserver["spec"]["flavor"],
+                devserver["spec"]["lifecycle"]["timeToLive"],
+            )
         console.print(table)
 
     except client.ApiException as e:
-        if e.status == 404:
-            console.print("DevServer CRD not found. Is the operator installed?")
-        else:
-            console.print(f"Error connecting to Kubernetes: {e}")
+        console.print(f"An error occurred: {e.reason}")
 
 
 def list_flavors() -> None:
