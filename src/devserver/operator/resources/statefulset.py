@@ -114,25 +114,39 @@ def build_statefulset(
         ],
     }
 
+    template = statefulset_spec["template"]
+    assert isinstance(template, dict)
+    pod_spec = template["spec"]
+    assert isinstance(pod_spec, dict)
+
     # Remove nodeSelector if it is None
-    if not statefulset_spec["template"]["spec"].get("nodeSelector"):
-        del statefulset_spec["template"]["spec"]["nodeSelector"]
+    if not pod_spec.get("nodeSelector"):
+        pod_spec.pop("nodeSelector", None)
 
     # Remove tolerations if it is None
-    if not statefulset_spec["template"]["spec"].get("tolerations"):
-        del statefulset_spec["template"]["spec"]["tolerations"]
+    if not pod_spec.get("tolerations"):
+        pod_spec.pop("tolerations", None)
 
     # Add shared volume if specified
     if "sharedVolumeClaimName" in spec:
         pvc_name = spec["sharedVolumeClaimName"]
+
+        volumes = pod_spec.get("volumes")
+        assert isinstance(volumes, list)
         # Add the volume that points to the existing PVC
-        statefulset_spec["template"]["spec"]["volumes"].append(
+        volumes.append(
             {"name": "shared", "persistentVolumeClaim": {"claimName": pvc_name}}
         )
+
+        containers = pod_spec.get("containers")
+        assert isinstance(containers, list)
+        container = containers[0]
+        assert isinstance(container, dict)
+
+        volume_mounts = container.get("volumeMounts")
+        assert isinstance(volume_mounts, list)
         # Mount the volume into the container
-        statefulset_spec["template"]["spec"]["containers"][0]["volumeMounts"].append(
-            {"name": "shared", "mountPath": "/shared"}
-        )
+        volume_mounts.append({"name": "shared", "mountPath": "/shared"})
 
     return {
         "apiVersion": "apps/v1",
