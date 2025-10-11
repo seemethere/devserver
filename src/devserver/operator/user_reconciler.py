@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, cast
 
 from kubernetes import client
 from kubernetes.client import ApiException
@@ -96,22 +96,50 @@ class DevServerUserReconciler:
     def _ensure_default_role(self, namespace: str, logger: logging.Logger) -> None:
         role_body = build_default_role_body(namespace, self.username)
         try:
-            self.rbac_v1.create_namespaced_role(namespace=namespace, body=role_body)
-            logger.info("Default Role ensured for user '%s'", self.username)
+            metadata = cast(Dict[str, object], role_body["metadata"])
+            role_name = cast(str, metadata["name"])
+        except KeyError:
+            raise ValueError("Role body is missing expected metadata")
+
+        try:
+            self.rbac_v1.read_namespaced_role(name=role_name, namespace=namespace)
+            self.rbac_v1.patch_namespaced_role(
+                name=role_name, namespace=namespace, body=role_body
+            )
+            logger.info("Default Role patched for user '%s'", self.username)
         except ApiException as exc:
-            if exc.status != 409:
+            if exc.status == 404:
+                self.rbac_v1.create_namespaced_role(namespace=namespace, body=role_body)
+                logger.info("Default Role created for user '%s'", self.username)
+            else:
                 raise
-            logger.info("Role already exists for namespace '%s'", namespace)
 
     def _ensure_default_rolebinding(self, namespace: str, logger: logging.Logger) -> None:
         rolebinding_body = build_default_rolebinding_body(namespace, self.username)
         try:
-            self.rbac_v1.create_namespaced_role_binding(namespace=namespace, body=rolebinding_body)
-            logger.info("Default RoleBinding ensured for user '%s'", self.username)
+            metadata = cast(Dict[str, object], rolebinding_body["metadata"])
+            rb_name = cast(str, metadata["name"])
+        except KeyError:
+            raise ValueError("RoleBinding body is missing expected metadata")
+
+        try:
+            self.rbac_v1.read_namespaced_role_binding(
+                name=rb_name, namespace=namespace
+            )
+            self.rbac_v1.patch_namespaced_role_binding(
+                name=rb_name,
+                namespace=namespace,
+                body=rolebinding_body,
+            )
+            logger.info("Default RoleBinding patched for user '%s'", self.username)
         except ApiException as exc:
-            if exc.status != 409:
+            if exc.status == 404:
+                self.rbac_v1.create_namespaced_role_binding(
+                    namespace=namespace, body=rolebinding_body
+                )
+                logger.info("Default RoleBinding created for user '%s'", self.username)
+            else:
                 raise
-            logger.info("RoleBinding already exists for namespace '%s'", namespace)
 
     def _delete_role(self, namespace: str, logger: logging.Logger) -> None:
         try:
