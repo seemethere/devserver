@@ -184,6 +184,29 @@ def wait_for_devserver_status(
     )
 
 
+def wait_for_cluster_custom_object_to_be_deleted(
+    custom_objects_api: client.CustomObjectsApi,
+    group: str,
+    version: str,
+    plural: str,
+    name: str,
+    timeout: int = 30,
+):
+    """Waits for a cluster-scoped custom object to be deleted."""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            custom_objects_api.get_cluster_custom_object(
+                group=group, version=version, plural=plural, name=name
+            )
+            time.sleep(POLL_INTERVAL)
+        except client.ApiException as e:
+            if e.status == 404:
+                return
+            raise
+    pytest.fail(f"Cluster custom object '{name}' was not deleted within {timeout}s.")
+
+
 def cleanup_devserver(
     custom_objects_api: client.CustomObjectsApi, name: str, namespace: str
 ):
