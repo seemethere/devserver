@@ -62,10 +62,12 @@ def build_default_rolebinding_body(namespace: str, username: str) -> Dict[str, o
         "kind": "RoleBinding",
         "metadata": {"name": "devserver-user", "namespace": namespace},
         "subjects": [
+            {"kind": "User", "name": username},
             {
-                "kind": "User",
-                "name": username,
-            }
+                "kind": "ServiceAccount",
+                "name": f"{username}-sa",
+                "namespace": namespace,
+            },
         ],
         "roleRef": {
             "apiGroup": "rbac.authorization.k8s.io",

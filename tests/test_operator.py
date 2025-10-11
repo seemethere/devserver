@@ -71,6 +71,7 @@ def test_devserver_user_reconciler_creates_namespace(monkeypatch):
     monkeypatch.setattr(reconciler, "rbac_v1", rbac_api)
 
     namespace_api.create_namespace.side_effect = ApiException(status=409)
+    namespace_api.create_namespaced_service_account.side_effect = ApiException(status=409)
     rbac_api.create_namespaced_role.side_effect = ApiException(status=409)
     rbac_api.create_namespaced_role_binding.side_effect = ApiException(status=409)
 
@@ -79,5 +80,17 @@ def test_devserver_user_reconciler_creates_namespace(monkeypatch):
 
     assert result.namespace == "dev-bob"
     namespace_api.create_namespace.assert_called_once()
+    namespace_api.create_namespaced_service_account.assert_called_once()
     rbac_api.create_namespaced_role.assert_called_once()
     rbac_api.create_namespaced_role_binding.assert_called_once()
+
+    # Verify the rolebinding includes both the user and the service account
+    rolebinding_body = rbac_api.create_namespaced_role_binding.call_args.kwargs["body"]
+    subjects = rolebinding_body["subjects"]
+    assert len(subjects) == 2
+    assert {"kind": "User", "name": "bob"} in subjects
+    assert {
+        "kind": "ServiceAccount",
+        "name": "bob-sa",
+        "namespace": "dev-bob",
+    } in subjects

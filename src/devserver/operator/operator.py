@@ -14,7 +14,7 @@ import os
 from typing import Any, Dict
 
 import kopf
-from kubernetes import client
+from kubernetes import client, config
 
 from .validation import validate_and_normalize_ttl
 from .host_keys import ensure_host_keys_secret
@@ -44,6 +44,17 @@ async def on_startup(
     
     This sets operator-wide settings and starts background tasks.
     """
+    try:
+        config.load_incluster_config()
+        logger.info("Using in-cluster Kubernetes configuration.")
+    except config.ConfigException:
+        try:
+            config.load_kube_config()
+            logger.info("Using local kubeconfig.")
+        except config.ConfigException as e:
+            logger.error(f"Could not configure Kubernetes client: {e}")
+            raise kopf.PermanentError("Could not configure Kubernetes client.")
+
     logger.info("Operator started.")
     
     # The default worker limit is unbounded which means you can EASILY flood

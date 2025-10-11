@@ -31,6 +31,7 @@ class DevServerUserReconciler:
 
     def reconcile(self, logger: logging.Logger) -> ReconcileResult:
         namespace_name = self._ensure_namespace(logger)
+        self._ensure_service_account(namespace_name, logger)
         self._ensure_default_role(namespace_name, logger)
         self._ensure_default_rolebinding(namespace_name, logger)
         return ReconcileResult(namespace=namespace_name, message="Namespace and RBAC ensured")
@@ -38,6 +39,7 @@ class DevServerUserReconciler:
     def cleanup(self, logger: logging.Logger) -> None:
         namespace_name = compute_user_namespace(self.username)
         label_selector = f"devserver.io/user={self.username}"
+        self._delete_service_account(namespace_name, logger)
         self._delete_role(namespace_name, logger)
         self._delete_rolebinding(namespace_name, logger)
         # Namespace deletion is left to cluster admins; we only remove RBAC artifacts
@@ -65,6 +67,31 @@ class DevServerUserReconciler:
                 raise
             logger.info("Namespace '%s' already exists", namespace_name)
         return namespace_name
+
+    def _ensure_service_account(self, namespace: str, logger: logging.Logger) -> None:
+        """Ensures a ServiceAccount for the user exists."""
+        sa_name = f"{self.username}-sa"
+        body = client.V1ServiceAccount(
+            metadata=client.V1ObjectMeta(name=sa_name, namespace=namespace)
+        )
+        try:
+            self.core_v1.create_namespaced_service_account(namespace=namespace, body=body)
+            logger.info("ServiceAccount '%s' created for user '%s'", sa_name, self.username)
+        except ApiException as exc:
+            if exc.status != 409:
+                raise
+            logger.info("ServiceAccount '%s' already exists.", sa_name)
+
+    def _delete_service_account(self, namespace: str, logger: logging.Logger) -> None:
+        """Deletes the ServiceAccount for the user."""
+        sa_name = f"{self.username}-sa"
+        try:
+            self.core_v1.delete_namespaced_service_account(name=sa_name, namespace=namespace)
+            logger.info("Deleted ServiceAccount '%s' for namespace '%s'", sa_name, namespace)
+        except ApiException as exc:
+            if exc.status != 404:
+                raise
+            logger.info("ServiceAccount '%s' absent for namespace '%s'", sa_name, namespace)
 
     def _ensure_default_role(self, namespace: str, logger: logging.Logger) -> None:
         role_body = build_default_role_body(namespace, self.username)
