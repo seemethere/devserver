@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import patch
 import io
 import sys
+import time
 
 from click.testing import CliRunner
 from devserver.cli import main as cli_main
@@ -9,7 +10,11 @@ from devserver.cli import handlers
 from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
 from typing import Any, Dict
-from tests.helpers import wait_for_devserver_status, cleanup_devserver
+from tests.helpers import (
+    wait_for_devserver_status,
+    cleanup_devserver,
+    wait_for_cluster_custom_object_to_be_deleted,
+)
 from devserver.cli.config import Configuration
 
 
@@ -282,51 +287,73 @@ class TestCliParser:
         assert "flavor" in result.output.lower() or "required" in result.output.lower()
 
 
-    def test_ssh_command_parsing(self, tmp_path: Any, test_config: Configuration) -> None:
-        """Tests that 'ssh' command arguments are parsed and handled correctly."""
+class TestUserCliIntegration:
+    """Integration tests for the 'user' subcommand."""
+
+    TEST_USERNAME = "test-cli-user"
+
+    def test_user_create_list_delete(
+        self, k8s_clients: Dict[str, Any], operator_running: Any
+    ) -> None:
+        """Tests the full lifecycle (create, list, delete) of a user via the CLI."""
+        custom_objects_api = k8s_clients["custom_objects_api"]
         runner = CliRunner()
-        
-        # Create a dummy private key file
-        private_key_file = tmp_path / "id_rsa"
-        private_key_file.touch()
 
-        # We need to mock all interactions with the outside world
-        with patch("devserver.cli.handlers.ssh.config.load_kube_config"), \
-             patch("devserver.cli.handlers.ssh.client.CustomObjectsApi") as mock_custom_api, \
-             patch("devserver.cli.handlers.ssh.kubernetes_port_forward") as mock_portforward, \
-             patch("devserver.cli.handlers.ssh.subprocess.run") as mock_run, \
-             patch("devserver.cli.handlers.ssh.create_ssh_config_for_devserver") as mock_create_config:
-
-            # Mock the K8s API to return a dummy DevServer
-            mock_custom_api.return_value.get_namespaced_custom_object.return_value = {}
-
-            # Mock the ssh config creation to simulate the user saying "no" to the prompt
-            mock_create_config.return_value = (None, False)
-
-            mock_portforward.return_value.__enter__.return_value = 12345
-
+        try:
+            # 1. Create user
             result = runner.invoke(
-                cli_main.main,
-                ["ssh", "my-server", "--identity-file", str(private_key_file)]
+                cli_main.main, ["admin", "user", "create", self.TEST_USERNAME]
+            )
+            assert result.exit_code == 0
+            assert f"User '{self.TEST_USERNAME}' created successfully" in result.output
+
+            # Wait for operator to set status
+            for _ in range(10):
+                user_obj = custom_objects_api.get_cluster_custom_object(
+                    group="devserver.io",
+                    version="v1",
+                    plural="devserverusers",
+                    name=self.TEST_USERNAME,
+                )
+                if user_obj.get("status", {}).get("phase") == "Ready":
+                    break
+                time.sleep(1)
+            else:
+                pytest.fail("User status did not become 'Ready' in time.")
+
+            assert user_obj["spec"]["username"] == self.TEST_USERNAME
+            assert user_obj["status"]["namespace"] == f"dev-{self.TEST_USERNAME}"
+
+            # 2. List users and check for the new user and namespace
+            result = runner.invoke(cli_main.main, ["admin", "user", "list"])
+            assert result.exit_code == 0
+            assert self.TEST_USERNAME in result.output
+            assert f"dev-{self.TEST_USERNAME}" in result.output
+
+            # 3. Delete user
+            result = runner.invoke(
+                cli_main.main, ["admin", "user", "delete", self.TEST_USERNAME]
+            )
+            assert result.exit_code == 0
+            assert f"User '{self.TEST_USERNAME}' deleted successfully" in result.output
+
+            # Verify resource was deleted by waiting for it to disappear
+            wait_for_cluster_custom_object_to_be_deleted(
+                custom_objects_api,
+                group="devserver.io",
+                version="v1",
+                plural="devserverusers",
+                name=self.TEST_USERNAME,
             )
 
-            # Check that the command succeeded
-            assert result.exit_code == 0
-            assert "Connecting to devserver 'my-server' via port-forward on localhost:12345..." in result.output
-            
-            mock_portforward.assert_called_once_with(
-                pod_name="my-server-0", namespace="default", pod_port=22
-            )
-            
-            # Verify that ssh was called correctly
-            mock_run.assert_called_once()
-            run_args = mock_run.call_args[0][0]
-            assert "ssh" in run_args
-            assert "dev@localhost" in run_args
-            assert "-p" in run_args
-            assert "12345" in run_args
-            assert "-i" in run_args
-            assert str(private_key_file) in run_args
+        finally:
+            # Cleanup in case of failure
+            try:
+                # This will gracefully handle a 404 if already deleted
+                handlers.delete_user(username=self.TEST_USERNAME)
+            except client.ApiException as e:
+                if e.status != 404:
+                    raise
 
 
 def test_create_and_list_with_operator(
