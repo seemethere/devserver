@@ -1,0 +1,6 @@
+apiVersion: devserver.io/v1
+kind: DevServerUser
+metadata:
+  name: test-user
+spec:
+  username: test-user
