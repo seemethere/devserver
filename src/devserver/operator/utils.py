@@ -6,26 +6,28 @@ from dataclasses import dataclass
 from typing import Dict
 
 DEFAULT_ROLE_RULES = [
-    {
-        "apiGroups": [""],
-        "resources": [
-            "pods",
-            "services",
-            "endpoints",
-            "persistentvolumeclaims",
-            "configmaps",
-        ],
-        "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"],
-    },
-    {
-        "apiGroups": ["apps"],
-        "resources": ["statefulsets", "deployments", "replicasets"],
-        "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"],
-    },
+    # Allow full management of DevServer resources
     {
         "apiGroups": ["devserver.io"],
         "resources": ["devservers"],
         "verbs": ["get", "list", "watch", "create", "delete"],
+    },
+    # Allow viewing and debugging of core workload resources
+    {
+        "apiGroups": [""],
+        "resources": ["pods"],
+        "verbs": ["get", "list", "watch"],
+    },
+    # Allow port-forwarding (requires 'get' on pods) and exec
+    {
+        "apiGroups": [""],
+        "resources": ["pods/portforward"],
+        "verbs": ["get","create"],
+    },
+    {
+        "apiGroups": [""],
+        "resources": ["pods/exec"],
+        "verbs": ["create"],
     },
 ]
 
