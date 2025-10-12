@@ -180,6 +180,13 @@ def user_list() -> None:
     handlers.list_users()
 
 
+@user.command(name="kubeconfig", help="Generate a kubeconfig for a DevServer user.")
+@click.argument("username", type=str)
+def user_kubeconfig(username: str) -> None:
+    """Generate a kubeconfig for a DevServer user."""
+    handlers.generate_user_kubeconfig(username=username)
+
+
 @main.group()
 def config() -> None:
     """Manage devctl configuration."""

@@ -10,6 +10,7 @@ POLL_INTERVAL = 0.5
 CRD_GROUP = "devserver.io"
 CRD_VERSION = "v1"
 CRD_PLURAL_DEVSERVER = "devservers"
+CRD_PLURAL_DEVSERVERUSER = "devserverusers"
 
 
 def wait_for_statefulset_to_exist(
@@ -180,6 +181,44 @@ def wait_for_devserver_status(
                 raise
     pytest.fail(
         f"DevServer '{name}' did not reach status '{expected_status}' within {timeout} seconds. "
+        f"Last known status: {current_status}"
+    )
+
+
+def wait_for_devserveruser_status(
+    custom_objects_api: client.CustomObjectsApi,
+    name: str,
+    expected_status: str = "Ready",
+    timeout: int = 10,
+):
+    """
+    Waits for a DevServerUser to reach a specific status in its `.status.phase` field.
+    """
+    print(f"⏳ Waiting for DevServerUser '{name}' status to become '{expected_status}'...")
+    start_time = time.time()
+    current_status = None
+    while time.time() - start_time < timeout:
+        try:
+            user = custom_objects_api.get_cluster_custom_object(
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                plural=CRD_PLURAL_DEVSERVERUSER,
+                name=name,
+            )
+            if "status" in user and "phase" in user["status"]:
+                current_status = user["status"]["phase"]
+                if current_status == expected_status:
+                    print(f"✅ DevServerUser '{name}' reached status '{expected_status}'.")
+                    return
+            time.sleep(POLL_INTERVAL)
+        except client.ApiException as e:
+            if e.status == 404:
+                # It might not have been created yet
+                time.sleep(POLL_INTERVAL)
+            else:
+                raise
+    pytest.fail(
+        f"DevServerUser '{name}' did not reach status '{expected_status}' within {timeout} seconds. "
         f"Last known status: {current_status}"
     )
 

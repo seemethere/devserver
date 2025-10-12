@@ -6,7 +6,7 @@ from .delete import delete_devserver
 from .describe import describe_devserver
 from .list import list_devservers
 from .ssh import ssh_devserver
-from .user import create_user, delete_user, list_users
+from .user import create_user, delete_user, list_users, generate_user_kubeconfig
 
 __all__ = [
     "create_devserver",
@@ -17,4 +17,5 @@ __all__ = [
     "create_user",
     "delete_user",
     "list_users",
+    "generate_user_kubeconfig",
 ]
