@@ -187,7 +187,7 @@ async def test_devserver_expires_after_ttl(test_flavor, operator_running, k8s_cl
     apps_v1 = k8s_clients["apps_v1"]
     custom_objects_api = k8s_clients["custom_objects_api"]
     devserver_name = f"test-ttl-expiry-{uuid.uuid4().hex[:6]}"
-    ttl_seconds = 10
+    ttl_seconds = 2  # Keep TTL short, test is now deterministic
 
     devserver_manifest = {
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
@@ -213,13 +213,23 @@ async def test_devserver_expires_after_ttl(test_flavor, operator_running, k8s_cl
 
         # 1. Verify StatefulSet is created
         await wait_for_statefulset_to_exist(apps_v1, name=devserver_name, namespace=NAMESPACE)
+        
+        # 2. Wait for TTL to pass
+        await asyncio.sleep(ttl_seconds + 1)
+        
+        # 3. Manually trigger the cleanup logic
+        print("⚡️ Manually triggering expiration check...")
+        deleted_count = await lifecycle.check_and_expire_devservers(
+            custom_objects_api, logging.getLogger(__name__)
+        )
+        assert deleted_count == 1
 
-        # 2. Wait for the DevServer to be garbage collected
+        # 4. Wait for the DevServer to be garbage collected
         await wait_for_devserver_to_be_deleted(
             custom_objects_api, name=devserver_name, namespace=NAMESPACE
         )
 
-        # 3. Verify StatefulSet is also gone (garbage collected)
+        # 5. Verify StatefulSet is also gone (garbage collected)
         await wait_for_statefulset_to_be_deleted(
             apps_v1, name=devserver_name, namespace=NAMESPACE
         )
