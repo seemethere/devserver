@@ -15,6 +15,38 @@ CRD_GROUP = "devserver.io"
 CRD_VERSION = "v1"
 
 
+async def check_and_expire_devservers(
+    custom_objects_api: client.CustomObjectsApi, logger: logging.Logger
+) -> int:
+    """
+    Scans for and deletes expired DevServers in a single pass.
+
+    Returns:
+        The number of expired DevServers that were deleted.
+    """
+    logger.info("Running expiration check for DevServers...")
+    devservers = await asyncio.to_thread(
+        custom_objects_api.list_cluster_custom_object,
+        group=CRD_GROUP,
+        version=CRD_VERSION,
+        plural="devservers",
+    )
+
+    expired_count = 0
+    delete_tasks = []
+
+    for ds in devservers["items"]:
+        if is_expired(ds, logger):
+            delete_tasks.append(_delete_devserver(ds, custom_objects_api, logger))
+            expired_count += 1
+
+    if delete_tasks:
+        await asyncio.gather(*delete_tasks)
+        logger.info(f"Expired {expired_count} DevServer(s) in this check.")
+
+    return expired_count
+
+
 async def cleanup_expired_devservers(
     custom_objects_api: client.CustomObjectsApi,
     logger: logging.Logger,
@@ -47,24 +79,7 @@ async def cleanup_expired_devservers(
     
     while True:
         try:
-            logger.info("Running expiration check for DevServers...")
-            devservers = await asyncio.to_thread(
-                custom_objects_api.list_cluster_custom_object,
-                group=CRD_GROUP,
-                version=CRD_VERSION,
-                plural="devservers",
-            )
-
-            expired_count = 0
-            
-            for ds in devservers["items"]:
-                if is_expired(ds, logger):
-                    await _delete_devserver(ds, custom_objects_api, logger)
-                    expired_count += 1
-            
-            if expired_count > 0:
-                logger.info(f"Expired {expired_count} DevServer(s) in this check.")
-
+            await check_and_expire_devservers(custom_objects_api, logger)
         except client.ApiException as e:
             logger.error(f"API error during expiration check: {e}")
         except Exception as e:
