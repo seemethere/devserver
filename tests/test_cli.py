@@ -2,7 +2,9 @@ import pytest
 from unittest.mock import patch
 import io
 import sys
-import time
+import yaml
+import os
+import tempfile
 
 from click.testing import CliRunner
 from devserver.cli import main as cli_main
@@ -14,6 +16,7 @@ from tests.helpers import (
     wait_for_devserver_status,
     cleanup_devserver,
     wait_for_cluster_custom_object_to_be_deleted,
+    wait_for_devserveruser_status,
 )
 from devserver.cli.config import Configuration
 
@@ -322,19 +325,16 @@ class TestUserCliIntegration:
             assert f"User '{self.TEST_USERNAME}' created successfully" in result.output
 
             # Wait for operator to set status
-            for _ in range(10):
-                user_obj = custom_objects_api.get_cluster_custom_object(
-                    group="devserver.io",
-                    version="v1",
-                    plural="devserverusers",
-                    name=self.TEST_USERNAME,
-                )
-                if user_obj.get("status", {}).get("phase") == "Ready":
-                    break
-                time.sleep(1)
-            else:
-                pytest.fail("User status did not become 'Ready' in time.")
+            wait_for_devserveruser_status(
+                custom_objects_api, name=self.TEST_USERNAME
+            )
 
+            user_obj = custom_objects_api.get_cluster_custom_object(
+                group="devserver.io",
+                version="v1",
+                plural="devserverusers",
+                name=self.TEST_USERNAME,
+            )
             assert user_obj["spec"]["username"] == self.TEST_USERNAME
             assert user_obj["status"]["namespace"] == f"dev-{self.TEST_USERNAME}"
 
@@ -368,6 +368,49 @@ class TestUserCliIntegration:
             except client.ApiException as e:
                 if e.status != 404:
                     raise
+
+    def test_user_kubeconfig_command(
+        self, k8s_clients: Dict[str, Any], operator_running: Any
+    ) -> None:
+        """Tests that the 'user kubeconfig' command generates a valid config."""
+        runner = CliRunner()
+        username = "test-kubeconfig-user"
+
+        try:
+            # 1. Create a user for the test
+            runner.invoke(cli_main.main, ["admin", "user", "create", username])
+            # Wait for the operator to be ready
+            wait_for_devserveruser_status(
+                k8s_clients["custom_objects_api"], name=username
+            )
+
+            # 2. Generate kubeconfig
+            result = runner.invoke(
+                cli_main.main, ["admin", "user", "kubeconfig", username]
+            )
+            assert result.exit_code == 0
+            kubeconfig_data = yaml.safe_load(result.output)
+            assert kubeconfig_data["current-context"] == username
+            assert "token" in kubeconfig_data["users"][0]["user"]
+
+            # 3. Write to a temp file and use it to list devservers
+            with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_kubeconfig:
+                temp_kubeconfig.write(result.output)
+                kubeconfig_path = temp_kubeconfig.name
+
+            # Use the generated kubeconfig to run a command
+            runner_with_kubeconfig = CliRunner(
+                env={"KUBECONFIG": kubeconfig_path}
+            )
+            list_result = runner_with_kubeconfig.invoke(cli_main.main, ["list"])
+            assert list_result.exit_code == 0
+            assert f"No DevServers found in namespace 'dev-{username}'." in list_result.output
+
+        finally:
+            # Cleanup
+            runner.invoke(cli_main.main, ["admin", "user", "delete", username])
+            if "kubeconfig_path" in locals() and os.path.exists(kubeconfig_path):
+                os.remove(kubeconfig_path)
 
 
 def test_create_and_list_with_operator(
