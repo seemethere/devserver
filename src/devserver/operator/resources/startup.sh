@@ -80,6 +80,7 @@ usermod -g dev -d /home/dev dev
 # Ensure home directory exists and has correct permissions
 mkdir -p /home/dev
 chown -R dev:dev /home/dev
+chmod 755 /home/dev
 
 log_info "Unlocking user's account to allow SSH access"
 # Unlock the user's account to allow SSH access

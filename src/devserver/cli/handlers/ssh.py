@@ -34,6 +34,8 @@ def ssh_devserver(
     console = Console()
 
     user, target_namespace = get_current_context()
+    if namespace:
+        target_namespace = namespace
     key_path_str = ssh_private_key_file or configuration.ssh_private_key_file
 
     try:

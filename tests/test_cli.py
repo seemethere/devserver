@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import io
 import sys
 import time
@@ -31,16 +31,13 @@ class TestCliIntegration:
     Integration tests for the CLI that interact with a Kubernetes cluster.
     """
 
-    @patch("devserver.cli.handlers.list.get_current_namespace")
     def test_list_command(
         self,
-        mock_get_namespace: MagicMock,
         k8s_clients: Dict[str, Any],
         test_ssh_public_key: str,
         test_config: Configuration,
     ) -> None:
         """Tests that the 'list' command can see a created DevServer."""
-        mock_get_namespace.return_value = NAMESPACE
         custom_objects_api = k8s_clients["custom_objects_api"]
 
         # Create a DevServer for the list command to find
@@ -82,16 +79,13 @@ class TestCliIntegration:
                 custom_objects_api, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
             )
 
-    @patch("devserver.cli.handlers.create.get_current_namespace")
     def test_create_command(
         self,
-        mock_get_namespace: MagicMock,
         k8s_clients: Dict[str, Any],
         test_ssh_public_key: str,
         test_config: Configuration,
     ) -> None:
         """Tests that the 'create' command successfully creates a DevServer."""
-        mock_get_namespace.return_value = NAMESPACE
         custom_objects_api = k8s_clients["custom_objects_api"]
 
         try:
@@ -124,16 +118,13 @@ class TestCliIntegration:
                 custom_objects_api, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
             )
 
-    @patch("devserver.cli.handlers.delete.get_current_namespace")
     def test_delete_command(
         self,
-        mock_get_namespace: MagicMock,
         k8s_clients: Dict[str, Any],
         test_ssh_public_key: str,
         test_config: Configuration,
     ) -> None:
         """Tests that the 'delete' command successfully deletes a DevServer."""
-        mock_get_namespace.return_value = NAMESPACE
         custom_objects_api = k8s_clients["custom_objects_api"]
 
         # Create a resource to be deleted
@@ -172,16 +163,13 @@ class TestCliIntegration:
         assert isinstance(cm.value, client.ApiException)
         assert cm.value.status == 404
 
-    @patch("devserver.cli.handlers.describe.get_current_namespace")
     def test_describe_command(
         self,
-        mock_get_namespace: MagicMock,
         k8s_clients: Dict[str, Any],
         test_ssh_public_key: str,
         test_config: Configuration,
     ) -> None:
         """Tests that the 'describe' command can see a created DevServer."""
-        mock_get_namespace.return_value = NAMESPACE
         custom_objects_api = k8s_clients["custom_objects_api"]
 
         # Create a DevServer for the describe command to find
@@ -382,13 +370,7 @@ class TestUserCliIntegration:
                     raise
 
 
-@patch("devserver.cli.handlers.create.get_current_namespace")
-@patch("devserver.cli.handlers.list.get_current_namespace")
-@patch("devserver.cli.handlers.delete.get_current_namespace")
 def test_create_and_list_with_operator(
-    mock_delete_ns: MagicMock,
-    mock_list_ns: MagicMock,
-    mock_create_ns: MagicMock,
     operator_running: Any,
     k8s_clients: Dict[str, Any],
     test_ssh_public_key: str,
@@ -399,9 +381,6 @@ def test_create_and_list_with_operator(
     This test verifies end-to-end functionality by creating a DevServer with CLI
     and verifying it appears in list with proper status when operator is running.
     """
-    mock_create_ns.return_value = NAMESPACE
-    mock_list_ns.return_value = NAMESPACE
-    mock_delete_ns.return_value = NAMESPACE
     custom_objects_api = k8s_clients["custom_objects_api"]
 
     # First create a flavor for the test
