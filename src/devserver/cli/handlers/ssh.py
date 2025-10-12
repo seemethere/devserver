@@ -19,6 +19,12 @@ from ..config import Configuration
 from ..utils import get_current_context
 
 
+def warn_if_agent_forwarding_is_disabled(configuration: Configuration):
+    if not configuration.ssh_forward_agent:
+        console = Console()
+        console.print("[yellow]⚠️ SSH agent forwarding is disabled. This may cause issues with tools that rely on SSH agent forwarding like git.[/yellow]")
+        console.print("[yellow]   Modify the value ssh.forward_agent to true in your config file to enable it.[/yellow]")
+
 def ssh_devserver(
     configuration: Configuration,
     name: str,
@@ -66,6 +72,7 @@ def ssh_devserver(
             if use_include:
                 console.print(f"Connecting to devserver '{name}' via SSH config...")
                 ssh_command = ["ssh", name]
+                warn_if_agent_forwarding_is_disabled(configuration)
                 if remote_command:
                     ssh_command.extend(remote_command)
                 subprocess.run(ssh_command, check=False)
@@ -124,6 +131,7 @@ def ssh_devserver(
                 "-o", "UserKnownHostsFile=/dev/null",
                 "dev@localhost",
             ]
+            warn_if_agent_forwarding_is_disabled(configuration)
             if remote_command:
                 ssh_command.extend(remote_command)
             subprocess.run(ssh_command, check=False)
