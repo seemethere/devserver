@@ -83,6 +83,7 @@ def k8s_clients():
         "apps_v1": client.AppsV1Api(),
         "core_v1": client.CoreV1Api(),
         "custom_objects_api": client.CustomObjectsApi(),
+        "rbac_v1": client.RbacAuthorizationV1Api(),
     }
 
 
@@ -126,7 +127,11 @@ def apply_crds():
 
     # Check for any existing CRDs and handle terminating state
     api_extensions_v1 = client.ApiextensionsV1Api()
-    crd_names = ["devservers.devserver.io", "devserverflavors.devserver.io"]
+    crd_names = [
+        "devservers.devserver.io",
+        "devserverflavors.devserver.io",
+        "devserverusers.devserver.io",
+    ]
 
     for crd_name in crd_names:
         print(f"⏳ Checking if CRD {crd_name} exists...")
@@ -169,6 +174,9 @@ def apply_crds():
         )
         utils.create_from_yaml(
             k8s_client, "crds/devserver.io_devserverflavors.yaml", apply=True
+        )
+        utils.create_from_yaml(
+            k8s_client, "crds/devserver.io_devserverusers.yaml", apply=True
         )
         print("✅ CRDs applied successfully")
     except Exception as e:
@@ -338,3 +346,36 @@ def test_flavor(request):
     request.addfinalizer(cleanup)
 
     return test_flavor_name
+
+
+@pytest.fixture(scope="function")
+def devserver_user(k8s_clients: dict[str, Any]) -> str:
+    """Creates a DevServerUser resource for tests and cleans it up afterwards."""
+
+    custom_objects_api: client.CustomObjectsApi = k8s_clients["custom_objects_api"]
+    username = f"test-user-{uuid.uuid4().hex[:6]}"
+    manifest = {
+        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
+        "kind": "DevServerUser",
+        "metadata": {"name": username},
+        "spec": {"username": username},
+    }
+    custom_objects_api.create_cluster_custom_object(
+        group=CRD_GROUP,
+        version=CRD_VERSION,
+        plural="devserverusers",
+        body=manifest,
+    )
+
+    yield username
+
+    try:
+        custom_objects_api.delete_cluster_custom_object(
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            plural="devserverusers",
+            name=username,
+        )
+    except client.ApiException as exc:
+        if exc.status != 404:
+            raise

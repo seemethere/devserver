@@ -87,3 +87,5 @@ Thumbs.db
 *.zip
 
 reference/**/package
+
+*.kubeconfig
