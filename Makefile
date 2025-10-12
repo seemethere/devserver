@@ -1,5 +1,8 @@
 # Conditional pytest flags based on VERBOSE environment variable
+VERBOSE ?= 0
+MAX_JOBS ?= 4
 PYTEST_VERBOSE = $(if $(filter 1,$(VERBOSE)),-s,)
+PYTEST_PARALLEL_JOBS = $(if $(MAX_JOBS),-n $(MAX_JOBS),)
 VENV_BIN = .venv/bin
 PYTHON = $(VENV_BIN)/python3
 PIP = $(VENV_BIN)/pip3
@@ -15,13 +18,8 @@ $(PYTHON):
 
 .PHONY: test
 test: $(PYTHON)
-	@echo "🧪 Running tests$(if $(filter 1,$(VERBOSE)), with verbose output,) (use VERBOSE=1 for detailed output)..."
-	$(PYTEST) -v $(PYTEST_VERBOSE) tests
-
-.PHONY: test-parallel
-test-parallel: $(PYTHON)
-	@echo "🧪 Running tests in parallel (use VERBOSE=1 for detailed output)..."
-	$(PYTEST) -n 4 -v $(PYTEST_VERBOSE) tests
+	@echo "🧪 Running tests$(if $(MAX_JOBS), with $(MAX_JOBS) parallel jobs,)$(if $(filter 1,$(VERBOSE)), with verbose output,)... (use VERBOSE=1 for detailed output, MAX_JOBS=<n> for parallel tests)"
+	$(PYTEST) $(PYTEST_PARALLEL_JOBS) -v $(PYTEST_VERBOSE) tests
 
 .PHONY: install-crds
 install-crds: #TODO: List crd file glob to re-run this on file changes
