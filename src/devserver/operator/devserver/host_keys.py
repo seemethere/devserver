@@ -1,17 +1,17 @@
 """
 SSH host key generation and management.
 """
+import asyncio
 import base64
 import logging
 import os
-import subprocess
 import tempfile
 from typing import Dict, Any
 
 from kubernetes import client
 
 
-def generate_host_keys() -> Dict[str, str]:
+async def generate_host_keys() -> Dict[str, str]:
     """
     Generate SSH host keys in a temporary directory.
 
@@ -31,10 +31,10 @@ def generate_host_keys() -> Dict[str, str]:
             private_key_path = os.path.join(temp_dir, f"ssh_host_{key_type}_key")
             public_key_path = f"{private_key_path}.pub"
 
-            subprocess.run(
-                ["ssh-keygen", "-t", key_type, "-f", private_key_path, "-N", "", "-q"],
-                check=True,
+            process = await asyncio.create_subprocess_exec(
+                "ssh-keygen", "-t", key_type, "-f", private_key_path, "-N", "", "-q"
             )
+            await process.wait()
 
             with open(private_key_path, "r") as f:
                 key_data[f"ssh_host_{key_type}_key"] = base64.b64encode(
@@ -48,7 +48,7 @@ def generate_host_keys() -> Dict[str, str]:
     return key_data
 
 
-def ensure_host_keys_secret(
+async def ensure_host_keys_secret(
     name: str,
     namespace: str,
     owner_meta: Dict[str, Any],
@@ -73,7 +73,9 @@ def ensure_host_keys_secret(
     core_v1 = client.CoreV1Api()
 
     try:
-        core_v1.read_namespaced_secret(name=secret_name, namespace=namespace)
+        await asyncio.to_thread(
+            core_v1.read_namespaced_secret, name=secret_name, namespace=namespace
+        )
         logger.info(f"Host key Secret '{secret_name}' already exists.")
         return
     except client.ApiException as e:
@@ -82,7 +84,7 @@ def ensure_host_keys_secret(
 
     logger.info(f"Host key Secret '{secret_name}' not found. Generating keys...")
 
-    key_data = generate_host_keys()
+    key_data = await generate_host_keys()
 
     secret_body = {
         "apiVersion": "v1",
@@ -105,5 +107,7 @@ def ensure_host_keys_secret(
         "data": key_data,
     }
 
-    core_v1.create_namespaced_secret(namespace=namespace, body=secret_body)
+    await asyncio.to_thread(
+        core_v1.create_namespaced_secret, namespace=namespace, body=secret_body
+    )
     logger.info(f"Host key Secret '{secret_name}' created.")

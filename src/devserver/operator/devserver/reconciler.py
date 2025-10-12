@@ -1,6 +1,7 @@
 """
 Kubernetes resource reconciliation for DevServer resources.
 """
+import asyncio
 import logging
 import os
 from typing import Any, Dict
@@ -68,7 +69,7 @@ class DevServerReconciler:
         for resource in resources.values():
             kopf.adopt(resource)
 
-    def create_resources(self, resources: Dict[str, Any], logger: logging.Logger) -> None:
+    async def create_resources(self, resources: Dict[str, Any], logger: logging.Logger) -> None:
         """
         Create all Kubernetes resources.
 
@@ -87,23 +88,25 @@ class DevServerReconciler:
         # halfway through, retrying won't fix the issue.
 
         # Create ConfigMaps
-        self._create_configmap(resources["sshd_configmap"], logger)
-        self._create_configmap(resources["startup_script_configmap"], logger)
+        await self._create_configmap(resources["sshd_configmap"], logger)
+        await self._create_configmap(resources["startup_script_configmap"], logger)
 
         # Create Services
-        self._create_service(resources["headless_service"], logger)
+        await self._create_service(resources["headless_service"], logger)
         
         if self.spec.get("enableSSH", False):
-            self._create_service(resources["ssh_service"], logger)
+            await self._create_service(resources["ssh_service"], logger)
 
         # Create StatefulSet
-        self._create_statefulset(resources["statefulset"], logger)
+        await self._create_statefulset(resources["statefulset"], logger)
 
-    def _create_configmap(self, configmap: Dict[str, Any], logger: logging.Logger) -> None:
+    async def _create_configmap(self, configmap: Dict[str, Any], logger: logging.Logger) -> None:
         """Create a ConfigMap, ignoring if it already exists."""
         try:
-            self.core_v1.create_namespaced_config_map(
-                namespace=self.namespace, body=configmap
+            await asyncio.to_thread(
+                self.core_v1.create_namespaced_config_map,
+                namespace=self.namespace,
+                body=configmap,
             )
             logger.info(f"ConfigMap '{configmap['metadata']['name']}' created.")
         except client.ApiException as e:
@@ -114,10 +117,14 @@ class DevServerReconciler:
             else:
                 raise
 
-    def _create_service(self, service: Dict[str, Any], logger: logging.Logger) -> None:
+    async def _create_service(self, service: Dict[str, Any], logger: logging.Logger) -> None:
         """Create a Service, ignoring if it already exists."""
         try:
-            self.core_v1.create_namespaced_service(namespace=self.namespace, body=service)
+            await asyncio.to_thread(
+                self.core_v1.create_namespaced_service,
+                namespace=self.namespace,
+                body=service,
+            )
             logger.info(f"Service '{service['metadata']['name']}' created.")
         except client.ApiException as e:
             if e.status == 409:
@@ -127,11 +134,13 @@ class DevServerReconciler:
             else:
                 raise
 
-    def _create_statefulset(self, statefulset: Dict[str, Any], logger: logging.Logger) -> None:
+    async def _create_statefulset(self, statefulset: Dict[str, Any], logger: logging.Logger) -> None:
         """Create a StatefulSet, ignoring if it already exists."""
         try:
-            self.apps_v1.create_namespaced_stateful_set(
-                body=statefulset, namespace=self.namespace
+            await asyncio.to_thread(
+                self.apps_v1.create_namespaced_stateful_set,
+                body=statefulset,
+                namespace=self.namespace,
             )
             logger.info(f"StatefulSet '{self.name}' created for DevServer.")
         except client.ApiException as e:
@@ -141,7 +150,7 @@ class DevServerReconciler:
                 raise
 
 
-def reconcile_devserver(
+async def reconcile_devserver(
     name: str,
     namespace: str,
     spec: Dict[str, Any],
@@ -170,6 +179,6 @@ def reconcile_devserver(
     reconciler.adopt_resources(resources)
     
     # Create resources
-    reconciler.create_resources(resources, logger)
+    await reconciler.create_resources(resources, logger)
     
     return f"StatefulSet '{name}' created successfully."

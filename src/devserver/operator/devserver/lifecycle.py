@@ -48,7 +48,8 @@ async def cleanup_expired_devservers(
     while True:
         try:
             logger.info("Running expiration check for DevServers...")
-            devservers = custom_objects_api.list_cluster_custom_object(
+            devservers = await asyncio.to_thread(
+                custom_objects_api.list_cluster_custom_object,
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 plural="devservers",
@@ -133,7 +134,8 @@ async def _delete_devserver(
     )
     
     try:
-        await custom_objects_api.delete_namespaced_custom_object(
+        await asyncio.to_thread(
+            custom_objects_api.delete_namespaced_custom_object,
             group=CRD_GROUP,
             version=CRD_VERSION,
             plural="devservers",

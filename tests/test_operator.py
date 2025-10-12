@@ -1,3 +1,4 @@
+import pytest
 from devserver.operator.devserver.resources.statefulset import build_statefulset
 from devserver.operator.devserveruser.reconciler import DevServerUserReconciler
 from unittest.mock import MagicMock
@@ -60,25 +61,38 @@ def test_compute_user_namespace_default():
     assert reconciler._desired_namespace_name() == "dev-alice"
 
 
-def test_devserver_user_reconciler_creates_namespace(monkeypatch):
+@pytest.mark.asyncio
+async def test_devserver_user_reconciler_creates_namespace(monkeypatch):
     spec = {"username": "bob"}
     reconciler = DevServerUserReconciler(spec=spec, metadata={})
 
+    # Mock the k8s clients
     namespace_api = MagicMock()
     rbac_api = MagicMock()
 
     monkeypatch.setattr(reconciler, "core_v1", namespace_api)
     monkeypatch.setattr(reconciler, "rbac_v1", rbac_api)
+    
+    # Mock the methods called within the reconciler
+    namespace_api.create_namespace = MagicMock()
+    namespace_api.create_namespaced_service_account = MagicMock()
+    # For roles and rolebindings, we need to mock the read calls to raise a 404
+    # to trigger the create path.
+    rbac_api.read_namespaced_role = MagicMock(side_effect=ApiException(status=404))
+    rbac_api.create_namespaced_role = MagicMock()
+    rbac_api.read_namespaced_role_binding = MagicMock(side_effect=ApiException(status=404))
+    rbac_api.create_namespaced_role_binding = MagicMock()
 
-    namespace_api.create_namespace.side_effect = ApiException(status=409)
-    namespace_api.create_namespaced_service_account.side_effect = ApiException(status=409)
-    rbac_api.read_namespaced_role.side_effect = ApiException(status=404)
-    rbac_api.create_namespaced_role.return_value = None
-    rbac_api.read_namespaced_role_binding.side_effect = ApiException(status=404)
-    rbac_api.create_namespaced_role_binding.return_value = None
+    # The reconciler calls the k8s client methods via `asyncio.to_thread`.
+    # We can patch `asyncio.to_thread` to just call the function directly
+    # since our mocks are not actually blocking.
+    async def to_thread_mock(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr("asyncio.to_thread", to_thread_mock)
 
     logger = MagicMock()
-    result = reconciler.reconcile(logger)
+    result = await reconciler.reconcile(logger)
 
     assert result.namespace == "dev-bob"
     namespace_api.create_namespace.assert_called_once()
