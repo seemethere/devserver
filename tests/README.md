@@ -25,6 +25,9 @@ make up
 # Run all tests
 make test
 
+# Run tests in parallel
+make test-parallel
+
 # Clean up the cluster when you're done
 make down
 ```

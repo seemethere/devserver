@@ -8,6 +8,7 @@ The operator introduces two Custom Resource Definitions (CRDs):
 
 -   `DevServer`: Represents an individual development server instance.
 -   `DevServerFlavor`: Defines reusable templates for `DevServer` configurations.
+-   `DevServerUser`: Manages user access and public SSH keys.
 
 ### DevServer
 
@@ -72,6 +73,21 @@ spec:
     - key: "nvidia.com/gpu"
       operator: "Exists"
       effect: "NoSchedule"
+```
+
+### DevServerUser
+
+`DevServerUser` resources manage users and their associated permissions within the cluster. The operator sets up RBAC roles and resource quotas based on the spec. This CRD does not manage SSH keys directly; instead, SSH access is handled by the `devctl` CLI when creating or managing a `DevServer`.
+
+**Example `DevServerUser`:**
+
+```yaml
+apiVersion: devserver.io/v1
+kind: DevServerUser
+metadata:
+  name: test-user
+spec:
+  username: test-user
 ```
 
 ## Lifecycle Management
