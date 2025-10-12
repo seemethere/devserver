@@ -25,11 +25,15 @@ make up
 # Run all tests
 make test
 
-# Run tests in parallel
-make test-parallel
-
 # Clean up the cluster when you're done
 make down
+```
+
+Tests run in parallel by default using 4 jobs. You can customize the number of jobs using the `MAX_JOBS` environment variable:
+
+```bash
+# Run tests with 8 parallel jobs
+make test MAX_JOBS=8
 ```
 
 ## Test Philosophy

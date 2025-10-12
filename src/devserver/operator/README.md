@@ -93,3 +93,18 @@ spec:
 ## Lifecycle Management
 
 The operator automatically handles the expiration of `DevServer` resources based on the `spec.lifecycle.timeToLive` field. When a DevServer expires, the operator deletes the corresponding `DevServer` resource, and Kubernetes garbage collection removes the associated objects.
+
+## Development
+
+The operator is written in Python using the [Kopf](https://kopf.readthedocs.io/) framework and requires Python 3.9+.
+
+### Architecture
+
+The operator is now fully asynchronous to improve performance and scalability. All Kubernetes API calls and other blocking operations are executed in a non-blocking manner.
+
+The codebase is structured to separate concerns for each Custom Resource Definition (CRD) it manages. The logic for each CRD is contained within its own directory:
+
+-   `src/devserver/operator/devserver/`: Contains the handlers and reconciliation logic for the `DevServer` CRD.
+-   `src/devserver/operator/devserveruser/`: Contains the handlers and reconciliation logic for the `DevServerUser` CRD.
+
+This structure makes it easier to extend the operator with new CRDs in the future.
