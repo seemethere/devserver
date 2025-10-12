@@ -129,12 +129,16 @@ def create_devserver(
         "metadata": {"name": name, "namespace": target_namespace},
         "spec": {
             "flavor": flavor,
-            "image": image or "ubuntu:22.04",  # Default image
+            "image": image,
             "ssh": {"publicKey": ssh_public_key},
             "lifecycle": {"timeToLive": time_to_live},
             "enableSSH": True,
         },
     }
+
+    # If an image is provided, use it, otherwise use the default from the operator
+    if image:
+        manifest["spec"]["image"] = image
 
     try:
         custom_objects_api.create_namespaced_custom_object(

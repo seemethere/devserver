@@ -10,6 +10,7 @@ from tests.helpers import (
 )
 import uuid
 from devserver.operator.devserver import lifecycle
+from devserver.operator.devserver.resources.statefulset import DEFAULT_DEVSERVER_IMAGE
 from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime, timedelta, timezone
 import logging
@@ -163,7 +164,8 @@ async def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
                 # Once both are found, verify images and break
                 assert sts1.spec.template.spec.containers[0].image == "fedora:38"
                 assert (
-                    sts2.spec.template.spec.containers[0].image == "ubuntu:latest"
+                    sts2.spec.template.spec.containers[0].image
+                    == DEFAULT_DEVSERVER_IMAGE
                 )  # Verify default
                 break
             except client.ApiException as e:
