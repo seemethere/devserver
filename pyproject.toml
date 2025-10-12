@@ -32,6 +32,7 @@ dev = [
     "pytest-asyncio",
     "pre-commit",
     "ruff",
+    "pytest-sugar>=1.1.1",
     "ty",
 ]
 
