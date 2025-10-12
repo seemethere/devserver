@@ -17,7 +17,7 @@ A Kubernetes-native operator for managing development servers, particularly desi
 
 ## 📋 Prerequisites
 
-- Python 3.8+
+- Python 3.9+
 - Docker
 - [uv](https://github.com/astral-sh/uv)
 - [k3d](https://k3d.io/)
@@ -65,6 +65,9 @@ devctl list
 
 # Add a user
 devctl user add --name test-user --public-key-file ~/.ssh/id_rsa.pub
+
+# Create a server with GPU support (see dev/eks/README.md for setup)
+devctl create --name my-gpu-dev --flavor gpu-small --image fedora:latest
 
 # Delete a server
 devctl delete mydev

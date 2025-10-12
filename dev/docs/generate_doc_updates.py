@@ -20,7 +20,7 @@ def get_last_commit_date(file_path):
 def get_commits_since(date, directory):
     """Gets commit messages for a directory since a given date."""
     return subprocess.check_output(
-        ['git', 'log', f'--since={date}', '--pretty=format:%h - %s', str(directory)],
+        ['git', 'log', f'--since={date}', '--pretty=format:%h by %an: %s%n%b%n', '--name-status', str(directory)],
         encoding='utf-8'
     ).strip()
 

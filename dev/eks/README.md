@@ -17,16 +17,41 @@ The `gpu-nodepool.yml` configures a GPU-accelerated nodepool using Karpenter wit
 - NVIDIA GPU instance types (g6e and g6 families)
 - Taint `nvidia.com/gpu:NoSchedule` to ensure only GPU workloads schedule on these nodes
 
-To use GPU nodes in your pods, add:
+To use GPU nodes with DevServer, you can create a `DevServerFlavor` that includes the necessary tolerations and resource limits.
+
+**Example `gpu-small.yaml` flavor:**
 ```yaml
+apiVersion: devserver.io/v1
+kind: DevServerFlavor
+metadata:
+  name: gpu-small
 spec:
+  resources:
+    requests:
+      cpu: "1"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "16Gi"
+      nvidia.com/gpu: "1"
+  nodeSelector:
+    kubernetes.io/arch: amd64
   tolerations:
     - key: nvidia.com/gpu
       operator: Exists
       effect: NoSchedule
-  resources:
-    limits:
-      nvidia.com/gpu: 1
+```
+
+You can then create a DevServer with this flavor:
+```bash
+# First apply the flavor
+kubectl apply -f examples/flavors/gpu-small.yaml
+
+# Then create the devserver
+devctl create --name fedora-gpu --image fedora:latest --flavor gpu-small --ttl 4h
+
+# Once created, you can ssh in and verify GPU access
+devctl ssh fedora-gpu -- nvidia-smi
 ```
 
 ## TODO
