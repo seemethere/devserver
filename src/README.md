@@ -15,9 +15,13 @@ The project is divided into two main components:
 src/
 └── devserver/
     ├── operator/                  # Kubernetes operator implementation
-    │   ├── operator.py            # Main operator logic with Kopf handlers
-    │   ├── reconciler.py          # Core reconciliation logic for DevServers
-    │   ├── user_reconciler.py     # Reconciliation logic for DevServerUsers
+    │   ├── devserver/             # Logic for the DevServer CRD
+    │   │   ├── handler.py         # Kopf handlers for DevServer
+    │   │   └── reconciler.py      # Core reconciliation logic
+    │   ├── devserveruser/         # Logic for the DevServerUser CRD
+    │   │   ├── handler.py         # Kopf handlers for DevServerUser
+    │   │   └── reconciler.py      # Core reconciliation logic
+    │   ├── operator.py            # Main operator entrypoint
     │   └── resources/             # Builders for Kubernetes objects
     └── cli/                       # Command-line interface
         ├── main.py                # CLI entry point with click
