@@ -1,7 +1,6 @@
 import pytest
 from typing import Any, Dict
 import uuid
-import time
 import io
 import sys
 from pathlib import Path
@@ -9,7 +8,7 @@ from pathlib import Path
 from devserver.cli import handlers
 from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
-from tests.helpers import wait_for_devserver_to_exist
+from tests.helpers import wait_for, wait_for_devserver_to_exist
 from devserver.cli.config import Configuration
 from devserver.cli.utils import get_current_context
 
@@ -45,36 +44,57 @@ def test_ssh_command_functional_on_various_images(
         )
 
         # Wait for the pod to be running and ready
-        for _ in range(120):  # Wait up to 120 seconds for image pull and pod readiness
+        def is_pod_ready():
             try:
                 pod = core_api.read_namespaced_pod(
                     name=pod_name, namespace=TEST_NAMESPACE
                 )
                 if pod.status.phase == "Running" and pod.status.container_statuses:
                     if all(cs.ready for cs in pod.status.container_statuses):
-                        # Additional short wait to ensure sshd is up
-                        time.sleep(5)
-                        break
+                        return True
             except client.ApiException as e:
-                if e.status != 404:
-                    raise
-            time.sleep(1)
-        else:
-            pytest.fail(f"Pod {pod_name} did not become ready in time.")
+                if e.status == 404:
+                    return False  # Pod not found yet, continue polling
+                raise  # Re-raise other API errors
+            return False
+
+        wait_for(
+            is_pod_ready,
+            timeout=120,
+            interval=2,
+            failure_message=f"Pod {pod_name} did not become ready in time.",
+        )
 
         # Capture stdout to check the command output
         captured_output = io.StringIO()
         sys.stdout = captured_output
 
-        # Run 'whoami' command via devctl ssh to confirm user
-        handlers.ssh_devserver(
-            configuration=test_config,
-            name=devserver_name,
-            namespace=TEST_NAMESPACE,
-            ssh_private_key_file=test_ssh_key_pair["private"],
-            remote_command=("whoami",),
-            proxy_mode=False,
-            assume_yes=True,
+        # Poll the ssh command until it succeeds
+        def ssh_command_succeeds():
+            try:
+                # Replace the actual handler call with a stub or mock if needed,
+                # but for a functional test, calling the real thing is better.
+                handlers.ssh_devserver(
+                    configuration=test_config,
+                    name=devserver_name,
+                    namespace=TEST_NAMESPACE,
+                    ssh_private_key_file=test_ssh_key_pair["private"],
+                    remote_command=("whoami",),
+                    proxy_mode=False,
+                    assume_yes=True,
+                )
+                return True
+            except Exception as e:
+                # In a real test, you might want to inspect the exception
+                # to see if it's a connection error. For this example, we retry on any.
+                print(f"SSH command failed with: {e}. Retrying...")
+                return False
+
+        wait_for(
+            ssh_command_succeeds,
+            timeout=30,
+            interval=2,
+            failure_message="SSH command did not succeed in time.",
         )
 
         sys.stdout = sys.__stdout__
