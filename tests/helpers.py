@@ -125,41 +125,6 @@ def wait_for_devserver_to_be_deleted(
     print(f"✅ DevServer '{name}' deleted.")
 
 
-def wait_for_devserver_deletion_timestamp(
-    custom_objects_api: client.CustomObjectsApi,
-    name: str,
-    namespace: str,
-    timeout: int = 30,
-):
-    """
-    Waits for a DevServer to be marked for deletion by having a deletionTimestamp.
-    """
-    print(f"⏳ Waiting for DevServer '{name}' to be marked for deletion...")
-
-    def check():
-        try:
-            ds = custom_objects_api.get_namespaced_custom_object(
-                group=CRD_GROUP,
-                version=CRD_VERSION,
-                namespace=namespace,
-                plural=CRD_PLURAL_DEVSERVER,
-                name=name,
-            )
-            if ds.get("metadata", {}).get("deletionTimestamp"):
-                return True  # Marked for deletion
-            return None  # Not yet marked
-        except client.ApiException as e:
-            if e.status == 404:
-                return True  # Already deleted, which also counts as success
-            raise
-
-    wait_for(
-        check,
-        timeout=timeout,
-        failure_message=f"DevServer '{name}' was not marked for deletion within {timeout}s.",
-    )
-    print(f"✅ DevServer '{name}' is marked for deletion.")
-
 
 def wait_for_devserver_to_exist(
     custom_objects_api: client.CustomObjectsApi, name: str, namespace: str, timeout: int = 10
