@@ -12,17 +12,16 @@ The project is divided into two main components:
 ### Core Components
 
 ```
-devserver/
-├── src/
-│   └── devserver/
-│       ├── operator/            # Kubernetes operator implementation
-│       │   ├── operator.py      # Main operator logic with Kopf handlers
-│       │   └── resources/       # Builders for Kubernetes objects
-│       └── cli/                 # Command-line interface
-│           ├── main.py          # CLI entry point with click
-│           └── handlers.py      # CLI command implementations
-├── crds/                        # Custom Resource Definitions
-└── tests/                       # Test suite
+src/
+└── devserver/
+    ├── operator/                  # Kubernetes operator implementation
+    │   ├── operator.py            # Main operator logic with Kopf handlers
+    │   ├── reconciler.py          # Core reconciliation logic for DevServers
+    │   ├── user_reconciler.py     # Reconciliation logic for DevServerUsers
+    │   └── resources/             # Builders for Kubernetes objects
+    └── cli/                       # Command-line interface
+        ├── main.py                # CLI entry point with click
+        └── handlers/              # Implementations for each CLI command
 ```
 
 For more detailed information, please see the `README.md` files within each component's directory.

@@ -8,8 +8,11 @@ A Kubernetes-native operator for managing development servers, particularly desi
 
 - **Kubernetes-Native**: Built using the [Kopf](https://kopf.readthedocs.io/) framework for Python.
 - **Resource Templates**: `DevServerFlavor` CRDs define t-shirt sized resource configurations.
+- **User Management**: `DevServerUser` CRDs for managing user access and SSH keys.
 - **Lifecycle Management**: Automatic shutdown and expiration.
 - **CLI Tool**: `devctl` for easy interaction with DevServers.
+- **SSH Agent Forwarding**: Seamlessly forward your SSH agent to the DevServer.
+- **YAML Configuration**: Configure `devctl` using `~/.config/devctl/config.yaml`.
 - **Test-Driven Development**: Comprehensive test suite using `pytest` and `k3d`.
 
 ## 📋 Prerequisites
@@ -59,6 +62,9 @@ devctl create --name mydev --flavor cpu-small
 
 # List your servers
 devctl list
+
+# Add a user
+devctl user add --name test-user --public-key-file ~/.ssh/id_rsa.pub
 
 # Delete a server
 devctl delete mydev
