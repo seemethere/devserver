@@ -48,3 +48,15 @@ docker-push:
 pre-commit:
 	@echo "🔄 Running pre-commit checks..."
 	$(PRECOMMIT) run --all-files
+
+CLUSTER_NAME = devserver-cluster
+
+.PHONY: up
+up:
+	@echo "🚀 Creating k3d cluster..."
+	k3d cluster create $(CLUSTER_NAME)
+
+.PHONY: down
+down:
+	@echo "🔥 Deleting k3d cluster..."
+	k3d cluster delete $(CLUSTER_NAME)
