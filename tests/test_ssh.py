@@ -11,6 +11,7 @@ from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
 from tests.helpers import wait_for_devserver_to_exist
 from devserver.cli.config import Configuration
+from devserver.cli.utils import get_current_context
 
 
 @pytest.mark.parametrize("image", ["ubuntu:latest", "fedora:latest"])
@@ -104,7 +105,6 @@ def test_ssh_config_file_management(
     devserver_name = f"ssh-config-test-{uuid.uuid4().hex[:6]}"
     config_dir = tmp_path / "ssh_config"
     config_dir.mkdir()
-    config_file = config_dir / f"{devserver_name}.sshconfig"
 
     test_config_with_path = Configuration({
         "devctl-ssh-config-dir": str(config_dir),
@@ -142,7 +142,10 @@ def test_ssh_config_file_management(
             assume_yes=True,
         )
 
-        assert config_file.exists()
+        # Find the config file (it may have a user prefix like {user}-{name}.sshconfig)
+        config_files = list(config_dir.glob(f"*{devserver_name}.sshconfig"))
+        assert len(config_files) == 1, f"Expected 1 config file, found {len(config_files)}"
+        config_file = config_files[0]
 
         # 2. Test config file content
         content = config_file.read_text()
@@ -163,9 +166,11 @@ def test_ssh_config_file_management(
         assert not config_file.exists()
 
     # 4. Test cleanup of stale config for expired/non-existent devserver
-    # Manually create a stale config file
+    # Manually create a stale config file with the same naming pattern
     stale_config_name = "stale-devserver"
-    stale_config_file = config_dir / f"{stale_config_name}.sshconfig"
+    user, _ = get_current_context()
+    stale_filename = f"{user}-{stale_config_name}.sshconfig" if user else f"{stale_config_name}.sshconfig"
+    stale_config_file = config_dir / stale_filename
     stale_config_file.write_text("dummy content")
 
     # The ssh command should exit, so we catch the SystemExit exception
@@ -180,4 +185,6 @@ def test_ssh_config_file_management(
             assume_yes=True,
         )
 
-    assert not stale_config_file.exists()
+    # Check that all config files for the stale devserver have been removed
+    stale_config_files = list(config_dir.glob(f"*{stale_config_name}.sshconfig"))
+    assert len(stale_config_files) == 0, f"Expected 0 stale config files, found {len(stale_config_files)}"

@@ -72,8 +72,10 @@ def test_devserver_user_reconciler_creates_namespace(monkeypatch):
 
     namespace_api.create_namespace.side_effect = ApiException(status=409)
     namespace_api.create_namespaced_service_account.side_effect = ApiException(status=409)
-    rbac_api.create_namespaced_role.side_effect = ApiException(status=409)
-    rbac_api.create_namespaced_role_binding.side_effect = ApiException(status=409)
+    rbac_api.read_namespaced_role.side_effect = ApiException(status=404)
+    rbac_api.create_namespaced_role.return_value = None
+    rbac_api.read_namespaced_role_binding.side_effect = ApiException(status=404)
+    rbac_api.create_namespaced_role_binding.return_value = None
 
     logger = MagicMock()
     result = reconciler.reconcile(logger)

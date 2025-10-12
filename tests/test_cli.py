@@ -32,7 +32,10 @@ class TestCliIntegration:
     """
 
     def test_list_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
+        self,
+        k8s_clients: Dict[str, Any],
+        test_ssh_public_key: str,
+        test_config: Configuration,
     ) -> None:
         """Tests that the 'list' command can see a created DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
@@ -77,7 +80,10 @@ class TestCliIntegration:
             )
 
     def test_create_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
+        self,
+        k8s_clients: Dict[str, Any],
+        test_ssh_public_key: str,
+        test_config: Configuration,
     ) -> None:
         """Tests that the 'create' command successfully creates a DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
@@ -113,7 +119,10 @@ class TestCliIntegration:
             )
 
     def test_delete_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
+        self,
+        k8s_clients: Dict[str, Any],
+        test_ssh_public_key: str,
+        test_config: Configuration,
     ) -> None:
         """Tests that the 'delete' command successfully deletes a DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
@@ -138,7 +147,9 @@ class TestCliIntegration:
         )
 
         # Call the handler to delete the DevServer
-        handlers.delete_devserver(configuration=test_config, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE)
+        handlers.delete_devserver(
+            configuration=test_config, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
+        )
 
         # Verify the resource was deleted
         with pytest.raises(client.ApiException) as cm:
@@ -153,7 +164,10 @@ class TestCliIntegration:
         assert cm.value.status == 404
 
     def test_describe_command(
-        self, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
+        self,
+        k8s_clients: Dict[str, Any],
+        test_ssh_public_key: str,
+        test_config: Configuration,
     ) -> None:
         """Tests that the 'describe' command can see a created DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
@@ -357,7 +371,10 @@ class TestUserCliIntegration:
 
 
 def test_create_and_list_with_operator(
-    operator_running: Any, k8s_clients: Dict[str, Any], test_ssh_public_key: str, test_config: Configuration
+    operator_running: Any,
+    k8s_clients: Dict[str, Any],
+    test_ssh_public_key: str,
+    test_config: Configuration,
 ) -> None:
     """
     Integration test for the CLI that works with the actual operator running.
@@ -417,7 +434,9 @@ def test_create_and_list_with_operator(
     finally:
         # Cleanup
         try:
-            handlers.delete_devserver(configuration=test_config, name="cli-test-server", namespace=NAMESPACE)
+            handlers.delete_devserver(
+                configuration=test_config, name="cli-test-server", namespace=NAMESPACE
+            )
         except Exception:
             pass
 
