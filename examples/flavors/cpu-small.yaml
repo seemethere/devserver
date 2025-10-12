@@ -10,5 +10,3 @@ spec:
     limits:
       cpu: "2"
       memory: "4Gi"
-  nodeSelector:
-    kubernetes.io/arch: amd64
