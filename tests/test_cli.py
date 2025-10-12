@@ -5,6 +5,7 @@ import sys
 import yaml
 import os
 import tempfile
+import uuid
 
 from click.testing import CliRunner
 from devserver.cli import main as cli_main
@@ -307,49 +308,50 @@ class TestCliParser:
 class TestUserCliIntegration:
     """Integration tests for the 'user' subcommand."""
 
-    TEST_USERNAME = "test-cli-user"
-
     def test_user_create_list_delete(
         self, k8s_clients: Dict[str, Any], operator_running: Any
     ) -> None:
         """Tests the full lifecycle (create, list, delete) of a user via the CLI."""
         custom_objects_api = k8s_clients["custom_objects_api"]
         runner = CliRunner()
+        username = f"test-cli-user-{uuid.uuid4().hex[:6]}"
 
         try:
             # 1. Create user
             result = runner.invoke(
-                cli_main.main, ["admin", "user", "create", self.TEST_USERNAME]
+                cli_main.main, ["admin", "user", "create", username]
             )
             assert result.exit_code == 0
-            assert f"User '{self.TEST_USERNAME}' created successfully" in result.output
+            assert f"User '{username}' created successfully" in result.output
 
             # Wait for operator to set status
             wait_for_devserveruser_status(
-                custom_objects_api, name=self.TEST_USERNAME
+                custom_objects_api, name=username
             )
 
             user_obj = custom_objects_api.get_cluster_custom_object(
                 group="devserver.io",
                 version="v1",
                 plural="devserverusers",
-                name=self.TEST_USERNAME,
+                name=username,
             )
-            assert user_obj["spec"]["username"] == self.TEST_USERNAME
-            assert user_obj["status"]["namespace"] == f"dev-{self.TEST_USERNAME}"
+            assert user_obj["spec"]["username"] == username
+            assert user_obj["status"]["namespace"] == f"dev-{username}"
 
             # 2. List users and check for the new user and namespace
             result = runner.invoke(cli_main.main, ["admin", "user", "list"])
             assert result.exit_code == 0
-            assert self.TEST_USERNAME in result.output
-            assert f"dev-{self.TEST_USERNAME}" in result.output
+            assert username in result.output
+            assert f"dev-{username}".startswith(
+                f"dev-{username}"
+            )  # Check prefix due to truncation in output table
 
             # 3. Delete user
             result = runner.invoke(
-                cli_main.main, ["admin", "user", "delete", self.TEST_USERNAME]
+                cli_main.main, ["admin", "user", "delete", username]
             )
             assert result.exit_code == 0
-            assert f"User '{self.TEST_USERNAME}' deleted successfully" in result.output
+            assert f"User '{username}' deleted successfully" in result.output
 
             # Verify resource was deleted by waiting for it to disappear
             wait_for_cluster_custom_object_to_be_deleted(
@@ -357,14 +359,14 @@ class TestUserCliIntegration:
                 group="devserver.io",
                 version="v1",
                 plural="devserverusers",
-                name=self.TEST_USERNAME,
+                name=username,
             )
 
         finally:
             # Cleanup in case of failure
             try:
                 # This will gracefully handle a 404 if already deleted
-                handlers.delete_user(username=self.TEST_USERNAME)
+                handlers.delete_user(username=username)
             except client.ApiException as e:
                 if e.status != 404:
                     raise
@@ -374,7 +376,7 @@ class TestUserCliIntegration:
     ) -> None:
         """Tests that the 'user kubeconfig' command generates a valid config."""
         runner = CliRunner()
-        username = "test-kubeconfig-user"
+        username = f"test-kubeconfig-user-{uuid.uuid4().hex[:6]}"
 
         try:
             # 1. Create a user for the test

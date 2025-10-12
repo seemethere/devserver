@@ -18,6 +18,11 @@ test: $(PYTHON)
 	@echo "🧪 Running tests$(if $(filter 1,$(VERBOSE)), with verbose output,) (use VERBOSE=1 for detailed output)..."
 	$(PYTEST) -v $(PYTEST_VERBOSE) tests
 
+.PHONY: test-parallel
+test-parallel: $(PYTHON)
+	@echo "🧪 Running tests in parallel (use VERBOSE=1 for detailed output)..."
+	$(PYTEST) -n 4 -v $(PYTEST_VERBOSE) tests
+
 .PHONY: install-crds
 install-crds: #TODO: List crd file glob to re-run this on file changes
 	@echo "🔄 Installing CRDs..."

@@ -59,7 +59,7 @@ async def cleanup_expired_devservers(
             
             for ds in devservers["items"]:
                 if _should_expire_devserver(ds, now, logger):
-                    _delete_devserver(ds, custom_objects_api, logger)
+                    await _delete_devserver(ds, custom_objects_api, logger)
                     expired_count += 1
             
             if expired_count > 0:
@@ -114,7 +114,7 @@ def _should_expire_devserver(
         return False
 
 
-def _delete_devserver(
+async def _delete_devserver(
     ds: dict, custom_objects_api: client.CustomObjectsApi, logger: logging.Logger
 ) -> None:
     """
@@ -143,7 +143,7 @@ def _delete_devserver(
     )
     
     try:
-        custom_objects_api.delete_namespaced_custom_object(
+        await custom_objects_api.delete_namespaced_custom_object(
             group=CRD_GROUP,
             version=CRD_VERSION,
             plural="devservers",
