@@ -91,97 +91,73 @@ def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_client
         )
 
 
-def test_devserver_with_default_image(test_flavor, operator_running, k8s_clients):
-    """
-    Tests that creating a DevServer without specifying an image
-    uses the default image (ubuntu:latest).
-    """
-    apps_v1 = k8s_clients["apps_v1"]
-    custom_objects_api = k8s_clients["custom_objects_api"]
-
-    devserver_name = "test-default-image"
-    devserver_manifest = {
-        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
-        "kind": "DevServer",
-        "metadata": {"name": devserver_name, "namespace": NAMESPACE},
-        "spec": {
-            "flavor": test_flavor,
-            "ssh": {"publicKey": "ssh-rsa AAAA..."},
-            "lifecycle": {"timeToLive": "1h"},
-        },
-    }
-
-    try:
-        custom_objects_api.create_namespaced_custom_object(
-            group=CRD_GROUP,
-            version=CRD_VERSION,
-            namespace=NAMESPACE,
-            plural=CRD_PLURAL_DEVSERVER,
-            body=devserver_manifest,
-        )
-
-        # Wait for statefulset to be created
-        statefulset = wait_for_statefulset_to_exist(
-            apps_v1, name=devserver_name, namespace=NAMESPACE
-        )
-
-        # Verify the default image was used
-        assert statefulset is not None
-        container = statefulset.spec.template.spec.containers[0]
-        assert container.image == "ubuntu:latest"
-
-    finally:
-        # Cleanup
-        cleanup_devserver(custom_objects_api, name=devserver_name, namespace=NAMESPACE)
-
-
 def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
     """
-    Tests that the operator can handle multiple DevServer resources simultaneously.
+    Tests that the operator can handle multiple DevServer resources simultaneously,
+    and that creating a DevServer without specifying an image uses the default.
     """
     apps_v1 = k8s_clients["apps_v1"]
     custom_objects_api = k8s_clients["custom_objects_api"]
 
-    devserver_names = ["test-multi-1", "test-multi-2"]
+    devserver_names = ["test-multi-1", "test-multi-2-default-image"]
 
     try:
-        images = ["ubuntu:22.04", "fedora:38"]
-        for i, name in enumerate(devserver_names):
-            devserver_manifest = {
+        manifests = [
+            {
                 "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
                 "kind": "DevServer",
-                "metadata": {"name": name, "namespace": NAMESPACE},
+                "metadata": {"name": devserver_names[0], "namespace": NAMESPACE},
                 "spec": {
                     "flavor": test_flavor,
-                    "image": images[i],
+                    "image": "fedora:38",
                     "ssh": {"publicKey": "ssh-rsa AAAA..."},
                     "lifecycle": {"timeToLive": "1h"},
                 },
-            }
+            },
+            {
+                "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
+                "kind": "DevServer",
+                "metadata": {"name": devserver_names[1], "namespace": NAMESPACE},
+                "spec": {
+                    "flavor": test_flavor,
+                    # No image specified, should use default
+                    "ssh": {"publicKey": "ssh-rsa AAAA..."},
+                    "lifecycle": {"timeToLive": "1h"},
+                },
+            },
+        ]
+
+        for manifest in manifests:
             custom_objects_api.create_namespaced_custom_object(
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 namespace=NAMESPACE,
                 plural=CRD_PLURAL_DEVSERVER,
-                body=devserver_manifest,
+                body=manifest,
             )
 
-        # Wait for all statefulsets to be created
+        # Wait for all statefulsets to be created and verify images
         for _ in range(30):
-            time.sleep(0.5)
-
-            all_found = True
+            time.sleep(1)  # Increased sleep for more reliable image checking
             try:
-                for name in devserver_names:
-                    apps_v1.read_namespaced_stateful_set(name=name, namespace=NAMESPACE)
-            except client.ApiException as e:
-                if e.status == 404:
-                    all_found = False
+                sts1 = apps_v1.read_namespaced_stateful_set(
+                    name=devserver_names[0], namespace=NAMESPACE
+                )
+                sts2 = apps_v1.read_namespaced_stateful_set(
+                    name=devserver_names[1], namespace=NAMESPACE
+                )
 
-            if all_found:
+                # Once both are found, verify images and break
+                assert sts1.spec.template.spec.containers[0].image == "fedora:38"
+                assert (
+                    sts2.spec.template.spec.containers[0].image == "ubuntu:latest"
+                )  # Verify default
                 break
+            except client.ApiException as e:
+                if e.status != 404:
+                    raise
         else:
-            pytest.fail("Not all StatefulSets were created in time.")
+            pytest.fail("Not all StatefulSets were created and ready in time.")
 
     finally:
         # Cleanup all DevServers

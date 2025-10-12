@@ -1,7 +1,7 @@
 import time
 import pytest
 from kubernetes import client
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 # Constants for polling
 POLL_INTERVAL = 0.5
@@ -13,25 +13,61 @@ CRD_PLURAL_DEVSERVER = "devservers"
 CRD_PLURAL_DEVSERVERUSER = "devserverusers"
 
 
+T = TypeVar("T")
+
+
+def wait_for(
+    callable: Callable[[], T],
+    timeout: int = 30,
+    interval: float = POLL_INTERVAL,
+    failure_message: str = "Condition not met within timeout",
+) -> T:
+    """
+    Generic wait utility that polls a callable until it returns a truthy value
+    or a timeout is reached.
+    The callable is responsible for handling exceptions and returning a falsy
+    value if the condition is not yet met.
+    Args:
+        callable: A function that is polled. If it returns a truthy value,
+                  the wait is considered successful.
+        timeout: Total time to wait in seconds.
+        interval: Time to sleep between polls in seconds.
+        failure_message: The message for pytest.fail if the timeout is reached.
+    Returns:
+        The truthy value returned by the callable.
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        result = callable()
+        if result:
+            return result
+        time.sleep(interval)
+    pytest.fail(failure_message)
+
+
 def wait_for_statefulset_to_exist(
     apps_v1_api: client.AppsV1Api, name: str, namespace: str, timeout: int = 30
 ) -> Any:
     """Waits for a StatefulSet to exist and returns it."""
     print(f"⏳ Waiting for statefulset '{name}' to be created by operator...")
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+
+    def check():
         try:
-            statefulset = apps_v1_api.read_namespaced_stateful_set(
+            return apps_v1_api.read_namespaced_stateful_set(
                 name=name, namespace=namespace
             )
-            print(f"✅ StatefulSet '{name}' found.")
-            return statefulset
         except client.ApiException as e:
             if e.status == 404:
-                time.sleep(POLL_INTERVAL)
-            else:
-                raise
-    pytest.fail(f"StatefulSet '{name}' did not appear within {timeout} seconds.")
+                return None  # Not found yet, continue polling
+            raise  # Other errors should fail the test
+
+    statefulset = wait_for(
+        check,
+        timeout=timeout,
+        failure_message=f"StatefulSet '{name}' did not appear within {timeout} seconds.",
+    )
+    print(f"✅ StatefulSet '{name}' found.")
+    return statefulset
 
 
 def wait_for_statefulset_to_be_deleted(
@@ -39,18 +75,22 @@ def wait_for_statefulset_to_be_deleted(
 ):
     """Waits for a StatefulSet to be deleted."""
     print(f"⏳ Waiting for statefulset '{name}' to be deleted...")
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+
+    def check():
         try:
             apps_v1_api.read_namespaced_stateful_set(name=name, namespace=namespace)
-            time.sleep(POLL_INTERVAL)
+            return None  # Still exists, continue polling
         except client.ApiException as e:
             if e.status == 404:
-                print(f"✅ StatefulSet '{name}' deleted.")
-                return
-            else:
-                raise
-    pytest.fail(f"StatefulSet '{name}' was not deleted within {timeout} seconds.")
+                return True  # Successfully deleted
+            raise
+
+    wait_for(
+        check,
+        timeout=timeout,
+        failure_message=f"StatefulSet '{name}' was not deleted within {timeout} seconds.",
+    )
+    print(f"✅ StatefulSet '{name}' deleted.")
 
 
 def wait_for_devserver_to_be_deleted(
@@ -61,8 +101,8 @@ def wait_for_devserver_to_be_deleted(
 ):
     """Waits for a DevServer to be deleted."""
     print(f"⏳ Waiting for DevServer '{name}' to be deleted...")
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+
+    def check():
         try:
             custom_objects_api.get_namespaced_custom_object(
                 group=CRD_GROUP,
@@ -71,14 +111,18 @@ def wait_for_devserver_to_be_deleted(
                 plural=CRD_PLURAL_DEVSERVER,
                 name=name,
             )
-            time.sleep(POLL_INTERVAL)
+            return None  # Still exists
         except client.ApiException as e:
             if e.status == 404:
-                print(f"✅ DevServer '{name}' deleted.")
-                return
-            else:
-                raise
-    pytest.fail(f"DevServer '{name}' was not deleted within {timeout} seconds.")
+                return True  # Deleted
+            raise
+
+    wait_for(
+        check,
+        timeout=timeout,
+        failure_message=f"DevServer '{name}' was not deleted within {timeout} seconds.",
+    )
+    print(f"✅ DevServer '{name}' deleted.")
 
 
 def wait_for_devserver_to_exist(
@@ -86,34 +130,30 @@ def wait_for_devserver_to_exist(
 ) -> Any:
     """
     Waits for a DevServer custom resource object to exist in the Kubernetes API.
-
-    This function only confirms the object's presence in the API server. It does
-    not wait for the operator to reconcile the object or for any underlying
-    resources (like Pods) to be created or become ready.
-
-    Use this when you need to test logic that happens before the operator has
-    acted, such as verifying the behavior of a CLI command that reads the object
-    immediately after creation.
     """
     print(f"⏳ Waiting for DevServer '{name}' to exist...")
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+
+    def check():
         try:
-            devserver = custom_objects_api.get_namespaced_custom_object(
+            return custom_objects_api.get_namespaced_custom_object(
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 namespace=namespace,
                 plural=CRD_PLURAL_DEVSERVER,
                 name=name,
             )
-            print(f"✅ DevServer '{name}' found.")
-            return devserver
         except client.ApiException as e:
             if e.status == 404:
-                time.sleep(POLL_INTERVAL)
-            else:
-                raise
-    pytest.fail(f"DevServer '{name}' did not appear within {timeout} seconds.")
+                return None
+            raise
+
+    devserver = wait_for(
+        check,
+        timeout=timeout,
+        failure_message=f"DevServer '{name}' did not appear within {timeout} seconds.",
+    )
+    print(f"✅ DevServer '{name}' found.")
+    return devserver
 
 
 def wait_for_pvc_to_exist(
@@ -121,20 +161,24 @@ def wait_for_pvc_to_exist(
 ) -> Any:
     """Waits for a PVC to exist and returns it."""
     print(f"⏳ Waiting for PVC '{name}' to appear...")
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+
+    def check():
         try:
-            pvc = core_v1_api.read_namespaced_persistent_volume_claim(
+            return core_v1_api.read_namespaced_persistent_volume_claim(
                 name=name, namespace=namespace
             )
-            print(f"✅ PVC '{name}' found.")
-            return pvc
         except client.ApiException as e:
             if e.status == 404:
-                time.sleep(POLL_INTERVAL)
-            else:
-                raise
-    pytest.fail(f"PVC '{name}' did not appear within {timeout} seconds.")
+                return None
+            raise
+
+    pvc = wait_for(
+        check,
+        timeout=timeout,
+        failure_message=f"PVC '{name}' did not appear within {timeout} seconds.",
+    )
+    print(f"✅ PVC '{name}' found.")
+    return pvc
 
 
 def wait_for_devserver_status(
@@ -146,19 +190,10 @@ def wait_for_devserver_status(
 ):
     """
     Waits for a DevServer to reach a specific status in its `.status.phase` field.
-
-    This function waits for the operator to act on the DevServer object and
-    update its status. It implies that the object exists and that the
-    reconciliation loop has progressed to a certain point.
-
-    Use this for end-to-end tests where you need the underlying resources
-    (e.g., the Pod) to be in a certain state (e.g., 'Running') before
-    proceeding with the test.
     """
     print(f"⏳ Waiting for DevServer '{name}' status to become '{expected_status}'...")
-    start_time = time.time()
-    current_status = None
-    while time.time() - start_time < timeout:
+
+    def check():
         try:
             ds = custom_objects_api.get_namespaced_custom_object(
                 group=CRD_GROUP,
@@ -168,21 +203,20 @@ def wait_for_devserver_status(
                 name=name,
             )
             if "status" in ds and "phase" in ds["status"]:
-                current_status = ds["status"]["phase"]
-                if current_status == expected_status:
-                    print(f"✅ DevServer '{name}' reached status '{expected_status}'.")
-                    return
-            time.sleep(POLL_INTERVAL)
+                if ds["status"]["phase"] == expected_status:
+                    return True
+            return None
         except client.ApiException as e:
             if e.status == 404:
-                # It might not have been created yet
-                time.sleep(POLL_INTERVAL)
-            else:
-                raise
-    pytest.fail(
-        f"DevServer '{name}' did not reach status '{expected_status}' within {timeout} seconds. "
-        f"Last known status: {current_status}"
+                return None  # Not created yet
+            raise
+
+    wait_for(
+        check,
+        timeout=timeout,
+        failure_message=f"DevServer '{name}' did not reach status '{expected_status}' within {timeout}s.",
     )
+    print(f"✅ DevServer '{name}' reached status '{expected_status}'.")
 
 
 def wait_for_devserveruser_status(
@@ -195,9 +229,8 @@ def wait_for_devserveruser_status(
     Waits for a DevServerUser to reach a specific status in its `.status.phase` field.
     """
     print(f"⏳ Waiting for DevServerUser '{name}' status to become '{expected_status}'...")
-    start_time = time.time()
-    current_status = None
-    while time.time() - start_time < timeout:
+
+    def check():
         try:
             user = custom_objects_api.get_cluster_custom_object(
                 group=CRD_GROUP,
@@ -206,21 +239,20 @@ def wait_for_devserveruser_status(
                 name=name,
             )
             if "status" in user and "phase" in user["status"]:
-                current_status = user["status"]["phase"]
-                if current_status == expected_status:
-                    print(f"✅ DevServerUser '{name}' reached status '{expected_status}'.")
-                    return
-            time.sleep(POLL_INTERVAL)
+                if user["status"]["phase"] == expected_status:
+                    return True
+            return None
         except client.ApiException as e:
             if e.status == 404:
-                # It might not have been created yet
-                time.sleep(POLL_INTERVAL)
-            else:
-                raise
-    pytest.fail(
-        f"DevServerUser '{name}' did not reach status '{expected_status}' within {timeout} seconds. "
-        f"Last known status: {current_status}"
+                return None  # Not created yet
+            raise
+
+    wait_for(
+        check,
+        timeout=timeout,
+        failure_message=f"DevServerUser '{name}' did not reach status '{expected_status}' within {timeout}s.",
     )
+    print(f"✅ DevServerUser '{name}' reached status '{expected_status}'.")
 
 
 def wait_for_cluster_custom_object_to_be_deleted(
@@ -232,18 +264,25 @@ def wait_for_cluster_custom_object_to_be_deleted(
     timeout: int = 30,
 ):
     """Waits for a cluster-scoped custom object to be deleted."""
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+    print(f"⏳ Waiting for cluster custom object '{name}' to be deleted...")
+
+    def check():
         try:
             custom_objects_api.get_cluster_custom_object(
                 group=group, version=version, plural=plural, name=name
             )
-            time.sleep(POLL_INTERVAL)
+            return None  # Still exists
         except client.ApiException as e:
             if e.status == 404:
-                return
+                return True  # Deleted
             raise
-    pytest.fail(f"Cluster custom object '{name}' was not deleted within {timeout}s.")
+
+    wait_for(
+        check,
+        timeout=timeout,
+        failure_message=f"Cluster custom object '{name}' was not deleted within {timeout}s.",
+    )
+    print(f"✅ Cluster custom object '{name}' deleted.")
 
 
 def cleanup_devserver(

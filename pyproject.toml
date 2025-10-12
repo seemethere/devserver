@@ -27,6 +27,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-monitor",
     "pre-commit",
     "ruff",
     "ty",

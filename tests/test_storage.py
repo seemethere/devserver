@@ -16,16 +16,20 @@ CRD_PLURAL_DEVSERVER = "devservers"
 NAMESPACE = TEST_NAMESPACE
 
 
-def test_devserver_persistent_storage(test_flavor, operator_running, k8s_clients):
+def test_persistent_storage_retains_on_recreation(
+    test_flavor, operator_running, k8s_clients
+):
     """
     Tests that a DevServer with persistentHomeSize correctly creates a
-    StatefulSet with a volumeClaimTemplate and a corresponding PVC.
+    StatefulSet with a volumeClaimTemplate and a corresponding PVC. It also
+    tests that the PVC is retained when a DevServer is deleted and then
+    re-attached when the same DevServer is recreated.
     """
     apps_v1 = k8s_clients["apps_v1"]
     core_v1 = k8s_clients["core_v1"]
     custom_objects_api = k8s_clients["custom_objects_api"]
 
-    devserver_name = "test-persistent-storage"
+    devserver_name = "test-recreation"
     storage_size = "1Gi"
     pvc_name = f"home-{devserver_name}-0"
 
@@ -42,66 +46,6 @@ def test_devserver_persistent_storage(test_flavor, operator_running, k8s_clients
     }
 
     try:
-        custom_objects_api.create_namespaced_custom_object(
-            group=CRD_GROUP,
-            version=CRD_VERSION,
-            namespace=NAMESPACE,
-            plural=CRD_PLURAL_DEVSERVER,
-            body=devserver_manifest,
-        )
-
-        # 1. Verify the StatefulSet's volumeClaimTemplate has the correct size
-        statefulset = wait_for_statefulset_to_exist(
-            apps_v1, name=devserver_name, namespace=NAMESPACE
-        )
-
-        assert statefulset is not None
-        vct = statefulset.spec.volume_claim_templates[0]
-        assert vct.spec.resources.requests["storage"] == storage_size
-
-        # 2. Verify the PVC is created by the StatefulSet controller
-        pvc = wait_for_pvc_to_exist(core_v1, name=pvc_name, namespace=NAMESPACE)
-
-        assert pvc is not None, f"PVC '{pvc_name}' was not created."
-        assert pvc.spec.resources.requests["storage"] == storage_size
-
-    finally:
-        # Cleanup
-        cleanup_devserver(custom_objects_api, name=devserver_name, namespace=NAMESPACE)
-
-        # Note: The PVC created by the StatefulSet is not automatically
-        # garbage collected to prevent data loss. It would need to be
-        # cleaned up manually in a real environment. For the test,
-        # the namespace cleanup in conftest.py will handle it.
-
-
-def test_persistent_storage_retains_on_recreation(
-    test_flavor, operator_running, k8s_clients
-):
-    """
-    Tests that the PVC is retained when a DevServer is deleted and then
-    re-attached when the same DevServer is recreated.
-    """
-    apps_v1 = k8s_clients["apps_v1"]
-    core_v1 = k8s_clients["core_v1"]
-    custom_objects_api = k8s_clients["custom_objects_api"]
-
-    devserver_name = "test-recreation"
-    pvc_name = f"home-{devserver_name}-0"
-
-    devserver_manifest = {
-        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
-        "kind": "DevServer",
-        "metadata": {"name": devserver_name, "namespace": NAMESPACE},
-        "spec": {
-            "flavor": test_flavor,
-            "persistentHomeSize": "1Gi",
-            "ssh": {"publicKey": "ssh-rsa AAAA..."},
-            "lifecycle": {"timeToLive": "1h"},
-        },
-    }
-
-    try:
         # 1. Initial Creation
         print("PHASE 1: Creating DevServer and PVC...")
         custom_objects_api.create_namespaced_custom_object(
@@ -112,8 +56,20 @@ def test_persistent_storage_retains_on_recreation(
             body=devserver_manifest,
         )
 
-        # Wait for PVC to be created
-        wait_for_pvc_to_exist(core_v1, name=pvc_name, namespace=NAMESPACE)
+        # 1a. Verify the StatefulSet's volumeClaimTemplate has the correct size
+        statefulset = wait_for_statefulset_to_exist(
+            apps_v1, name=devserver_name, namespace=NAMESPACE
+        )
+
+        assert statefulset is not None
+        vct = statefulset.spec.volume_claim_templates[0]
+        assert vct.spec.resources.requests["storage"] == storage_size
+
+        # 1b. Verify the PVC is created by the StatefulSet controller
+        pvc = wait_for_pvc_to_exist(core_v1, name=pvc_name, namespace=NAMESPACE)
+
+        assert pvc is not None, f"PVC '{pvc_name}' was not created."
+        assert pvc.spec.resources.requests["storage"] == storage_size
         print(f"✅ PVC '{pvc_name}' created.")
 
         # 2. Deletion
