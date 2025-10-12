@@ -10,7 +10,7 @@ from tests.helpers import (
     cleanup_devserver,
 )
 import uuid
-from devserver.operator import lifecycle
+from devserver.operator.devserver import lifecycle
 from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime, timedelta, timezone
 import logging

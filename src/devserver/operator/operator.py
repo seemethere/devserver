@@ -16,7 +16,7 @@ from typing import Any
 import kopf
 from kubernetes import client, config
 
-from .lifecycle import cleanup_expired_devservers
+from .devserver.lifecycle import cleanup_expired_devservers
 # NOTE: This is what registers our operator's function with kopf so that
 #       `kopf.run -m devserver.operator` can work. If you add more functions
 #       to the operator, you must add them here.

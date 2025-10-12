@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from kubernetes import client
 
-from .validation import validate_and_normalize_ttl
+from devserver.utils.time import parse_duration
 
 
 # Constants
@@ -54,11 +54,10 @@ async def cleanup_expired_devservers(
                 plural="devservers",
             )
 
-            now = datetime.now(timezone.utc)
             expired_count = 0
             
             for ds in devservers["items"]:
-                if _should_expire_devserver(ds, now, logger):
+                if is_expired(ds, logger):
                     await _delete_devserver(ds, custom_objects_api, logger)
                     expired_count += 1
             
@@ -76,40 +75,31 @@ async def cleanup_expired_devservers(
         await asyncio.sleep(interval_seconds)
 
 
-def _should_expire_devserver(
-    ds: dict, now: datetime, logger: logging.Logger
-) -> bool:
+def is_expired(devserver: dict, logger: logging.Logger) -> bool:
     """
-    Check if a DevServer should be expired.
+    Check if a DevServer has expired based on its TTL.
 
     Args:
-        ds: The DevServer custom object
-        now: Current timestamp
-        logger: Logger instance
+        devserver: The DevServer object from the Kubernetes API.
+        logger: The logger instance.
 
     Returns:
-        True if the DevServer should be deleted, False otherwise
+        True if the DevServer is expired, False otherwise.
     """
     try:
-        spec = ds.get("spec", {})
-        ttl_str = spec.get("lifecycle", {}).get("timeToLive")
+        creation_timestamp_str = devserver["metadata"]["creationTimestamp"]
+        ttl_str = devserver["spec"].get("lifecycle", {}).get("timeToLive")
+
         if not ttl_str:
             return False
 
-        # Reuse the validation logic to ensure consistency
-        ttl = validate_and_normalize_ttl(ttl_str, logger)
+        creation_timestamp = datetime.fromisoformat(creation_timestamp_str)
+        ttl_delta = parse_duration(ttl_str)
+        expiration_time = creation_timestamp + ttl_delta
+        return datetime.now(timezone.utc) > expiration_time
 
-        meta = ds.get("metadata", {})
-        creation_timestamp_str = meta["creationTimestamp"]
-        creation_timestamp = datetime.fromisoformat(
-            creation_timestamp_str.replace("Z", "+00:00")
-        )
-        expiration_ts = creation_timestamp + ttl
-
-        return now >= expiration_ts
-
-    except (ValueError, TypeError) as e:
-        name = ds.get("metadata", {}).get("name", "unknown")
+    except (KeyError, TypeError, ValueError) as e:
+        name = devserver.get("metadata", {}).get("name", "unknown")
         logger.error(f"Error processing expiration for DevServer '{name}': {e}")
         return False
 

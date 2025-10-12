@@ -4,8 +4,8 @@ from typing import Any, Dict
 import kopf
 from kubernetes import client
 
-from ..validation import validate_and_normalize_ttl
-from ..host_keys import ensure_host_keys_secret
+from .validation import validate_and_normalize_ttl
+from .host_keys import ensure_host_keys_secret
 from .reconciler import reconcile_devserver
 
 CRD_GROUP = "devserver.io"
