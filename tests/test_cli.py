@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 from unittest.mock import patch
 import io
@@ -35,7 +36,8 @@ class TestCliIntegration:
     Integration tests for the CLI that interact with a Kubernetes cluster.
     """
 
-    def test_list_command(
+    @pytest.mark.asyncio
+    async def test_list_command(
         self,
         k8s_clients: Dict[str, Any],
         test_ssh_public_key: str,
@@ -43,12 +45,13 @@ class TestCliIntegration:
     ) -> None:
         """Tests that the 'list' command can see a created DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
+        devserver_name = f"test-cli-list-{uuid.uuid4().hex[:6]}"
 
         # Create a DevServer for the list command to find
         devserver_manifest = {
             "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
             "kind": "DevServer",
-            "metadata": {"name": TEST_DEVSERVER_NAME, "namespace": NAMESPACE},
+            "metadata": {"name": devserver_name, "namespace": NAMESPACE},
             "spec": {
                 "flavor": "any-flavor",
                 "ssh": {"publicKey": "ssh-rsa AAA..."},
@@ -56,7 +59,8 @@ class TestCliIntegration:
             },  # Flavor doesn't need to exist for this test
         }
 
-        custom_objects_api.create_namespaced_custom_object(
+        await asyncio.to_thread(
+            custom_objects_api.create_namespaced_custom_object,
             group=CRD_GROUP,
             version=CRD_VERSION,
             namespace=NAMESPACE,
@@ -69,60 +73,66 @@ class TestCliIntegration:
             captured_output = io.StringIO()
             sys.stdout = captured_output
 
-            handlers.list_devservers(namespace=NAMESPACE)
+            await asyncio.to_thread(handlers.list_devservers, namespace=NAMESPACE)
 
             sys.stdout = sys.__stdout__  # Restore stdout
 
             output = captured_output.getvalue()
-            assert TEST_DEVSERVER_NAME in output
+            assert devserver_name in output
             # Note: Without operator running, status will be Unknown
 
         finally:
             # Cleanup
-            cleanup_devserver(
-                custom_objects_api, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
+            await cleanup_devserver(
+                custom_objects_api, name=devserver_name, namespace=NAMESPACE
             )
 
-    def test_create_command(
+    @pytest.mark.asyncio
+    async def test_create_command(
         self,
         k8s_clients: Dict[str, Any],
         test_ssh_public_key: str,
         test_config: Configuration,
+        test_flavor: str,
     ) -> None:
         """Tests that the 'create' command successfully creates a DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
+        devserver_name = f"test-cli-create-{uuid.uuid4().hex[:6]}"
 
         try:
             # Call the handler to create the DevServer
-            handlers.create_devserver(
+            await asyncio.to_thread(
+                handlers.create_devserver,
                 configuration=test_config,
-                name=TEST_DEVSERVER_NAME,
-                flavor="test-flavor",
+                name=devserver_name,
+                flavor=test_flavor,
                 image="nginx:latest",
                 namespace=NAMESPACE,
                 ssh_public_key_file=test_ssh_public_key,
             )
 
             # Verify the resource was created
-            ds = custom_objects_api.get_namespaced_custom_object(
+            ds = await asyncio.to_thread(
+                custom_objects_api.get_namespaced_custom_object,
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 namespace=NAMESPACE,
                 plural=CRD_PLURAL_DEVSERVER,
-                name=TEST_DEVSERVER_NAME,
+                name=devserver_name,
             )
 
-            assert ds["spec"]["flavor"] == "test-flavor"
+            assert ds["spec"]["flavor"] == test_flavor
             assert ds["spec"]["image"] == "nginx:latest"
             assert "publicKey" in ds["spec"]["ssh"]
 
         finally:
             # Cleanup
-            cleanup_devserver(
-                custom_objects_api, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
+            await cleanup_devserver(
+                custom_objects_api, name=devserver_name, namespace=NAMESPACE
             )
 
-    def test_delete_command(
+    @pytest.mark.asyncio
+    async def test_delete_command(
         self,
         k8s_clients: Dict[str, Any],
         test_ssh_public_key: str,
@@ -130,19 +140,21 @@ class TestCliIntegration:
     ) -> None:
         """Tests that the 'delete' command successfully deletes a DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
+        devserver_name = f"test-cli-delete-{uuid.uuid4().hex[:6]}"
 
         # Create a resource to be deleted
         devserver_manifest = {
             "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
             "kind": "DevServer",
-            "metadata": {"name": TEST_DEVSERVER_NAME, "namespace": NAMESPACE},
+            "metadata": {"name": devserver_name, "namespace": NAMESPACE},
             "spec": {
                 "flavor": "any-flavor",
                 "ssh": {"publicKey": "ssh-rsa AAA..."},
                 "lifecycle": {"timeToLive": "1h"},
             },
         }
-        custom_objects_api.create_namespaced_custom_object(
+        await asyncio.to_thread(
+            custom_objects_api.create_namespaced_custom_object,
             group=CRD_GROUP,
             version=CRD_VERSION,
             namespace=NAMESPACE,
@@ -151,23 +163,28 @@ class TestCliIntegration:
         )
 
         # Call the handler to delete the DevServer
-        handlers.delete_devserver(
-            configuration=test_config, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
+        await asyncio.to_thread(
+            handlers.delete_devserver,
+            configuration=test_config,
+            name=devserver_name,
+            namespace=NAMESPACE,
         )
 
         # Verify the resource was deleted
         with pytest.raises(client.ApiException) as cm:
-            custom_objects_api.get_namespaced_custom_object(
+            await asyncio.to_thread(
+                custom_objects_api.get_namespaced_custom_object,
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 namespace=NAMESPACE,
                 plural=CRD_PLURAL_DEVSERVER,
-                name=TEST_DEVSERVER_NAME,
+                name=devserver_name,
             )
         assert isinstance(cm.value, client.ApiException)
         assert cm.value.status == 404
 
-    def test_describe_command(
+    @pytest.mark.asyncio
+    async def test_describe_command(
         self,
         k8s_clients: Dict[str, Any],
         test_ssh_public_key: str,
@@ -175,12 +192,13 @@ class TestCliIntegration:
     ) -> None:
         """Tests that the 'describe' command can see a created DevServer."""
         custom_objects_api = k8s_clients["custom_objects_api"]
+        devserver_name = f"test-cli-describe-{uuid.uuid4().hex[:6]}"
 
         # Create a DevServer for the describe command to find
         devserver_manifest = {
             "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
             "kind": "DevServer",
-            "metadata": {"name": TEST_DEVSERVER_NAME, "namespace": NAMESPACE},
+            "metadata": {"name": devserver_name, "namespace": NAMESPACE},
             "spec": {
                 "flavor": "any-flavor",
                 "ssh": {"publicKey": "ssh-rsa AAA..."},
@@ -188,7 +206,8 @@ class TestCliIntegration:
             },  # Flavor doesn't need to exist for this test
         }
 
-        custom_objects_api.create_namespaced_custom_object(
+        await asyncio.to_thread(
+            custom_objects_api.create_namespaced_custom_object,
             group=CRD_GROUP,
             version=CRD_VERSION,
             namespace=NAMESPACE,
@@ -201,18 +220,22 @@ class TestCliIntegration:
             captured_output = io.StringIO()
             sys.stdout = captured_output
 
-            handlers.describe_devserver(name=TEST_DEVSERVER_NAME, namespace=NAMESPACE)
+            await asyncio.to_thread(
+                handlers.describe_devserver,
+                name=devserver_name,
+                namespace=NAMESPACE,
+            )
 
             sys.stdout = sys.__stdout__  # Restore stdout
 
             output = captured_output.getvalue()
-            assert TEST_DEVSERVER_NAME in output
+            assert devserver_name in output
             assert "any-flavor" in output
 
         finally:
             # Cleanup
-            cleanup_devserver(
-                custom_objects_api, name=TEST_DEVSERVER_NAME, namespace=NAMESPACE
+            await cleanup_devserver(
+                custom_objects_api, name=devserver_name, namespace=NAMESPACE
             )
 
 
@@ -308,7 +331,8 @@ class TestCliParser:
 class TestUserCliIntegration:
     """Integration tests for the 'user' subcommand."""
 
-    def test_user_create_list_delete(
+    @pytest.mark.asyncio
+    async def test_user_create_list_delete(
         self, k8s_clients: Dict[str, Any], operator_running: Any
     ) -> None:
         """Tests the full lifecycle (create, list, delete) of a user via the CLI."""
@@ -318,18 +342,17 @@ class TestUserCliIntegration:
 
         try:
             # 1. Create user
-            result = runner.invoke(
-                cli_main.main, ["admin", "user", "create", username]
+            result = await asyncio.to_thread(
+                runner.invoke, cli_main.main, ["admin", "user", "create", username]
             )
             assert result.exit_code == 0
             assert f"User '{username}' created successfully" in result.output
 
             # Wait for operator to set status
-            wait_for_devserveruser_status(
-                custom_objects_api, name=username
-            )
+            await wait_for_devserveruser_status(custom_objects_api, name=username)
 
-            user_obj = custom_objects_api.get_cluster_custom_object(
+            user_obj = await asyncio.to_thread(
+                custom_objects_api.get_cluster_custom_object,
                 group="devserver.io",
                 version="v1",
                 plural="devserverusers",
@@ -339,7 +362,9 @@ class TestUserCliIntegration:
             assert user_obj["status"]["namespace"] == f"dev-{username}"
 
             # 2. List users and check for the new user and namespace
-            result = runner.invoke(cli_main.main, ["admin", "user", "list"])
+            result = await asyncio.to_thread(
+                runner.invoke, cli_main.main, ["admin", "user", "list"]
+            )
             assert result.exit_code == 0
             assert username in result.output
             assert f"dev-{username}".startswith(
@@ -347,14 +372,14 @@ class TestUserCliIntegration:
             )  # Check prefix due to truncation in output table
 
             # 3. Delete user
-            result = runner.invoke(
-                cli_main.main, ["admin", "user", "delete", username]
+            result = await asyncio.to_thread(
+                runner.invoke, cli_main.main, ["admin", "user", "delete", username]
             )
             assert result.exit_code == 0
             assert f"User '{username}' deleted successfully" in result.output
 
             # Verify resource was deleted by waiting for it to disappear
-            wait_for_cluster_custom_object_to_be_deleted(
+            await wait_for_cluster_custom_object_to_be_deleted(
                 custom_objects_api,
                 group="devserver.io",
                 version="v1",
@@ -366,12 +391,13 @@ class TestUserCliIntegration:
             # Cleanup in case of failure
             try:
                 # This will gracefully handle a 404 if already deleted
-                handlers.delete_user(username=username)
+                await asyncio.to_thread(handlers.delete_user, username=username)
             except client.ApiException as e:
                 if e.status != 404:
                     raise
 
-    def test_user_kubeconfig_command(
+    @pytest.mark.asyncio
+    async def test_user_kubeconfig_command(
         self, k8s_clients: Dict[str, Any], operator_running: Any
     ) -> None:
         """Tests that the 'user kubeconfig' command generates a valid config."""
@@ -380,15 +406,17 @@ class TestUserCliIntegration:
 
         try:
             # 1. Create a user for the test
-            runner.invoke(cli_main.main, ["admin", "user", "create", username])
+            await asyncio.to_thread(
+                runner.invoke, cli_main.main, ["admin", "user", "create", username]
+            )
             # Wait for the operator to be ready
-            wait_for_devserveruser_status(
+            await wait_for_devserveruser_status(
                 k8s_clients["custom_objects_api"], name=username
             )
 
             # 2. Generate kubeconfig
-            result = runner.invoke(
-                cli_main.main, ["admin", "user", "kubeconfig", username]
+            result = await asyncio.to_thread(
+                runner.invoke, cli_main.main, ["admin", "user", "kubeconfig", username]
             )
             assert result.exit_code == 0
             kubeconfig_data = yaml.safe_load(result.output)
@@ -401,21 +429,27 @@ class TestUserCliIntegration:
                 kubeconfig_path = temp_kubeconfig.name
 
             # Use the generated kubeconfig to run a command
-            runner_with_kubeconfig = CliRunner(
-                env={"KUBECONFIG": kubeconfig_path}
+            runner_with_kubeconfig = CliRunner(env={"KUBECONFIG": kubeconfig_path})
+            list_result = await asyncio.to_thread(
+                runner_with_kubeconfig.invoke, cli_main.main, ["list"]
             )
-            list_result = runner_with_kubeconfig.invoke(cli_main.main, ["list"])
             assert list_result.exit_code == 0
-            assert f"No DevServers found in namespace 'dev-{username}'." in list_result.output
+            assert (
+                f"No DevServers found in namespace 'dev-{username}'."
+                in list_result.output
+            )
 
         finally:
             # Cleanup
-            runner.invoke(cli_main.main, ["admin", "user", "delete", username])
+            await asyncio.to_thread(
+                runner.invoke, cli_main.main, ["admin", "user", "delete", username]
+            )
             if "kubeconfig_path" in locals() and os.path.exists(kubeconfig_path):
                 os.remove(kubeconfig_path)
 
 
-def test_create_and_list_with_operator(
+@pytest.mark.asyncio
+async def test_create_and_list_with_operator(
     operator_running: Any,
     k8s_clients: Dict[str, Any],
     test_ssh_public_key: str,
@@ -440,7 +474,8 @@ def test_create_and_list_with_operator(
             }
         },
     }
-    custom_objects_api.create_cluster_custom_object(
+    await asyncio.to_thread(
+        custom_objects_api.create_cluster_custom_object,
         group=CRD_GROUP,
         version=CRD_VERSION,
         plural="devserverflavors",
@@ -450,7 +485,8 @@ def test_create_and_list_with_operator(
     try:
         # Create a DevServer using the CLI
         devserver_name = "cli-test-server"
-        handlers.create_devserver(
+        await asyncio.to_thread(
+            handlers.create_devserver,
             configuration=test_config,
             name=devserver_name,
             flavor="cli-test-flavor",
@@ -460,14 +496,14 @@ def test_create_and_list_with_operator(
         )
 
         # Give the operator time to process and set the status to Running
-        wait_for_devserver_status(
+        await wait_for_devserver_status(
             custom_objects_api, name=devserver_name, namespace=NAMESPACE
         )
 
         # Verify it appears in the list command
         captured_output = io.StringIO()
         sys.stdout = captured_output
-        handlers.list_devservers(namespace=NAMESPACE)
+        await asyncio.to_thread(handlers.list_devservers, namespace=NAMESPACE)
         sys.stdout = sys.__stdout__
 
         output = captured_output.getvalue()
@@ -479,14 +515,18 @@ def test_create_and_list_with_operator(
     finally:
         # Cleanup
         try:
-            handlers.delete_devserver(
-                configuration=test_config, name="cli-test-server", namespace=NAMESPACE
+            await asyncio.to_thread(
+                handlers.delete_devserver,
+                configuration=test_config,
+                name="cli-test-server",
+                namespace=NAMESPACE,
             )
         except Exception:
             pass
 
         try:
-            custom_objects_api.delete_cluster_custom_object(
+            await asyncio.to_thread(
+                custom_objects_api.delete_cluster_custom_object,
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 plural="devserverflavors",

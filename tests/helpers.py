@@ -1,7 +1,8 @@
+import asyncio
 import time
 import pytest
 from kubernetes import client
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, Coroutine, TypeVar
 
 # Constants for polling
 POLL_INTERVAL = 0.5
@@ -14,6 +15,24 @@ CRD_PLURAL_DEVSERVERUSER = "devserverusers"
 
 
 T = TypeVar("T")
+
+
+async def async_wait_for(
+    callable: Callable[[], Coroutine[Any, Any, T]],
+    timeout: int = 30,
+    interval: float = POLL_INTERVAL,
+    failure_message: str = "Condition not met within timeout",
+) -> T:
+    """
+    Async version of wait_for that polls an awaitable callable.
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        result = await callable()
+        if result:
+            return result
+        await asyncio.sleep(interval)
+    pytest.fail(failure_message)
 
 
 def wait_for(
@@ -45,23 +64,25 @@ def wait_for(
     pytest.fail(failure_message)
 
 
-def wait_for_statefulset_to_exist(
+async def wait_for_statefulset_to_exist(
     apps_v1_api: client.AppsV1Api, name: str, namespace: str, timeout: int = 30
 ) -> Any:
     """Waits for a StatefulSet to exist and returns it."""
     print(f"⏳ Waiting for statefulset '{name}' to be created by operator...")
 
-    def check():
+    async def check():
         try:
-            return apps_v1_api.read_namespaced_stateful_set(
-                name=name, namespace=namespace
+            return await asyncio.to_thread(
+                apps_v1_api.read_namespaced_stateful_set,
+                name=name,
+                namespace=namespace,
             )
         except client.ApiException as e:
             if e.status == 404:
                 return None  # Not found yet, continue polling
             raise  # Other errors should fail the test
 
-    statefulset = wait_for(
+    statefulset = await async_wait_for(
         check,
         timeout=timeout,
         failure_message=f"StatefulSet '{name}' did not appear within {timeout} seconds.",
@@ -70,22 +91,24 @@ def wait_for_statefulset_to_exist(
     return statefulset
 
 
-def wait_for_statefulset_to_be_deleted(
+async def wait_for_statefulset_to_be_deleted(
     apps_v1_api: client.AppsV1Api, name: str, namespace: str, timeout: int = 60
 ):
     """Waits for a StatefulSet to be deleted."""
     print(f"⏳ Waiting for statefulset '{name}' to be deleted...")
 
-    def check():
+    async def check():
         try:
-            apps_v1_api.read_namespaced_stateful_set(name=name, namespace=namespace)
+            await asyncio.to_thread(
+                apps_v1_api.read_namespaced_stateful_set, name=name, namespace=namespace
+            )
             return None  # Still exists, continue polling
         except client.ApiException as e:
             if e.status == 404:
                 return True  # Successfully deleted
             raise
 
-    wait_for(
+    await async_wait_for(
         check,
         timeout=timeout,
         failure_message=f"StatefulSet '{name}' was not deleted within {timeout} seconds.",
@@ -93,7 +116,7 @@ def wait_for_statefulset_to_be_deleted(
     print(f"✅ StatefulSet '{name}' deleted.")
 
 
-def wait_for_devserver_to_be_deleted(
+async def wait_for_devserver_to_be_deleted(
     custom_objects_api: client.CustomObjectsApi,
     name: str,
     namespace: str,
@@ -102,9 +125,10 @@ def wait_for_devserver_to_be_deleted(
     """Waits for a DevServer to be deleted."""
     print(f"⏳ Waiting for DevServer '{name}' to be deleted...")
 
-    def check():
+    async def check():
         try:
-            custom_objects_api.get_namespaced_custom_object(
+            await asyncio.to_thread(
+                custom_objects_api.get_namespaced_custom_object,
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 namespace=namespace,
@@ -117,7 +141,7 @@ def wait_for_devserver_to_be_deleted(
                 return True  # Deleted
             raise
 
-    wait_for(
+    await async_wait_for(
         check,
         timeout=timeout,
         failure_message=f"DevServer '{name}' was not deleted within {timeout} seconds.",
@@ -126,7 +150,7 @@ def wait_for_devserver_to_be_deleted(
 
 
 
-def wait_for_devserver_to_exist(
+async def wait_for_devserver_to_exist(
     custom_objects_api: client.CustomObjectsApi, name: str, namespace: str, timeout: int = 10
 ) -> Any:
     """
@@ -134,9 +158,10 @@ def wait_for_devserver_to_exist(
     """
     print(f"⏳ Waiting for DevServer '{name}' to exist...")
 
-    def check():
+    async def check():
         try:
-            return custom_objects_api.get_namespaced_custom_object(
+            return await asyncio.to_thread(
+                custom_objects_api.get_namespaced_custom_object,
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 namespace=namespace,
@@ -148,7 +173,7 @@ def wait_for_devserver_to_exist(
                 return None
             raise
 
-    devserver = wait_for(
+    devserver = await async_wait_for(
         check,
         timeout=timeout,
         failure_message=f"DevServer '{name}' did not appear within {timeout} seconds.",
@@ -157,23 +182,25 @@ def wait_for_devserver_to_exist(
     return devserver
 
 
-def wait_for_pvc_to_exist(
+async def wait_for_pvc_to_exist(
     core_v1_api: client.CoreV1Api, name: str, namespace: str, timeout: int = 30
 ) -> Any:
     """Waits for a PVC to exist and returns it."""
     print(f"⏳ Waiting for PVC '{name}' to appear...")
 
-    def check():
+    async def check():
         try:
-            return core_v1_api.read_namespaced_persistent_volume_claim(
-                name=name, namespace=namespace
+            return await asyncio.to_thread(
+                core_v1_api.read_namespaced_persistent_volume_claim,
+                name=name,
+                namespace=namespace,
             )
         except client.ApiException as e:
             if e.status == 404:
                 return None
             raise
 
-    pvc = wait_for(
+    pvc = await async_wait_for(
         check,
         timeout=timeout,
         failure_message=f"PVC '{name}' did not appear within {timeout} seconds.",
@@ -182,7 +209,7 @@ def wait_for_pvc_to_exist(
     return pvc
 
 
-def wait_for_devserver_status(
+async def wait_for_devserver_status(
     custom_objects_api: client.CustomObjectsApi,
     name: str,
     namespace: str,
@@ -194,9 +221,10 @@ def wait_for_devserver_status(
     """
     print(f"⏳ Waiting for DevServer '{name}' status to become '{expected_status}'...")
 
-    def check():
+    async def check():
         try:
-            ds = custom_objects_api.get_namespaced_custom_object(
+            ds = await asyncio.to_thread(
+                custom_objects_api.get_namespaced_custom_object,
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 namespace=namespace,
@@ -212,7 +240,7 @@ def wait_for_devserver_status(
                 return None  # Not created yet
             raise
 
-    wait_for(
+    await async_wait_for(
         check,
         timeout=timeout,
         failure_message=f"DevServer '{name}' did not reach status '{expected_status}' within {timeout}s.",
@@ -220,7 +248,7 @@ def wait_for_devserver_status(
     print(f"✅ DevServer '{name}' reached status '{expected_status}'.")
 
 
-def wait_for_devserveruser_status(
+async def wait_for_devserveruser_status(
     custom_objects_api: client.CustomObjectsApi,
     name: str,
     expected_status: str = "Ready",
@@ -231,9 +259,10 @@ def wait_for_devserveruser_status(
     """
     print(f"⏳ Waiting for DevServerUser '{name}' status to become '{expected_status}'...")
 
-    def check():
+    async def check():
         try:
-            user = custom_objects_api.get_cluster_custom_object(
+            user = await asyncio.to_thread(
+                custom_objects_api.get_cluster_custom_object,
                 group=CRD_GROUP,
                 version=CRD_VERSION,
                 plural=CRD_PLURAL_DEVSERVERUSER,
@@ -248,7 +277,7 @@ def wait_for_devserveruser_status(
                 return None  # Not created yet
             raise
 
-    wait_for(
+    await async_wait_for(
         check,
         timeout=timeout,
         failure_message=f"DevServerUser '{name}' did not reach status '{expected_status}' within {timeout}s.",
@@ -256,7 +285,7 @@ def wait_for_devserveruser_status(
     print(f"✅ DevServerUser '{name}' reached status '{expected_status}'.")
 
 
-def wait_for_cluster_custom_object_to_be_deleted(
+async def wait_for_cluster_custom_object_to_be_deleted(
     custom_objects_api: client.CustomObjectsApi,
     group: str,
     version: str,
@@ -267,10 +296,14 @@ def wait_for_cluster_custom_object_to_be_deleted(
     """Waits for a cluster-scoped custom object to be deleted."""
     print(f"⏳ Waiting for cluster custom object '{name}' to be deleted...")
 
-    def check():
+    async def check():
         try:
-            custom_objects_api.get_cluster_custom_object(
-                group=group, version=version, plural=plural, name=name
+            await asyncio.to_thread(
+                custom_objects_api.get_cluster_custom_object,
+                group=group,
+                version=version,
+                plural=plural,
+                name=name,
             )
             return None  # Still exists
         except client.ApiException as e:
@@ -278,7 +311,7 @@ def wait_for_cluster_custom_object_to_be_deleted(
                 return True  # Deleted
             raise
 
-    wait_for(
+    await async_wait_for(
         check,
         timeout=timeout,
         failure_message=f"Cluster custom object '{name}' was not deleted within {timeout}s.",
@@ -286,13 +319,14 @@ def wait_for_cluster_custom_object_to_be_deleted(
     print(f"✅ Cluster custom object '{name}' deleted.")
 
 
-def cleanup_devserver(
+async def cleanup_devserver(
     custom_objects_api: client.CustomObjectsApi, name: str, namespace: str
 ):
     """Safely delete a DevServer, ignoring not-found errors."""
     try:
         print(f"🧹 Cleaning up DevServer '{name}' in namespace '{namespace}'...")
-        custom_objects_api.delete_namespaced_custom_object(
+        await asyncio.to_thread(
+            custom_objects_api.delete_namespaced_custom_object,
             group=CRD_GROUP,
             version=CRD_VERSION,
             namespace=namespace,

@@ -11,7 +11,7 @@ CRD_VERSION = "v1"
 
 @kopf.on.create(CRD_GROUP, CRD_VERSION, "devserverusers")
 @kopf.on.update(CRD_GROUP, CRD_VERSION, "devserverusers")
-def reconcile_devserver_user(
+async def reconcile_devserver_user(
     spec: Dict[str, Any],
     meta: Dict[str, Any],
     logger: logging.Logger,
@@ -21,7 +21,7 @@ def reconcile_devserver_user(
     """Reconcile DevServerUser updates idempotently."""
 
     reconciler = DevServerUserReconciler(spec=spec, metadata=meta)
-    result = reconciler.reconcile(logger)
+    result = await reconciler.reconcile(logger)
     patch.setdefault("status", {})
     patch["status"].update(
         {
@@ -33,7 +33,7 @@ def reconcile_devserver_user(
 
 
 @kopf.on.delete(CRD_GROUP, CRD_VERSION, "devserverusers")
-def delete_devserver_user(
+async def delete_devserver_user(
     spec: Dict[str, Any],
     meta: Dict[str, Any],
     logger: logging.Logger,
@@ -42,4 +42,4 @@ def delete_devserver_user(
     """Handle cleanup when a DevServerUser is deleted."""
 
     reconciler = DevServerUserReconciler(spec=spec, metadata=meta)
-    reconciler.cleanup(logger)
+    await reconciler.cleanup(logger)

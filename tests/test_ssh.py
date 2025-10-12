@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 from typing import Any, Dict
 import uuid
@@ -8,13 +9,14 @@ from pathlib import Path
 from devserver.cli import handlers
 from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
-from tests.helpers import wait_for, wait_for_devserver_to_exist
+from tests.helpers import async_wait_for, wait_for_devserver_to_exist
 from devserver.cli.config import Configuration
 from devserver.cli.utils import get_current_context
 
 
 @pytest.mark.parametrize("image", ["ubuntu:latest", "fedora:latest"])
-def test_ssh_command_functional_on_various_images(
+@pytest.mark.asyncio
+async def test_ssh_command_functional_on_various_images(
     operator_running: Any,
     k8s_clients: Dict[str, Any],
     test_flavor: str,
@@ -34,7 +36,8 @@ def test_ssh_command_functional_on_various_images(
 
     try:
         # Create a DevServer for the test
-        handlers.create_devserver(
+        await asyncio.to_thread(
+            handlers.create_devserver,
             configuration=test_config,
             name=devserver_name,
             flavor=test_flavor,
@@ -44,10 +47,12 @@ def test_ssh_command_functional_on_various_images(
         )
 
         # Wait for the pod to be running and ready
-        def is_pod_ready():
+        async def is_pod_ready():
             try:
-                pod = core_api.read_namespaced_pod(
-                    name=pod_name, namespace=TEST_NAMESPACE
+                pod = await asyncio.to_thread(
+                    core_api.read_namespaced_pod,
+                    name=pod_name,
+                    namespace=TEST_NAMESPACE,
                 )
                 if pod.status.phase == "Running" and pod.status.container_statuses:
                     if all(cs.ready for cs in pod.status.container_statuses):
@@ -58,7 +63,7 @@ def test_ssh_command_functional_on_various_images(
                 raise  # Re-raise other API errors
             return False
 
-        wait_for(
+        await async_wait_for(
             is_pod_ready,
             timeout=120,
             interval=2,
@@ -70,11 +75,12 @@ def test_ssh_command_functional_on_various_images(
         sys.stdout = captured_output
 
         # Poll the ssh command until it succeeds
-        def ssh_command_succeeds():
+        async def ssh_command_succeeds():
             try:
                 # Replace the actual handler call with a stub or mock if needed,
                 # but for a functional test, calling the real thing is better.
-                handlers.ssh_devserver(
+                await asyncio.to_thread(
+                    handlers.ssh_devserver,
                     configuration=test_config,
                     name=devserver_name,
                     namespace=TEST_NAMESPACE,
@@ -90,7 +96,7 @@ def test_ssh_command_functional_on_various_images(
                 print(f"SSH command failed with: {e}. Retrying...")
                 return False
 
-        wait_for(
+        await async_wait_for(
             ssh_command_succeeds,
             timeout=30,
             interval=2,
@@ -106,12 +112,18 @@ def test_ssh_command_functional_on_various_images(
     finally:
         # Cleanup
         try:
-            handlers.delete_devserver(configuration=test_config, name=devserver_name, namespace=TEST_NAMESPACE)
+            await asyncio.to_thread(
+                handlers.delete_devserver,
+                configuration=test_config,
+                name=devserver_name,
+                namespace=TEST_NAMESPACE,
+            )
         except Exception:
             pass
 
 
-def test_ssh_config_file_management(
+@pytest.mark.asyncio
+async def test_ssh_config_file_management(
     operator_running: Any,
     k8s_clients: Dict[str, Any],
     test_flavor: str,
@@ -139,7 +151,8 @@ def test_ssh_config_file_management(
 
     try:
         # 1. Test config file creation
-        handlers.create_devserver(
+        await asyncio.to_thread(
+            handlers.create_devserver,
             configuration=test_config_with_path,
             name=devserver_name,
             flavor=test_flavor,
@@ -148,11 +161,12 @@ def test_ssh_config_file_management(
         )
 
         # Wait for the DevServer CRD object to be available via the API
-        wait_for_devserver_to_exist(
+        await wait_for_devserver_to_exist(
             k8s_clients["custom_objects_api"], devserver_name, TEST_NAMESPACE
         )
 
-        handlers.ssh_devserver(
+        await asyncio.to_thread(
+            handlers.ssh_devserver,
             configuration=test_config_with_path,
             name=devserver_name,
             namespace=TEST_NAMESPACE,
@@ -178,7 +192,8 @@ def test_ssh_config_file_management(
 
     finally:
         # 3. Test cleanup on deletion
-        handlers.delete_devserver(
+        await asyncio.to_thread(
+            handlers.delete_devserver,
             configuration=test_config_with_path,
             name=devserver_name,
             namespace=TEST_NAMESPACE,
@@ -195,7 +210,8 @@ def test_ssh_config_file_management(
 
     # The ssh command should exit, so we catch the SystemExit exception
     with pytest.raises(SystemExit):
-        handlers.ssh_devserver(
+        await asyncio.to_thread(
+            handlers.ssh_devserver,
             configuration=test_config_with_path,
             name=stale_config_name,
             namespace=TEST_NAMESPACE,

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any, Dict
 
@@ -13,7 +14,7 @@ CRD_VERSION = "v1"
 
 
 @kopf.on.create(CRD_GROUP, CRD_VERSION, "devservers")
-def create_devserver(
+async def create_devserver(
     spec: Dict[str, Any],
     name: str,
     namespace: str,
@@ -41,7 +42,8 @@ def create_devserver(
     # Step 2: Get the DevServerFlavor
     custom_objects_api = client.CustomObjectsApi()
     try:
-        flavor = custom_objects_api.get_cluster_custom_object(
+        flavor = await asyncio.to_thread(
+            custom_objects_api.get_cluster_custom_object,
             group=CRD_GROUP,
             version=CRD_VERSION,
             plural="devserverflavors",
@@ -61,10 +63,10 @@ def create_devserver(
         "name": name,
         "uid": meta["uid"],
     }
-    ensure_host_keys_secret(name, namespace, owner_meta, logger)
+    await ensure_host_keys_secret(name, namespace, owner_meta, logger)
 
     # Step 4: Reconcile all Kubernetes resources
-    status_message = reconcile_devserver(name, namespace, spec, flavor, logger)
+    status_message = await reconcile_devserver(name, namespace, spec, flavor, logger)
 
     # Step 5: Update status
     patch["status"] = {
@@ -74,7 +76,7 @@ def create_devserver(
 
 
 @kopf.on.delete(CRD_GROUP, CRD_VERSION, "devservers")
-def delete_devserver(
+async def delete_devserver(
     name: str, namespace: str, logger: logging.Logger, **kwargs: Any
 ) -> None:
     """

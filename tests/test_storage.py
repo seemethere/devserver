@@ -1,4 +1,4 @@
-import time
+import asyncio
 import pytest
 from kubernetes import client
 from tests.conftest import TEST_NAMESPACE
@@ -16,7 +16,8 @@ CRD_PLURAL_DEVSERVER = "devservers"
 NAMESPACE = TEST_NAMESPACE
 
 
-def test_persistent_storage_retains_on_recreation(
+@pytest.mark.asyncio
+async def test_persistent_storage_retains_on_recreation(
     test_flavor, operator_running, k8s_clients
 ):
     """
@@ -48,7 +49,8 @@ def test_persistent_storage_retains_on_recreation(
     try:
         # 1. Initial Creation
         print("PHASE 1: Creating DevServer and PVC...")
-        custom_objects_api.create_namespaced_custom_object(
+        await asyncio.to_thread(
+            custom_objects_api.create_namespaced_custom_object,
             group=CRD_GROUP,
             version=CRD_VERSION,
             namespace=NAMESPACE,
@@ -57,7 +59,7 @@ def test_persistent_storage_retains_on_recreation(
         )
 
         # 1a. Verify the StatefulSet's volumeClaimTemplate has the correct size
-        statefulset = wait_for_statefulset_to_exist(
+        statefulset = await wait_for_statefulset_to_exist(
             apps_v1, name=devserver_name, namespace=NAMESPACE
         )
 
@@ -66,7 +68,7 @@ def test_persistent_storage_retains_on_recreation(
         assert vct.spec.resources.requests["storage"] == storage_size
 
         # 1b. Verify the PVC is created by the StatefulSet controller
-        pvc = wait_for_pvc_to_exist(core_v1, name=pvc_name, namespace=NAMESPACE)
+        pvc = await wait_for_pvc_to_exist(core_v1, name=pvc_name, namespace=NAMESPACE)
 
         assert pvc is not None, f"PVC '{pvc_name}' was not created."
         assert pvc.spec.resources.requests["storage"] == storage_size
@@ -74,7 +76,8 @@ def test_persistent_storage_retains_on_recreation(
 
         # 2. Deletion
         print("PHASE 2: Deleting DevServer, verifying PVC remains...")
-        custom_objects_api.delete_namespaced_custom_object(
+        await asyncio.to_thread(
+            custom_objects_api.delete_namespaced_custom_object,
             group=CRD_GROUP,
             version=CRD_VERSION,
             namespace=NAMESPACE,
@@ -83,15 +86,17 @@ def test_persistent_storage_retains_on_recreation(
         )
 
         # Wait for StatefulSet to be deleted
-        wait_for_statefulset_to_be_deleted(
+        await wait_for_statefulset_to_be_deleted(
             apps_v1, name=devserver_name, namespace=NAMESPACE
         )
         print(f"✅ StatefulSet '{devserver_name}' deleted.")
 
         # Assert that the PVC still exists
         try:
-            core_v1.read_namespaced_persistent_volume_claim(
-                name=pvc_name, namespace=NAMESPACE
+            await asyncio.to_thread(
+                core_v1.read_namespaced_persistent_volume_claim,
+                name=pvc_name,
+                namespace=NAMESPACE,
             )
             print(f"✅ PVC '{pvc_name}' correctly retained after deletion.")
         except client.ApiException as e:
@@ -103,7 +108,8 @@ def test_persistent_storage_retains_on_recreation(
 
         # 3. Re-creation
         print("PHASE 3: Re-creating DevServer, verifying it re-attaches...")
-        custom_objects_api.create_namespaced_custom_object(
+        await asyncio.to_thread(
+            custom_objects_api.create_namespaced_custom_object,
             group=CRD_GROUP,
             version=CRD_VERSION,
             namespace=NAMESPACE,
@@ -112,16 +118,18 @@ def test_persistent_storage_retains_on_recreation(
         )
 
         # Wait for StatefulSet to be re-created and become ready
-        wait_for_statefulset_to_exist(
+        await wait_for_statefulset_to_exist(
             apps_v1, name=devserver_name, namespace=NAMESPACE
         )
 
         # A further wait for it to be ready
         for _ in range(60):  # Longer wait for re-attachment
-            time.sleep(1)
+            await asyncio.sleep(1)
             try:
-                sts = apps_v1.read_namespaced_stateful_set(
-                    name=devserver_name, namespace=NAMESPACE
+                sts = await asyncio.to_thread(
+                    apps_v1.read_namespaced_stateful_set,
+                    name=devserver_name,
+                    namespace=NAMESPACE,
                 )
                 if sts.status.ready_replicas == 1:
                     print(f"✅ StatefulSet '{devserver_name}' re-created and ready.")
@@ -134,4 +142,4 @@ def test_persistent_storage_retains_on_recreation(
 
     finally:
         # Final cleanup
-        cleanup_devserver(custom_objects_api, name=devserver_name, namespace=NAMESPACE)
+        await cleanup_devserver(custom_objects_api, name=devserver_name, namespace=NAMESPACE)
