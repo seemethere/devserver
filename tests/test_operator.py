@@ -1,5 +1,5 @@
-from devserver.operator.resources.statefulset import build_statefulset
-from devserver.operator.user_reconciler import DevServerUserReconciler
+from devserver.operator.devserver.resources.statefulset import build_statefulset
+from devserver.operator.devserveruser.reconciler import DevServerUserReconciler
 from unittest.mock import MagicMock
 from kubernetes.client.rest import ApiException
 

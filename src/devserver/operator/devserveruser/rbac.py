@@ -1,9 +1,8 @@
-"""Utility functions for DevServer operator components."""
+"""RBAC provisioning for DevServerUser resources."""
 
 from __future__ import annotations
-
-from dataclasses import dataclass
 from typing import Dict
+
 
 DEFAULT_ROLE_RULES = [
     # Allow full management of DevServer resources
@@ -22,7 +21,7 @@ DEFAULT_ROLE_RULES = [
     {
         "apiGroups": [""],
         "resources": ["pods/portforward"],
-        "verbs": ["get","create"],
+        "verbs": ["get", "create"],
     },
     {
         "apiGroups": [""],
@@ -30,18 +29,6 @@ DEFAULT_ROLE_RULES = [
         "verbs": ["create"],
     },
 ]
-
-
-@dataclass(frozen=True)
-class DevServerUserSpec:
-    """Subset of DevServerUser spec relevant for namespace and RBAC provisioning."""
-
-    username: str
-    @classmethod
-    def from_spec(cls, spec: Dict[str, object]) -> "DevServerUserSpec":
-        return cls(
-            username=str(spec.get("username")),
-        )
 
 
 def build_default_role_body(namespace: str, username: str) -> Dict[str, object]:

@@ -11,7 +11,7 @@ from kubernetes.client import ApiException
 
 from devserver.utils.users import compute_user_namespace
 
-from .utils import build_default_role_body, build_default_rolebinding_body
+from .rbac import build_default_role_body, build_default_rolebinding_body
 
 
 @dataclass
