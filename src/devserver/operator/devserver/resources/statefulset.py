@@ -48,6 +48,7 @@ def build_statefulset(
                     {
                         "name": "devserver",
                         "image": image,
+                        "imagePullPolicy": "Always",
                         "command": ["/bin/sh", "-c"],
                         "args": ["/devserver/startup.sh"],
                         "ports": [{"containerPort": 22}],
