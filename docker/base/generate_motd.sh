@@ -22,21 +22,20 @@ else
     C_BOLD=""
 fi
 
-# ASCII Art Logo
-LOGO=$(cat << EOF
-        ${C_CYAN}
-        /////////////
-      /////////////////
-    ///////     ///////
-   /////         /////
-  /////   ${C_YELLOW}o o${C_CYAN}   /////
- /////   ${C_YELLOW}>${C_CYAN}     /////
- /////     ${C_YELLOW}^${C_CYAN}     /////
-  /////         /////
-   /////////////
-    ///////////
-EOF
-)
+# Array of random messages
+MESSAGES="Happy coding!
+Have you committed your changes?
+Don't forget to take a break.
+The caffeine is strong with this one."
+
+# Select a random message
+NUM_MESSAGES=$(printf "%s" "$MESSAGES" | grep -c '^')
+RANDOM_INDEX=$(awk -v n="$NUM_MESSAGES" 'BEGIN{srand(); print int(rand()*n)+1}')
+RANDOM_MESSAGE=$(printf "%s" "$MESSAGES" | sed -n "${RANDOM_INDEX}p")
+
+# Define message width and wrap the message
+MESSAGE_WIDTH=20
+WRAPPED_MESSAGE=$(printf "%s" "$RANDOM_MESSAGE" | fold -s -w "$MESSAGE_WIDTH")
 
 # System Information Gathering
 OS_INFO=$(lsb_release -ds 2>/dev/null || echo "Linux")
@@ -51,56 +50,28 @@ MEM_INFO=$(free -h | awk '/^Mem:/ {print $3 "/" $2}')
 DISK_INFO=$(df -h / | awk 'NR==2 {print $3 "/" $2 " (" $5 " used)"}')
 UPTIME=$(uptime -p)
 
-# Formatting
-INFO_WIDTH=40
-LOGO_WIDTH=25
-
-print_line() {
-    printf "${C_CYAN}%-${LOGO_WIDTH}s${C_RESET}  ${C_BOLD}%s${C_RESET}: %s\n" "$1" "$2" "$3"
-}
-
-# Combine Logo and System Info line by line
-LOGO_LINES=$(printf "%s\n" "$LOGO" | sed "s/^/ /" | sed "s/$/ /")
-INFO_LINES=$(
-    {
-        echo "${C_BOLD}${C_YELLOW}Welcome to your DevServer!${C_RESET}"
-        echo
-        printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "OS" "$OS_INFO"
-        printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Kernel" "$KERNEL"
-        printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "CPU" "$CPU_INFO ($CPU_CORES cores)"
-        printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Memory" "$MEM_INFO"
-        printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Disk" "$DISK_INFO"
-        printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Uptime" "$UPTIME"
-        echo
-        echo "${C_YELLOW}Happy coding!${C_RESET}"
-        echo
-    }
-)
-
-# Using temp files for POSIX-compliant side-by-side printing with paste
-LOGO_FILE=$(mktemp)
-INFO_FILE=$(mktemp)
-
-# Ensure temp files are removed on exit, even if the script fails
-trap 'rm -f "$LOGO_FILE" "$INFO_FILE"' EXIT
-
-printf "%s\n" "$LOGO_LINES" > "$LOGO_FILE"
-printf "%s\n" "$INFO_LINES" > "$INFO_FILE"
-
-# Combine the files line-by-line, manually calculating padding for perfect alignment.
-# This is more robust than simple paste/awk as it correctly handles non-printing ANSI color codes.
-paste -d'|' "$LOGO_FILE" "$INFO_FILE" | while IFS='|' read -r logo_line info_line; do
-    # Strip ANSI color codes to calculate the visible-only width of the logo line.
-    esc=$(printf '\033')
-    visible_len=$(printf "%s" "$logo_line" | sed "s/${esc}\\[[0-9;]*m//g" | wc -c)
-
-    # Calculate the exact number of padding spaces needed.
-    padding_len=$((25 - visible_len))
-    if [ $padding_len -lt 0 ]; then
-        padding_len=0
-    fi
-    padding=$(printf "%${padding_len}s" "")
-
-    # Print the logo line, the exact padding, and then the info line.
-    printf "%s%s %s\n" "$logo_line" "$padding" "$info_line"
+# ASCII Art and Message Display
+printf "%s\n" "${C_BOLD}${C_YELLOW}|￣￣￣￣￣￣￣￣￣￣￣|${C_RESET}"
+printf "%s\n" "$WRAPPED_MESSAGE" | while IFS= read -r line; do
+    printf "${C_BOLD}${C_YELLOW}< ${C_CYAN}%-${MESSAGE_WIDTH}s${C_YELLOW} >${C_RESET}\n" "$line"
 done
+printf "%s\n" "${C_BOLD}${C_YELLOW}|＿＿＿＿＿＿＿＿＿＿＿|${C_RESET}"
+printf "%s\n" "   (\__/)  ||"
+printf "%s\n" "   (•ㅅ•)  ||"
+printf "%s\n" "   /  　  づ"
+
+printf "%s\n" "   ${C_BOLD}${C_YELLOW}dMMMMb  dMMMMMP dMP dMP${C_MAGENTA} .dMMMb   dMMMMMP dMMMMb  dMP dMP dMMMMMP dMMMMb ${C_RESET}  "
+printf "%s\n" "   ${C_BOLD}${C_YELLOW}dMP VMP dMP     dMP dMP${C_MAGENTA} dMP\" VP dMP     dMP.dMP dMP dMP dMP     dMP.dMP ${C_RESET}  "
+printf "%s\n" "  ${C_BOLD}${C_YELLOW}dMP dMP dMMMP   dMP dMP${C_MAGENTA}  VMMMb  dMMMP   dMMMMK\" dMP dMP dMMMP   dMMMMK\" ${C_RESET}"
+printf "%s\n" " ${C_BOLD}${C_YELLOW}dMP.aMP dMP      YMvAP\"${C_MAGENTA} dP .dMP dMP     dMP\"AMF  YMvAP\" dMP     dMP\"AMF ${C_RESET}"
+printf "%s\n" "${C_BOLD}${C_YELLOW}dMMMMP\" dMMMMMP    VP\"${C_MAGENTA}   VMMMP\" dMMMMMP dMP dMP    VP\"  dMMMMMP dMP dMP ${C_RESET}"
+
+# System Info Display
+echo
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "OS" "$OS_INFO"
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Kernel" "$KERNEL"
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "CPU" "$CPU_INFO ($CPU_CORES cores)"
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Memory" "$MEM_INFO"
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Disk" "$DISK_INFO"
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Uptime" "$UPTIME"
+echo
