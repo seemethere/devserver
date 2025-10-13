@@ -10,7 +10,7 @@ Port 22
 PermitRootLogin no
 PasswordAuthentication no
 ChallengeResponseAuthentication no
-PrintMotd no
+PrintMotd yes
 Subsystem sftp /opt/bin/sftp-server
 AuthorizedKeysFile /home/dev/.ssh/authorized_keys
 HostKey /etc/ssh/ssh_host_rsa_key

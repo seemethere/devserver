@@ -22,7 +22,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y \
     build-essential \
     curl \
+    lsb-release \
+    procps \
+    util-linux \
     --no-install-recommends
+
+# Copy MOTD script
+COPY generate_motd.sh /usr/local/bin/generate_motd.sh
+RUN chmod +x /usr/local/bin/generate_motd.sh
 
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
