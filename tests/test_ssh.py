@@ -184,8 +184,9 @@ async def test_ssh_config_file_management(
         # 2. Test config file content
         content = config_file.read_text()
         python_executable = sys.executable
+        namespace_arg = f"--namespace {TEST_NAMESPACE}"
         expected_proxy_command = (
-            f"ProxyCommand {python_executable} -m devserver.cli.main ssh --proxy-mode {devserver_name}"
+            f'ProxyCommand sh -c ";{python_executable} -m devserver.cli.main ssh --proxy-mode {devserver_name} {namespace_arg}"'
         )
         assert f"Host {devserver_name}" in content
         assert expected_proxy_command in content
