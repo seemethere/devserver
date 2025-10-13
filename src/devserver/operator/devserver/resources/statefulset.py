@@ -1,11 +1,13 @@
 from typing import Any, Dict
 
+DEFAULT_DEVSERVER_IMAGE = "seemethere/devserver-base:latest"
+
 
 def build_statefulset(
     name: str, namespace: str, spec: Dict[str, Any], flavor: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Builds the StatefulSet for the DevServer."""
-    image = spec.get("image", "ubuntu:latest")
+    image = spec.get("image", DEFAULT_DEVSERVER_IMAGE)
 
     # Get the public key from the spec
     ssh_public_key = spec.get("ssh", {}).get("publicKey", "")
