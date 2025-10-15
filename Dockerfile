@@ -1,4 +1,12 @@
 FROM python:3.14-slim
+# TODO: Install ssh-keygen
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y \
+    openssh-client \
+    --no-install-recommends
+
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
