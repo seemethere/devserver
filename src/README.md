@@ -17,12 +17,12 @@ src/
     ├── operator/                  # Kubernetes operator implementation
     │   ├── devserver/             # Logic for the DevServer CRD
     │   │   ├── handler.py         # Kopf handlers for DevServer
-    │   │   └── reconciler.py      # Core reconciliation logic
+    │   │   ├── reconciler.py      # Core reconciliation logic
+    │   │   └── resources/         # Builders for Kubernetes objects
     │   ├── devserveruser/         # Logic for the DevServerUser CRD
     │   │   ├── handler.py         # Kopf handlers for DevServerUser
     │   │   └── reconciler.py      # Core reconciliation logic
-    │   ├── operator.py            # Main operator entrypoint
-    │   └── resources/             # Builders for Kubernetes objects
+    │   └── operator.py            # Main operator entrypoint
     └── cli/                       # Command-line interface
         ├── main.py                # CLI entry point with click
         └── handlers/              # Implementations for each CLI command

@@ -53,6 +53,14 @@ It also supports SSH agent forwarding, which can be enabled by adding `--forward
 ssh my-server
 ```
 
+### `ssh-proxy`
+
+Connect to a DevServer via an SSH proxy. This is useful for environments where direct SSH access is not possible.
+
+```bash
+devctl ssh-proxy my-server
+```
+
 ### `user`
 
 Manage DevServer users.
