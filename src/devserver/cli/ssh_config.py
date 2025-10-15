@@ -156,12 +156,12 @@ def create_ssh_config_for_devserver(
 
     python_executable = Path(sys.executable)
     namespace_arg = f"--namespace {namespace}" if namespace else ""
-    proxy_command_env = f"KUBECONFIG={kubeconfig_path} " if kubeconfig_path else ""
+    proxy_command_env = f"KUBECONFIG={kubeconfig_path};" if kubeconfig_path else ""
 
     config_content = f"""
 Host {name}
     User dev
-    ProxyCommand sh -c "{proxy_command_env};{python_executable} -m devserver.cli.main ssh --proxy-mode {name} {namespace_arg}"
+    ProxyCommand sh -c "{proxy_command_env}{python_executable} -m devserver.cli.main ssh --proxy-mode {name} {namespace_arg}"
     IdentityFile {key_path}
     ForwardAgent {"yes" if ssh_forward_agent else "no"}
     StrictHostKeyChecking no
