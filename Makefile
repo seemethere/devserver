@@ -1,35 +1,42 @@
 # Conditional pytest flags based on VERBOSE environment variable
 VERBOSE ?= 0
 MAX_JOBS ?= 4
+NAMESPACE ?= default
 PYTEST_VERBOSE = $(if $(filter 1,$(VERBOSE)),-s,)
 PYTEST_PARALLEL_JOBS = $(if $(MAX_JOBS),-n $(MAX_JOBS),)
-VENV_BIN = .venv/bin
-PYTHON = $(VENV_BIN)/python3
-PIP = $(VENV_BIN)/pip3
-PRECOMMIT = $(VENV_BIN)/pre-commit
-PYTEST = $(PYTHON) -m pytest
+KOPF = uv run kopf
+PYTHON = uv run python
+PRECOMMIT = uv run pre-commit
+PYTEST = uv run pytest
 
-$(PYTHON):
-	@echo "🐍 No virtual environment found, creating one..."
-	uv venv -p 3.13 .venv
-	$(PYTHON) -m ensurepip
-	$(PIP) install -e .
-	$(PIP) install -e .[dev]
+.PHONY: sync
+sync:
+	@echo "🔄 Syncing files..."
+	uv sync
 
 .PHONY: test
-test: $(PYTHON)
+test: lint sync
 	@echo "🧪 Running tests$(if $(MAX_JOBS), with $(MAX_JOBS) parallel jobs,)$(if $(filter 1,$(VERBOSE)), with verbose output,)... (use VERBOSE=1 for detailed output, MAX_JOBS=<n> for parallel tests)"
 	$(PYTEST) $(PYTEST_PARALLEL_JOBS) -v $(PYTEST_VERBOSE) tests
 
 .PHONY: install-crds
-install-crds: #TODO: List crd file glob to re-run this on file changes
+install-crds: crds/*.yaml
 	@echo "🔄 Installing CRDs..."
 	kubectl apply -f crds/
 
 .PHONY: run
-run:
-	@echo "🏃 Running operator..."
-	$(PYTHON) -m devserver.operator
+run: install-crds sync
+	@echo "🏃 Running operator in namespace $(NAMESPACE)..."
+	$(KOPF) run --dev -m devserver.operator --namespace $(NAMESPACE)
+
+.PHONY: lint
+lint: pre-commit
+
+.PHONY: pre-commit
+pre-commit: sync
+	@$(PRECOMMIT) install
+	@echo "🔄 Running pre-commit checks..."
+	$(PRECOMMIT) run --all-files
 
 DOCKER_REGISTRY :=
 DOCKER_IMAGE := $(DOCKER_REGISTRY)seemethere/devserver
@@ -44,10 +51,6 @@ docker-push:
 	@echo "🔄 Pushing Docker image..."
 	docker push $(DOCKER_IMAGE)
 
-.PHONY: pre-commit
-pre-commit:
-	@echo "🔄 Running pre-commit checks..."
-	$(PRECOMMIT) run --all-files
 
 CLUSTER_NAME = devserver-cluster
 
