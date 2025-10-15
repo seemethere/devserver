@@ -24,18 +24,6 @@ dependencies = [
     "PyYAML>=6.0.1",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "pytest-monitor",
-    "pytest-xdist",
-    "pytest-asyncio",
-    "pre-commit",
-    "ruff",
-    "pytest-sugar>=1.1.1",
-    "ty",
-]
-
 [project.urls]
 Homepage = "https://github.com/pypa/sampleproject"
 Issues = "https://github.com/pypa/sampleproject/issues"
@@ -60,3 +48,16 @@ exclude = ["reference"]
 [tool.ty.src]
 include = ["src", "tests"]
 exclude = ["reference"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest",
+    "pytest-monitor",
+    "pytest-xdist",
+    "pytest-asyncio",
+    "pre-commit",
+    "ruff",
+    "pytest-sugar>=1.1.1",
+    "ty",
+]
