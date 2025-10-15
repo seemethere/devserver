@@ -121,10 +121,9 @@ def list_command() -> None:
     hidden=True,
 )  # Hidden from user help
 @click.option(
-    "--proxy-mode",
+    "--no-proxy",
     is_flag=True,
-    hidden=True,
-    help="Run in proxy mode for SSH ProxyCommand.",
+    help="Connect directly to the DevServer without using SSH config.",
 )
 @click.argument("remote_command", nargs=-1)
 @click.pass_context
@@ -133,7 +132,7 @@ def ssh(
     name: str,
     ssh_private_key_file: str,
     namespace: Optional[str],
-    proxy_mode: bool,
+    no_proxy: bool,
     remote_command: tuple[str, ...],
 ) -> None:
     """SSH into a DevServer."""
@@ -142,10 +141,25 @@ def ssh(
         name=name,
         ssh_private_key_file=ssh_private_key_file,
         namespace=namespace,
-        proxy_mode=proxy_mode,
+        no_proxy=no_proxy,
         remote_command=remote_command,
         assume_yes=ctx.obj["ASSUME_YES"],
     )
+
+
+@main.command(name="ssh-proxy", help="Run in proxy mode for SSH ProxyCommand.", hidden=True)
+@click.argument("name", type=str)
+@click.option(
+    "-n",
+    "--namespace",
+    type=str,
+    default=None,
+    help="The namespace to use.",
+    hidden=True,
+)
+def ssh_proxy(name: str, namespace: Optional[str]) -> None:
+    """Run in proxy mode for SSH ProxyCommand."""
+    handlers.ssh_proxy_devserver(name=name, namespace=namespace)
 
 
 @main.group()

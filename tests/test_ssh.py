@@ -86,8 +86,8 @@ async def test_ssh_command_functional_on_various_images(
                     namespace=TEST_NAMESPACE,
                     ssh_private_key_file=test_ssh_key_pair["private"],
                     remote_command=("whoami",),
-                    proxy_mode=False,
                     assume_yes=True,
+                    no_proxy=False,
                 )
                 return True
             except Exception as e:
@@ -148,6 +148,7 @@ async def test_ssh_config_file_management(
         pass
 
     monkeypatch.setattr("subprocess.run", mock_subprocess_run)
+    monkeypatch.delenv("KUBECONFIG", raising=False)
 
     try:
         # 1. Test config file creation
@@ -172,8 +173,8 @@ async def test_ssh_config_file_management(
             namespace=TEST_NAMESPACE,
             ssh_private_key_file=test_ssh_key_pair["private"],
             remote_command=("whoami",),
-            proxy_mode=False,
             assume_yes=True,
+            no_proxy=False,
         )
 
         # Find the config file (it may have a user prefix like {user}-{name}.sshconfig)
@@ -186,7 +187,7 @@ async def test_ssh_config_file_management(
         python_executable = sys.executable
         namespace_arg = f"--namespace {TEST_NAMESPACE}"
         expected_proxy_command = (
-            f'ProxyCommand sh -c ";{python_executable} -m devserver.cli.main ssh --proxy-mode {devserver_name} {namespace_arg}"'
+            f'ProxyCommand sh -c "{python_executable} -m devserver.cli.main ssh-proxy {devserver_name} {namespace_arg}"'
         )
         assert f"Host {devserver_name}" in content
         assert expected_proxy_command in content
@@ -218,10 +219,73 @@ async def test_ssh_config_file_management(
             namespace=TEST_NAMESPACE,
             ssh_private_key_file=test_ssh_key_pair["private"],
             remote_command=("whoami",),
-            proxy_mode=False,
             assume_yes=True,
+            no_proxy=False,
         )
 
     # Check that all config files for the stale devserver have been removed
     stale_config_files = list(config_dir.glob(f"*{stale_config_name}.sshconfig"))
     assert len(stale_config_files) == 0, f"Expected 0 stale config files, found {len(stale_config_files)}"
+
+
+@pytest.mark.asyncio
+async def test_ssh_direct_connection(
+    operator_running: Any,
+    k8s_clients: Dict[str, Any],
+    test_flavor: str,
+    test_ssh_key_pair: dict[str, str],
+    monkeypatch,
+    test_config: Configuration,
+) -> None:
+    """
+    Tests the --no-proxy (direct) SSH connection via port-forwarding.
+    """
+    devserver_name = f"ssh-direct-test-{uuid.uuid4().hex[:6]}"
+    
+    # We will patch subprocess.run to verify it's called with the correct port-forward command
+    # and to prevent it from hanging in a non-interactive test.
+    called_ssh_command = None
+    def mock_subprocess_run(command, *args, **kwargs):
+        nonlocal called_ssh_command
+        called_ssh_command = command
+    
+    monkeypatch.setattr("subprocess.run", mock_subprocess_run)
+    
+    try:
+        # 1. Create a devserver
+        await asyncio.to_thread(
+            handlers.create_devserver,
+            configuration=test_config,
+            name=devserver_name,
+            flavor=test_flavor,
+            namespace=TEST_NAMESPACE,
+            ssh_public_key_file=test_ssh_key_pair["public"],
+            wait=True,
+        )
+
+        # 2. Attempt a direct SSH connection
+        await asyncio.to_thread(
+            handlers.ssh_devserver,
+            configuration=test_config,
+            name=devserver_name,
+            namespace=TEST_NAMESPACE,
+            ssh_private_key_file=test_ssh_key_pair["private"],
+            remote_command=("whoami",),
+            assume_yes=True,
+            no_proxy=True,
+        )
+
+        # 3. Verify that subprocess.run was called with a direct ssh command
+        assert called_ssh_command is not None
+        assert "ssh" in called_ssh_command[0]
+        assert "localhost" in "".join(called_ssh_command)
+        assert "-p" in called_ssh_command
+        
+    finally:
+        # 4. Cleanup
+        await asyncio.to_thread(
+            handlers.delete_devserver,
+            configuration=test_config,
+            name=devserver_name,
+            namespace=TEST_NAMESPACE,
+        )
