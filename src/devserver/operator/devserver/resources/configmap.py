@@ -16,6 +16,7 @@ AuthorizedKeysFile /home/dev/.ssh/authorized_keys
 HostKey /etc/ssh/ssh_host_rsa_key
 HostKey /etc/ssh/ssh_host_ecdsa_key
 HostKey /etc/ssh/ssh_host_ed25519_key
+AllowAgentForwarding yes
     """
 
     return {
