@@ -1,0 +1,31 @@
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: cpu-arm64
+spec:
+  disruption:
+    budgets:
+    - nodes: 10%
+    consolidateAfter: 1h
+    consolidationPolicy: WhenEmpty
+  template:
+    metadata: {}
+    spec:
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: default
+      requirements:
+        - key: "karpenter.sh/capacity-type"
+          operator: In
+          values: ["on-demand"]
+        - key: "kubernetes.io/arch"
+          operator: In
+          values: ["arm64"]
+        - key: "eks.amazonaws.com/instance-family"
+          operator: In
+          values:
+          - t4g
+          - m6g
+          - c6g
+      terminationGracePeriod: 24h0m0s
