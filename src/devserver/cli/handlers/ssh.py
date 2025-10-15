@@ -1,11 +1,8 @@
 import subprocess
 import sys
 from pathlib import Path
-import socket
-import select
-from typing import Optional, cast
+from typing import Optional
 import os
-import io
 
 from kubernetes import client, config
 from rich.console import Console
@@ -25,14 +22,15 @@ def warn_if_agent_forwarding_is_disabled(configuration: Configuration):
         console.print("[yellow]⚠️ SSH agent forwarding is disabled. This may cause issues with tools that rely on SSH agent forwarding like git.[/yellow]")
         console.print("[yellow]   Modify the value ssh.forward_agent to true in your config file to enable it.[/yellow]")
 
+
 def ssh_devserver(
     configuration: Configuration,
     name: str,
     ssh_private_key_file: Optional[str],
-    proxy_mode: bool,
     remote_command: tuple[str, ...],
     assume_yes: bool = False,
     namespace: Optional[str] = None,
+    no_proxy: bool = False,
 ) -> None:
     """SSH into a DevServer."""
     config.load_kube_config()
@@ -57,7 +55,7 @@ def ssh_devserver(
         # TODO: The pod name should be dynamically retrieved
         pod_name = f"{name}-0"
 
-        if not proxy_mode:
+        if not no_proxy:
             kubeconfig_path = os.environ.get("KUBECONFIG")
             _, use_include = create_ssh_config_for_devserver(
                 configuration.ssh_config_dir,
@@ -84,34 +82,6 @@ def ssh_devserver(
         with kubernetes_port_forward(
             pod_name=pod_name, namespace=target_namespace, pod_port=22
         ) as local_port:
-            if proxy_mode:
-                # Proxy mode shuttles data for SSH ProxyCommand
-                try:
-                    with socket.create_connection(("localhost", local_port)) as sock:
-                        while True:
-                            r, _, _ = select.select([sys.stdin, sock], [], [])
-                            for readable in r:
-                                if readable is sys.stdin:
-                                    if hasattr(sys.stdin, "buffer"):
-                                        # Use cast to inform the type checker
-                                        stdin_buffer = cast(io.BufferedIOBase, sys.stdin.buffer)
-                                        data = stdin_buffer.read1(4096)
-                                        if not data:
-                                            return
-                                        sock.sendall(data)
-                                elif readable is sock:
-                                    data = sock.recv(4096)
-                                    if not data:
-                                        return
-                                    sys.stdout.buffer.write(data)
-                                    sys.stdout.buffer.flush()
-                except (BrokenPipeError, ConnectionResetError):
-                    pass  # Expected on client disconnect
-                except Exception as e:
-                    console.print(f"[red]Proxy error: {e}[/red]")
-                finally:
-                    return
-
             # Interactive port-forward flow
             console.print(
                 f"Connecting to devserver '{name}' via port-forward on localhost:{local_port}..."
@@ -125,6 +95,7 @@ def ssh_devserver(
 
             ssh_command = [
                 "ssh",
+                "-A" if configuration.ssh_forward_agent else "",
                 "-i", str(key_path),
                 "-p", str(local_port),
                 "-o", "StrictHostKeyChecking=no",

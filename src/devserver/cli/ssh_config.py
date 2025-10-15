@@ -161,7 +161,7 @@ def create_ssh_config_for_devserver(
     config_content = f"""
 Host {name}
     User dev
-    ProxyCommand sh -c "{proxy_command_env}{python_executable} -m devserver.cli.main ssh --proxy-mode {name} {namespace_arg}"
+    ProxyCommand sh -c "{proxy_command_env}{python_executable} -m devserver.cli.main ssh-proxy {name} {namespace_arg}"
     IdentityFile {key_path}
     ForwardAgent {"yes" if ssh_forward_agent else "no"}
     StrictHostKeyChecking no
