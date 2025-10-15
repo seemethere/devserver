@@ -31,11 +31,6 @@ A Kubernetes-native operator for managing development servers, particularly desi
 ```bash
 # Create a local k3d cluster
 k3d cluster create devserver-cluster
-
-# Install Python dependencies
-uv venv -p 3.13 .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
 ```
 
 ### 2. Deploy the CRDs and Flavors
@@ -54,23 +49,23 @@ make run
 
 ### 4. Use the CLI
 
-In a new terminal, activate the virtual environment: `source .venv/bin/activate`
+In a new terminal:
 
 ```bash
 # Create a development server
-devctl create --name mydev --flavor cpu-small
+uv run devctl create --name mydev --flavor cpu-small
 
 # List your servers
-devctl list
+uv run devctl list
 
 # Add a user
-devctl user add --name test-user --public-key-file ~/.ssh/id_rsa.pub
+uv run devctl user add --name test-user --public-key-file ~/.ssh/id_rsa.pub
 
 # Create a server with GPU support (see dev/eks/README.md for setup)
-devctl create --name my-gpu-dev --flavor gpu-small --image fedora:latest
+uv run devctl create --name my-gpu-dev --flavor gpu-small --image fedora:latest
 
 # Delete a server
-devctl delete mydev
+uv run devctl delete mydev
 ```
 
 ## 📚 Documentation

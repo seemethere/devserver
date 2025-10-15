@@ -16,9 +16,6 @@ The test suite includes comprehensive integration tests that run the operator an
 ### Test Execution
 
 ```bash
-# First, ensure Python dependencies are installed
-pip install -e ".[dev]"
-
 # Create a local k3d cluster for testing
 make up
 
@@ -47,3 +44,7 @@ make test MAX_JOBS=8
 ### Startup Script Testing
 
 A dedicated test, `test_startup_script.py`, ensures that the container's entrypoint script (`startup.sh`) works correctly across different base Docker images (e.g., `ubuntu:latest`, `fedora:latest`). This test runs the script in isolation within Docker containers to verify that user creation and environment setup are compatible with various Linux distributions.
+
+### MOTD Testing
+
+The `test_motd.py` test verifies that the custom message of the day is correctly generated and mounted into the devserver container.

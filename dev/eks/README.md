@@ -54,5 +54,9 @@ devctl create --name fedora-gpu --image fedora:latest --flavor gpu-small --ttl 4
 devctl ssh fedora-gpu -- nvidia-smi
 ```
 
+## ARM64 CPU Nodepool
+
+The `cpu-arm64-nodepool.yml` configures a nodepool for ARM64 CPU instances, enabling you to run ARM-based workloads on your cluster.
+
 ## TODO
 - [ ] Add some sample EFS storage to this setup for shared folders
