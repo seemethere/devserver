@@ -75,6 +75,16 @@ spec:
       effect: "NoSchedule"
 ```
 
+### Adding New Flavors
+
+To add a new flavor, create a YAML file with your `DevServerFlavor` definition and apply it to your cluster:
+
+```bash
+kubectl apply -f your-flavor-file.yaml
+```
+
+You can use the example above as a template for your own flavors.
+
 ### DevServerUser
 
 `DevServerUser` resources manage users and their associated permissions within the cluster. The operator sets up RBAC roles and resource quotas based on the spec. This CRD does not manage SSH keys directly; instead, SSH access is handled by the `devctl` CLI when creating or managing a `DevServer`.
