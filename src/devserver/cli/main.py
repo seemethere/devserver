@@ -3,6 +3,7 @@ from rich.console import Console
 from rich.prompt import Confirm
 from pathlib import Path
 from typing import Optional
+import os
 
 from . import handlers
 from .ssh_config import ensure_ssh_config_include, set_ssh_config_permission
@@ -33,7 +34,14 @@ def main(ctx, config_path, assume_yes) -> None:
     default_config_path = get_default_config_path()
     effective_config_path = config_path if config_path else default_config_path
 
-    if not effective_config_path.exists() and effective_config_path == default_config_path:
+    # Do not attempt to create a config file during tests
+    is_testing = "PYTEST_CURRENT_TEST" in os.environ
+
+    if (
+        not is_testing
+        and not effective_config_path.exists()
+        and effective_config_path == default_config_path
+    ):
         console.print(f"Configuration file not found at [cyan]{effective_config_path}[/cyan].")
         if assume_yes or Confirm.ask("Would you like to create a default one?", default=True):
             create_default_config(effective_config_path)
