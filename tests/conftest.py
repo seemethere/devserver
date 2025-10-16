@@ -303,7 +303,7 @@ CRD_VERSION = "v1"
 CRD_PLURAL_FLAVOR = "devserverflavors"
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def test_flavor(request):
     """Creates a test DevServerFlavor for a single test function."""
     custom_objects_api = client.CustomObjectsApi()
