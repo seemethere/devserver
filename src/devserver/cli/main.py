@@ -157,9 +157,16 @@ def ssh(
     help="The namespace to use.",
     hidden=True,
 )
-def ssh_proxy(name: str, namespace: Optional[str]) -> None:
+@click.option(
+    "--kubeconfig-path",
+    type=str,
+    default=None,
+    help="Path to the kubeconfig file.",
+    hidden=True,
+)
+def ssh_proxy(name: str, namespace: Optional[str], kubeconfig_path: Optional[str]) -> None:
     """Run in proxy mode for SSH ProxyCommand."""
-    handlers.ssh_proxy_devserver(name=name, namespace=namespace)
+    handlers.ssh_proxy_devserver(name=name, namespace=namespace, kubeconfig_path=kubeconfig_path)
 
 
 @main.group()
