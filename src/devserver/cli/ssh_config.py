@@ -127,7 +127,7 @@ def create_ssh_config_for_devserver(
     kubeconfig_path: Optional[str] = None,
     ssh_forward_agent: bool = False,
     assume_yes: bool = False,
-) -> tuple[Path, bool]:
+) -> tuple[Path, bool, str]:
     """
     Creates an SSH config file for a devserver.
 
@@ -142,8 +142,8 @@ def create_ssh_config_for_devserver(
         assume_yes: If True, automatically grant permission without prompting.
 
     Returns:
-        A tuple containing the path to the config file and a boolean indicating
-        if the Include directive is being used.
+        A tuple containing the path to the config file, a boolean indicating
+        if the Include directive is being used, and the generated hostname.
     """
     ensure_ssh_config_include(
         ssh_config_dir,
@@ -170,8 +170,14 @@ def create_ssh_config_for_devserver(
 
     proxy_command = " ".join(proxy_command_parts)
 
+    if user:
+        sanitized_user = user.replace("@", "-")
+        hostname = f"devserver-{sanitized_user}-{name}"
+    else:
+        hostname = f"devserver-{name}"
+
     config_content = f"""
-Host {name}
+Host {hostname}
     User dev
     ProxyCommand sh -c '{proxy_command}'
     IdentityFile {key_path}
@@ -183,7 +189,7 @@ Host {name}
     config_path.write_text(config_content)
     config_path.chmod(0o600)
 
-    return config_path, check_ssh_config_permission(ssh_config_dir)
+    return config_path, check_ssh_config_permission(ssh_config_dir), hostname
 
 
 def remove_ssh_config_for_devserver(

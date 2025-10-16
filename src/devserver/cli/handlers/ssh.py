@@ -57,7 +57,7 @@ def ssh_devserver(
 
         if not no_proxy:
             kubeconfig_path = os.environ.get("KUBECONFIG")
-            _, use_include = create_ssh_config_for_devserver(
+            _, use_include, hostname = create_ssh_config_for_devserver(
                 configuration.ssh_config_dir,
                 name,
                 key_path_str,
@@ -69,7 +69,7 @@ def ssh_devserver(
             )
             if use_include:
                 console.print(f"Connecting to devserver '{name}' via SSH config...")
-                ssh_command = ["ssh", name]
+                ssh_command = ["ssh", hostname]
                 warn_if_agent_forwarding_is_disabled(configuration)
                 if remote_command:
                     ssh_command.extend(remote_command)
