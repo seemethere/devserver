@@ -144,11 +144,25 @@ async def test_ssh_config_file_management(
 
     # We need to run ssh with a dummy command, but since port-forwarding will fail
     # in a non-interactive test, we'll patch subprocess.run to prevent it from blocking.
-    def mock_subprocess_run(*args, **kwargs):
-        pass
+    called_ssh_command = None
+
+    def mock_subprocess_run(command, *args, **kwargs):
+        nonlocal called_ssh_command
+        if command and command[0] == "ssh":
+            called_ssh_command = command
 
     monkeypatch.setattr("subprocess.run", mock_subprocess_run)
     monkeypatch.delenv("KUBECONFIG", raising=False)
+
+    mock_user = "test@example.com"
+    monkeypatch.setattr(
+        "devserver.cli.handlers.ssh.get_current_context", lambda: (mock_user, "default")
+    )
+    monkeypatch.setattr(
+        "devserver.cli.handlers.delete.get_current_context",
+        lambda: (mock_user, "default"),
+    )
+    monkeypatch.setattr("tests.test_ssh.get_current_context", lambda: (mock_user, "default"))
 
     try:
         # 1. Test config file creation
@@ -177,6 +191,11 @@ async def test_ssh_config_file_management(
             no_proxy=False,
         )
 
+        user, _ = get_current_context()
+        sanitized_user = user.replace("@", "-")
+        hostname = f"devserver-{sanitized_user}-{devserver_name}"
+        assert called_ssh_command == ["ssh", hostname, "whoami"]
+
         # Find the config file (it may have a user prefix like {user}-{name}.sshconfig)
         config_files = list(config_dir.glob(f"*{devserver_name}.sshconfig"))
         assert len(config_files) == 1, f"Expected 1 config file, found {len(config_files)}"
@@ -189,7 +208,7 @@ async def test_ssh_config_file_management(
         expected_proxy_command = (
             f"ProxyCommand sh -c '{python_executable} -m devserver.cli.main ssh-proxy {devserver_name} {namespace_arg}'"
         )
-        assert f"Host {devserver_name}" in content
+        assert f"Host {hostname}" in content
         assert expected_proxy_command in content
         assert "IdentityAgent SSH_AUTH_SOCK" in content
 
@@ -320,6 +339,15 @@ async def test_ssh_config_with_kubeconfig_path(
     monkeypatch.setattr("subprocess.run", mock_subprocess_run)
     monkeypatch.setenv("KUBECONFIG", str(kubeconfig_file))
 
+    mock_user = "test@example.com"
+    monkeypatch.setattr(
+        "devserver.cli.handlers.ssh.get_current_context", lambda: (mock_user, "default")
+    )
+    monkeypatch.setattr(
+        "devserver.cli.handlers.delete.get_current_context",
+        lambda: (mock_user, "default"),
+    )
+
     try:
         await asyncio.to_thread(
             handlers.create_devserver,
@@ -350,6 +378,9 @@ async def test_ssh_config_with_kubeconfig_path(
         config_file = config_files[0]
 
         content = config_file.read_text()
+        sanitized_user = mock_user.replace("@", "-")
+        hostname = f"devserver-{sanitized_user}-{devserver_name}"
+        assert f"Host {hostname}" in content
         python_executable = sys.executable
         expected_proxy_command = (
             f"ProxyCommand sh -c '{python_executable} -m devserver.cli.main ssh-proxy {devserver_name} "
