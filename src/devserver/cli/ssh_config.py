@@ -156,13 +156,15 @@ def create_ssh_config_for_devserver(
 
     python_executable = Path(sys.executable)
     namespace_arg = f"--namespace {namespace}" if namespace else ""
+    # TODO: Make this a CLI option you can pass to our ssh-proxy command like `devctl ssh-proxy --kubeconfig-path <path>`
     proxy_command_env = f"KUBECONFIG={kubeconfig_path};" if kubeconfig_path else ""
 
     config_content = f"""
 Host {name}
     User dev
-    ProxyCommand sh -c "{proxy_command_env}{python_executable} -m devserver.cli.main ssh-proxy {name} {namespace_arg}"
+    ProxyCommand sh -c '{proxy_command_env}{python_executable} -m devserver.cli.main ssh-proxy {name} {namespace_arg}'
     IdentityFile {key_path}
+    IdentityAgent SSH_AUTH_SOCK
     ForwardAgent {"yes" if ssh_forward_agent else "no"}
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null

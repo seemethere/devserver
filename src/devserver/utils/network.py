@@ -38,7 +38,7 @@ def _forward_sockets(
 
 @contextlib.contextmanager
 def kubernetes_port_forward(
-    pod_name: str, namespace: str, pod_port: int
+    pod_name: str, namespace: str, pod_port: int, silent: bool = False
 ) -> Iterator[int]:
     """
     A context manager to handle port forwarding to a Kubernetes pod.
@@ -47,6 +47,7 @@ def kubernetes_port_forward(
         pod_name: The name of the pod to forward to.
         namespace: The namespace of the pod.
         pod_port: The port on the pod to forward to.
+        silent: If True, do not print debug messages to the console.
 
     Yields:
         The local port number that is being forwarded.
@@ -97,8 +98,9 @@ def kubernetes_port_forward(
         namespace,
         ports=str(pod_port),
     )
-    console = Console()
-    console.print(f"[bold red]DEBUG: PortForward call args: name={pod_name}, namespace={namespace}, ports={pod_port}[/bold red]")
+    if not silent:
+        console = Console()
+        console.print(f"[bold red]DEBUG: PortForward call args: name={pod_name}, namespace={namespace}, ports={pod_port}[/bold red]")
 
     setup_finished = threading.Event()
     forward_thread = threading.Thread(
