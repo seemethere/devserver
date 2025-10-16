@@ -290,3 +290,77 @@ async def test_ssh_direct_connection(
             name=devserver_name,
             namespace=TEST_NAMESPACE,
         )
+
+
+@pytest.mark.asyncio
+async def test_ssh_config_with_kubeconfig_path(
+    operator_running: Any,
+    k8s_clients: Dict[str, Any],
+    test_flavor: str,
+    test_ssh_key_pair: dict[str, str],
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """
+    Tests that the SSH config correctly includes the kubeconfig path when provided.
+    """
+    devserver_name = f"ssh-kube-test-{uuid.uuid4().hex[:6]}"
+    config_dir = tmp_path / "ssh_config"
+    config_dir.mkdir()
+    kubeconfig_file = tmp_path / "test.kubeconfig"
+    kubeconfig_file.write_text("apiVersion: v1")
+
+    test_config_with_path = Configuration({
+        "devctl-ssh-config-dir": str(config_dir),
+    })
+
+    def mock_subprocess_run(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr("subprocess.run", mock_subprocess_run)
+    monkeypatch.setenv("KUBECONFIG", str(kubeconfig_file))
+
+    try:
+        await asyncio.to_thread(
+            handlers.create_devserver,
+            configuration=test_config_with_path,
+            name=devserver_name,
+            flavor=test_flavor,
+            namespace=TEST_NAMESPACE,
+            ssh_public_key_file=test_ssh_key_pair["public"],
+        )
+
+        await wait_for_devserver_to_exist(
+            k8s_clients["custom_objects_api"], devserver_name, TEST_NAMESPACE
+        )
+
+        await asyncio.to_thread(
+            handlers.ssh_devserver,
+            configuration=test_config_with_path,
+            name=devserver_name,
+            namespace=TEST_NAMESPACE,
+            ssh_private_key_file=test_ssh_key_pair["private"],
+            remote_command=("whoami",),
+            assume_yes=True,
+            no_proxy=False,
+        )
+
+        config_files = list(config_dir.glob(f"*{devserver_name}.sshconfig"))
+        assert len(config_files) == 1
+        config_file = config_files[0]
+
+        content = config_file.read_text()
+        python_executable = sys.executable
+        expected_proxy_command = (
+            f"ProxyCommand sh -c '{python_executable} -m devserver.cli.main ssh-proxy {devserver_name} "
+            f"--namespace {TEST_NAMESPACE} --kubeconfig-path {kubeconfig_file}'"
+        )
+        assert expected_proxy_command in content
+
+    finally:
+        await asyncio.to_thread(
+            handlers.delete_devserver,
+            configuration=test_config_with_path,
+            name=devserver_name,
+            namespace=TEST_NAMESPACE,
+        )

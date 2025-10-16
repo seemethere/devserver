@@ -13,9 +13,10 @@ from ..utils import get_current_context
 def ssh_proxy_devserver(
     name: str,
     namespace: Optional[str] = None,
+    kubeconfig_path: Optional[str] = None,
 ) -> None:
     """Proxy SSH connection to a DevServer."""
-    config.load_kube_config()
+    config.load_kube_config(config_file=kubeconfig_path)
     custom_objects_api = client.CustomObjectsApi()
 
     _, target_namespace = get_current_context()
