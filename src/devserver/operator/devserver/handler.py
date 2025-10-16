@@ -25,7 +25,7 @@ async def create_devserver(
 ) -> None:
     """
     Handle the creation of a new DevServer resource.
-    
+
     This handler orchestrates:
     1. TTL validation and normalization
     2. Flavor fetching
@@ -81,13 +81,14 @@ async def delete_devserver(
 ) -> None:
     """
     Handle the deletion of a DevServer resource.
-    
+
     The StatefulSet and Services are owned by the DevServer via owner
     references and will be garbage collected automatically.
-    
+
     Note: PVCs from StatefulSets are NOT automatically deleted to prevent
     data loss. Administrators may need to clean them up manually.
     """
+    #TODO: Make a snapshot of the container
     logger.info(f"DevServer '{name}' in namespace '{namespace}' is being deleted.")
     logger.info("Associated StatefulSet and Services will be garbage collected.")
     logger.warning(

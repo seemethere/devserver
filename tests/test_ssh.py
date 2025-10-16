@@ -187,10 +187,11 @@ async def test_ssh_config_file_management(
         python_executable = sys.executable
         namespace_arg = f"--namespace {TEST_NAMESPACE}"
         expected_proxy_command = (
-            f'ProxyCommand sh -c "{python_executable} -m devserver.cli.main ssh-proxy {devserver_name} {namespace_arg}"'
+            f"ProxyCommand sh -c '{python_executable} -m devserver.cli.main ssh-proxy {devserver_name} {namespace_arg}'"
         )
         assert f"Host {devserver_name}" in content
         assert expected_proxy_command in content
+        assert "IdentityAgent SSH_AUTH_SOCK" in content
 
     finally:
         # 3. Test cleanup on deletion
