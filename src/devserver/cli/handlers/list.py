@@ -1,7 +1,7 @@
+import yaml
 from kubernetes import client
 from rich.console import Console
 from rich.table import Table
-from rich.pretty import Pretty
 from typing import Optional
 
 from ..utils import get_current_context
@@ -57,23 +57,29 @@ def list_devservers(namespace: Optional[str] = None) -> None:
 
 
 def list_flavors() -> None:
-    """Lists all DevServerFlavors."""
+    """Lists all DevServerFlavors from the cluster."""
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("NAME", width=20)
+    table.add_column("RESOURCES", width=80)
+
     try:
         flavors = custom_objects_api.list_cluster_custom_object(
             group=CRD_GROUP,
             version=CRD_VERSION,
             plural=CRD_PLURAL_DEVSERVERFLAVOR,
         )
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("NAME", style="dim", width=20)
-        table.add_column("RESOURCES", width=80)
+
+        if not flavors["items"]:
+            console.print("No DevServerFlavors found in the cluster.")
+            console.print("To add flavors, create a DevServerFlavor YAML file and apply it with `kubectl apply -f <your-flavor-file>.yaml` or ask your administrator to do so.")
+            return
 
         for flavor in flavors["items"]:
             name = flavor["metadata"]["name"]
             resources = flavor["spec"]["resources"]
-            table.add_row(name, Pretty(resources))
+            table.add_row(f"[cyan]{name}[/cyan]", yaml.dump(resources))
 
         console.print(table)
     except client.ApiException as e:
