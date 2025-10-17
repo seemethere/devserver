@@ -1,0 +1,35 @@
+name: Run Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v5
+        # Just use the latest version of Python from the pyproject.toml file
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v1
+        with:
+            enable-cache: true
+
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1.12.0
+        with:
+          cluster_name: devserver-ci
+
+      - name: Run tests
+        run: make test
