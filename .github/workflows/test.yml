@@ -11,18 +11,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Set up Python"
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         # Just use the latest version of Python from the pyproject.toml file
         with:
           python-version-file: "pyproject.toml"
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v1
-        with:
-            enable-cache: true
+        uses: astral-sh/setup-uv@v6
 
       - name: Create k8s Kind Cluster
         uses: helm/kind-action@v1.12.0
