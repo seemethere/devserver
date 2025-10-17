@@ -1,5 +1,5 @@
 import yaml
-from kubernetes import client, config
+from kubernetes import client
 from rich.console import Console
 from typing import Optional
 
@@ -8,7 +8,6 @@ from ..utils import get_current_context
 
 def describe_devserver(name: str, namespace: Optional[str] = None) -> None:
     """Gets and displays the details of a DevServer."""
-    config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
 

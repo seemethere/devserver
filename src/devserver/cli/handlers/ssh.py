@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 import os
 
-from kubernetes import client, config
+from kubernetes import client
 from rich.console import Console
 
 from ..ssh_config import (
@@ -33,7 +33,6 @@ def ssh_devserver(
     no_proxy: bool = False,
 ) -> None:
     """SSH into a DevServer."""
-    config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
 

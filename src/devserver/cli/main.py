@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Optional
 import os
 
+from kubernetes import config as kube_config
+
 from . import handlers
 from .ssh_config import ensure_ssh_config_include, set_ssh_config_permission
 from .config import (
@@ -48,6 +50,7 @@ def main(ctx, config_path, assume_yes) -> None:
 
     ctx.obj["CONFIG"] = load_config(effective_config_path)
     ctx.obj["ASSUME_YES"] = assume_yes
+    kube_config.load_kube_config()
 
 
 @main.command(help="Create a new DevServer.")
