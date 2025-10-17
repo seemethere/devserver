@@ -3,6 +3,11 @@ from rich.console import Console
 from rich.table import Table
 import sys
 import yaml
+from ...crds.const import (
+    CRD_GROUP,
+    CRD_VERSION,
+    CRD_PLURAL_DEVSERVERUSER,
+)
 
 
 class KubeConfig:
@@ -22,7 +27,7 @@ def create_user(username: str) -> None:
     console = Console()
 
     manifest = {
-        "apiVersion": "devserver.io/v1",
+        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
         "kind": "DevServerUser",
         "metadata": {"name": username},
         "spec": {"username": username},
@@ -30,9 +35,9 @@ def create_user(username: str) -> None:
 
     try:
         custom_objects_api.create_cluster_custom_object(
-            group="devserver.io",
-            version="v1",
-            plural="devserverusers",
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            plural=CRD_PLURAL_DEVSERVERUSER,
             body=manifest,
         )
         console.print(f"✅ User '{username}' created successfully.")
@@ -50,9 +55,9 @@ def delete_user(username: str) -> None:
 
     try:
         custom_objects_api.delete_cluster_custom_object(
-            group="devserver.io",
-            version="v1",
-            plural="devserverusers",
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            plural=CRD_PLURAL_DEVSERVERUSER,
             name=username,
         )
         console.print(f"✅ User '{username}' deleted successfully.")
@@ -70,9 +75,9 @@ def list_users() -> None:
 
     try:
         users = custom_objects_api.list_cluster_custom_object(
-            group="devserver.io",
-            version="v1",
-            plural="devserverusers",
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            plural=CRD_PLURAL_DEVSERVERUSER,
         )
 
         table = Table(title="DevServer Users")
@@ -108,9 +113,9 @@ def generate_user_kubeconfig(username: str) -> None:
     try:
         # 1. Get User's Namespace
         user_obj = custom_objects_api.get_cluster_custom_object(
-            group="devserver.io",
-            version="v1",
-            plural="devserverusers",
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            plural=CRD_PLURAL_DEVSERVERUSER,
             name=username,
         )
         namespace = user_obj.get("status", {}).get("namespace")

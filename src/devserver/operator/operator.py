@@ -23,6 +23,7 @@ from .devserver.lifecycle import cleanup_expired_devservers
 # ruff: noqa: F401
 from . import devserver
 from . import devserveruser
+from ..crds.const import CRD_GROUP
 
 
 # Kubernetes client configuration is set up lazily per handler so that unit
@@ -30,8 +31,6 @@ from . import devserveruser
 # load at import time.
 
 # Constants
-CRD_GROUP = "devserver.io"
-CRD_VERSION = "v1"
 FINALIZER = f"finalizer.{CRD_GROUP}"
 
 # Operator settings

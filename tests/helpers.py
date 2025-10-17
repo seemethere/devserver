@@ -3,15 +3,15 @@ import time
 import pytest
 from kubernetes import client
 from typing import Any, Callable, Coroutine, TypeVar
+from devserver.crds.const import (
+    CRD_GROUP,
+    CRD_VERSION,
+    CRD_PLURAL_DEVSERVER,
+    CRD_PLURAL_DEVSERVERUSER,
+)
 
 # Constants for polling
 POLL_INTERVAL = 0.5
-
-# Constants from the main test file
-CRD_GROUP = "devserver.io"
-CRD_VERSION = "v1"
-CRD_PLURAL_DEVSERVER = "devservers"
-CRD_PLURAL_DEVSERVERUSER = "devserverusers"
 
 
 T = TypeVar("T")

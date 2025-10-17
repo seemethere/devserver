@@ -8,6 +8,7 @@ from rich.status import Status
 
 from ..config import Configuration
 from ..utils import get_current_context
+from ...crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
 
 
 def _wait_for_crd_running(name: str, namespace: str, status: Status) -> None:
@@ -16,10 +17,10 @@ def _wait_for_crd_running(name: str, namespace: str, status: Status) -> None:
     w = watch.Watch()
     for event in w.stream(
         custom_objects_api.list_namespaced_custom_object,
-        group="devserver.io",
-        version="v1",
+        group=CRD_GROUP,
+        version=CRD_VERSION,
         namespace=namespace,
-        plural="devservers",
+        plural=CRD_PLURAL_DEVSERVER,
         field_selector=f"metadata.name={name}",
     ):
         devserver = event["object"]
@@ -123,7 +124,7 @@ def create_devserver(
 
     # Construct the DevServer manifest
     manifest = {
-        "apiVersion": "devserver.io/v1",
+        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
         "kind": "DevServer",
         "metadata": {"name": name, "namespace": target_namespace},
         "spec": {
@@ -141,10 +142,10 @@ def create_devserver(
 
     try:
         custom_objects_api.create_namespaced_custom_object(
-            group="devserver.io",
-            version="v1",
+            group=CRD_GROUP,
+            version=CRD_VERSION,
             namespace=target_namespace,
-            plural="devservers",
+            plural=CRD_PLURAL_DEVSERVER,
             body=manifest,
         )
         console.print(f"DevServer '{name}' created successfully in namespace '{target_namespace}'.")

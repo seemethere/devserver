@@ -15,6 +15,13 @@ import subprocess
 from typing import Any
 from devserver.cli.config import Configuration
 from pathlib import Path
+from devserver.crds.const import (
+    CRD_GROUP,
+    CRD_PLURAL_DEVSERVER,
+    CRD_PLURAL_DEVSERVERFLAVOR,
+    CRD_PLURAL_DEVSERVERUSER,
+    CRD_VERSION,
+)
 
 # Generate a unique test namespace for each test session
 # This prevents conflicts between concurrent test runs
@@ -128,9 +135,9 @@ def apply_crds():
     # Check for any existing CRDs and handle terminating state
     api_extensions_v1 = client.ApiextensionsV1Api()
     crd_names = [
-        "devservers.devserver.io",
-        "devserverflavors.devserver.io",
-        "devserverusers.devserver.io",
+        f"{CRD_PLURAL_DEVSERVER}.{CRD_GROUP}",
+        f"{CRD_PLURAL_DEVSERVERFLAVOR}.{CRD_GROUP}",
+        f"{CRD_PLURAL_DEVSERVERUSER}.{CRD_GROUP}",
     ]
 
     for crd_name in crd_names:
@@ -219,7 +226,7 @@ def apply_crds():
     if os.getenv("CLEANUP_CRDS", "false").lower() == "true":
         print("🧹 Deleting CRDs (CLEANUP_CRDS=true)...")
         api_extensions_v1 = client.ApiextensionsV1Api()
-        for crd_name in ["devservers.devserver.io", "devserverflavors.devserver.io"]:
+        for crd_name in [f"{CRD_PLURAL_DEVSERVER}.{CRD_GROUP}", f"{CRD_PLURAL_DEVSERVERFLAVOR}.{CRD_GROUP}"]:
             try:
                 api_extensions_v1.delete_custom_resource_definition(name=crd_name)
                 print(f"✅ Deleted CRD: {crd_name}")
@@ -298,9 +305,6 @@ def operator_running(operator_runner):
 
 
 # --- Constants for Tests ---
-CRD_GROUP = "devserver.io"
-CRD_VERSION = "v1"
-CRD_PLURAL_FLAVOR = "devserverflavors"
 
 
 @pytest.fixture(scope="session")
@@ -325,7 +329,7 @@ def test_flavor(request):
     custom_objects_api.create_cluster_custom_object(
         group=CRD_GROUP,
         version=CRD_VERSION,
-        plural=CRD_PLURAL_FLAVOR,
+        plural=CRD_PLURAL_DEVSERVERFLAVOR,
         body=flavor_manifest,
     )
 
@@ -336,7 +340,7 @@ def test_flavor(request):
             custom_objects_api.delete_cluster_custom_object(
                 group=CRD_GROUP,
                 version=CRD_VERSION,
-                plural=CRD_PLURAL_FLAVOR,
+                plural=CRD_PLURAL_DEVSERVERFLAVOR,
                 name=test_flavor_name,
             )
         except client.ApiException as e:
@@ -363,7 +367,7 @@ def devserver_user(k8s_clients: dict[str, Any]) -> str:
     custom_objects_api.create_cluster_custom_object(
         group=CRD_GROUP,
         version=CRD_VERSION,
-        plural="devserverusers",
+        plural=CRD_PLURAL_DEVSERVERUSER,
         body=manifest,
     )
 
@@ -373,7 +377,7 @@ def devserver_user(k8s_clients: dict[str, Any]) -> str:
         custom_objects_api.delete_cluster_custom_object(
             group=CRD_GROUP,
             version=CRD_VERSION,
-            plural="devserverusers",
+            plural=CRD_PLURAL_DEVSERVERUSER,
             name=username,
         )
     except client.ApiException as exc:

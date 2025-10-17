@@ -8,11 +8,7 @@ from datetime import datetime, timezone
 from kubernetes import client
 
 from devserver.utils.time import parse_duration
-
-
-# Constants
-CRD_GROUP = "devserver.io"
-CRD_VERSION = "v1"
+from ...crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
 
 
 async def check_and_expire_devservers(
@@ -29,7 +25,7 @@ async def check_and_expire_devservers(
         custom_objects_api.list_cluster_custom_object,
         group=CRD_GROUP,
         version=CRD_VERSION,
-        plural="devservers",
+        plural=CRD_PLURAL_DEVSERVER,
     )
 
     expired_count = 0
@@ -153,7 +149,7 @@ async def _delete_devserver(
             custom_objects_api.delete_namespaced_custom_object,
             group=CRD_GROUP,
             version=CRD_VERSION,
-            plural="devservers",
+            plural=CRD_PLURAL_DEVSERVER,
             name=name,
             namespace=namespace,
             body=client.V1DeleteOptions(),

@@ -14,6 +14,7 @@ from ..ssh_config import (
 from ...utils.network import PortForwardError, kubernetes_port_forward
 from ..config import Configuration
 from ..utils import get_current_context
+from ...crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
 
 
 def warn_if_agent_forwarding_is_disabled(configuration: Configuration):
@@ -44,10 +45,10 @@ def ssh_devserver(
     try:
         # Check if DevServer exists
         custom_objects_api.get_namespaced_custom_object(
-            group="devserver.io",
-            version="v1",
+            group=CRD_GROUP,
+            version=CRD_VERSION,
             namespace=target_namespace,
-            plural="devservers",
+            plural=CRD_PLURAL_DEVSERVER,
             name=name,
         )
 

@@ -14,11 +14,9 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime, timedelta, timezone
 import logging
 import asyncio
+from devserver.crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
 
 # Constants from the main test file
-CRD_GROUP = "devserver.io"
-CRD_VERSION = "v1"
-CRD_PLURAL_DEVSERVER = "devservers"
 NAMESPACE = TEST_NAMESPACE
 TEST_DEVSERVER_NAME = "test-devserver"
 
@@ -285,9 +283,9 @@ async def test_cleanup_expired_devservers_unit():
 
     # Assert that delete was called ONLY for the expired server
     custom_objects_api.delete_namespaced_custom_object.assert_called_once_with(
-        group=lifecycle.CRD_GROUP,
-        version=lifecycle.CRD_VERSION,
-        plural="devservers",
+        group=CRD_GROUP,
+        version=CRD_VERSION,
+        plural=CRD_PLURAL_DEVSERVER,
         name="expired-server",
         namespace="default",
         body=client.V1DeleteOptions(),

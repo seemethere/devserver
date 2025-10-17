@@ -1,5 +1,7 @@
 import yaml
 import pathlib
+from devserver.crds.const import CRD_GROUP, CRD_PLURAL_DEVSERVER, CRD_PLURAL_DEVSERVERFLAVOR
+
 
 # Path to the CRD directory
 CRD_DIR = pathlib.Path(__file__).parent.parent / "crds"
@@ -17,7 +19,7 @@ def test_devserver_crd_loads():
 
     assert crd is not None, "Failed to parse DevServer CRD YAML."
     assert crd["kind"] == "CustomResourceDefinition"
-    assert crd["metadata"]["name"] == "devservers.devserver.io"
+    assert crd["metadata"]["name"] == f"{CRD_PLURAL_DEVSERVER}.{CRD_GROUP}"
     assert "DevServer" in crd["spec"]["names"]["kind"]
 
 
@@ -33,6 +35,6 @@ def test_devserverflavor_crd_loads():
 
     assert crd is not None, "Failed to parse DevServerFlavor CRD YAML."
     assert crd["kind"] == "CustomResourceDefinition"
-    assert crd["metadata"]["name"] == "devserverflavors.devserver.io"
+    assert crd["metadata"]["name"] == f"{CRD_PLURAL_DEVSERVERFLAVOR}.{CRD_GROUP}"
     assert "DevServerFlavor" in crd["spec"]["names"]["kind"]
     assert "Cluster" in crd["spec"]["scope"]
