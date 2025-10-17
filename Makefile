@@ -12,7 +12,8 @@ PYTEST = uv run pytest
 .PHONY: sync
 sync:
 	@echo "🔄 Syncing files..."
-	uv sync
+	# Using --dev since I'm assuming that's what you want from running the Makefile
+	uv sync --dev
 
 .PHONY: test
 test: lint sync
