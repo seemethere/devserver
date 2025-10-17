@@ -5,6 +5,12 @@ from rich.pretty import Pretty
 from typing import Optional
 
 from ..utils import get_current_context
+from ...crds.const import (
+    CRD_GROUP,
+    CRD_VERSION,
+    CRD_PLURAL_DEVSERVER,
+    CRD_PLURAL_DEVSERVERFLAVOR,
+)
 
 
 def list_devservers(namespace: Optional[str] = None) -> None:
@@ -18,10 +24,10 @@ def list_devservers(namespace: Optional[str] = None) -> None:
 
     try:
         devservers = custom_objects_api.list_namespaced_custom_object(
-            group="devserver.io",
-            version="v1",
+            group=CRD_GROUP,
+            version=CRD_VERSION,
             namespace=target_namespace,
-            plural="devservers",
+            plural=CRD_PLURAL_DEVSERVER,
         )
 
         table = Table(title=f"DevServers in namespace [bold]{target_namespace}[/bold]")
@@ -56,9 +62,9 @@ def list_flavors() -> None:
     console = Console()
     try:
         flavors = custom_objects_api.list_cluster_custom_object(
-            group="devserver.io",
-            version="v1",
-            plural="devserverflavors",
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            plural=CRD_PLURAL_DEVSERVERFLAVOR,
         )
         table = Table(show_header=True, header_style="bold magenta")
         table.add_column("NAME", style="dim", width=20)

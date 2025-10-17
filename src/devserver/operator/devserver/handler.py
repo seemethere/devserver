@@ -8,12 +8,15 @@ from kubernetes import client
 from .validation import validate_and_normalize_ttl
 from .host_keys import ensure_host_keys_secret
 from .reconciler import reconcile_devserver
+from ...crds.const import (
+    CRD_GROUP,
+    CRD_VERSION,
+    CRD_PLURAL_DEVSERVER,
+    CRD_PLURAL_DEVSERVERFLAVOR,
+)
 
-CRD_GROUP = "devserver.io"
-CRD_VERSION = "v1"
 
-
-@kopf.on.create(CRD_GROUP, CRD_VERSION, "devservers")
+@kopf.on.create(CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER)
 async def create_devserver(
     spec: Dict[str, Any],
     name: str,
@@ -46,7 +49,7 @@ async def create_devserver(
             custom_objects_api.get_cluster_custom_object,
             group=CRD_GROUP,
             version=CRD_VERSION,
-            plural="devserverflavors",
+            plural=CRD_PLURAL_DEVSERVERFLAVOR,
             name=spec["flavor"],
         )
     except client.ApiException as e:
@@ -75,7 +78,7 @@ async def create_devserver(
     }
 
 
-@kopf.on.delete(CRD_GROUP, CRD_VERSION, "devservers")
+@kopf.on.delete(CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER)
 async def delete_devserver(
     name: str, namespace: str, logger: logging.Logger, **kwargs: Any
 ) -> None:

@@ -8,11 +8,9 @@ from tests.helpers import (
     wait_for_statefulset_to_be_deleted,
     cleanup_devserver,
 )
+from devserver.crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
 
 # Constants from the main test file
-CRD_GROUP = "devserver.io"
-CRD_VERSION = "v1"
-CRD_PLURAL_DEVSERVER = "devservers"
 NAMESPACE = TEST_NAMESPACE
 
 

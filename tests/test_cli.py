@@ -21,12 +21,16 @@ from tests.helpers import (
     wait_for_devserveruser_status,
 )
 from devserver.cli.config import Configuration
+from devserver.crds.const import (
+    CRD_GROUP,
+    CRD_VERSION,
+    CRD_PLURAL_DEVSERVER,
+    CRD_PLURAL_DEVSERVERFLAVOR,
+    CRD_PLURAL_DEVSERVERUSER,
+)
 
 
 # Define constants and clients needed for CLI tests
-CRD_GROUP: str = "devserver.io"
-CRD_VERSION: str = "v1"
-CRD_PLURAL_DEVSERVER: str = "devservers"
 NAMESPACE: str = TEST_NAMESPACE
 TEST_DEVSERVER_NAME: str = "test-cli-devserver"
 
@@ -414,9 +418,9 @@ class TestUserCliIntegration:
 
             user_obj = await asyncio.to_thread(
                 custom_objects_api.get_cluster_custom_object,
-                group="devserver.io",
-                version="v1",
-                plural="devserverusers",
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                plural=CRD_PLURAL_DEVSERVERUSER,
                 name=username,
             )
             assert user_obj["spec"]["username"] == username
@@ -442,9 +446,9 @@ class TestUserCliIntegration:
             # Verify resource was deleted by waiting for it to disappear
             await wait_for_cluster_custom_object_to_be_deleted(
                 custom_objects_api,
-                group="devserver.io",
-                version="v1",
-                plural="devserverusers",
+                group=CRD_GROUP,
+                version=CRD_VERSION,
+                plural=CRD_PLURAL_DEVSERVERUSER,
                 name=username,
             )
 
@@ -539,7 +543,7 @@ async def test_create_and_list_with_operator(
         custom_objects_api.create_cluster_custom_object,
         group=CRD_GROUP,
         version=CRD_VERSION,
-        plural="devserverflavors",
+        plural=CRD_PLURAL_DEVSERVERFLAVOR,
         body=flavor_manifest,
     )
 
@@ -590,7 +594,7 @@ async def test_create_and_list_with_operator(
                 custom_objects_api.delete_cluster_custom_object,
                 group=CRD_GROUP,
                 version=CRD_VERSION,
-                plural="devserverflavors",
+                plural=CRD_PLURAL_DEVSERVERFLAVOR,
                 name="cli-test-flavor",
             )
         except client.ApiException as e:

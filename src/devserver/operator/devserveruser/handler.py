@@ -4,13 +4,15 @@ from typing import Any, Dict
 import kopf
 
 from .reconciler import DevServerUserReconciler
+from ...crds.const import (
+    CRD_GROUP,
+    CRD_VERSION,
+    CRD_PLURAL_DEVSERVERUSER,
+)
 
-CRD_GROUP = "devserver.io"
-CRD_VERSION = "v1"
 
-
-@kopf.on.create(CRD_GROUP, CRD_VERSION, "devserverusers")
-@kopf.on.update(CRD_GROUP, CRD_VERSION, "devserverusers")
+@kopf.on.create(CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVERUSER)
+@kopf.on.update(CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVERUSER)
 async def reconcile_devserver_user(
     spec: Dict[str, Any],
     meta: Dict[str, Any],
@@ -32,7 +34,7 @@ async def reconcile_devserver_user(
     )
 
 
-@kopf.on.delete(CRD_GROUP, CRD_VERSION, "devserverusers")
+@kopf.on.delete(CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVERUSER)
 async def delete_devserver_user(
     spec: Dict[str, Any],
     meta: Dict[str, Any],

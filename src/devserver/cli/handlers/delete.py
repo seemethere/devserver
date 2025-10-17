@@ -5,6 +5,7 @@ from typing import Optional
 from ..ssh_config import remove_ssh_config_for_devserver
 from ..config import Configuration
 from ..utils import get_current_context
+from ...crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
 
 
 def delete_devserver(
@@ -21,18 +22,18 @@ def delete_devserver(
     try:
         # Check if DevServer exists to provide a better error message
         custom_objects_api.get_namespaced_custom_object(
-            group="devserver.io",
-            version="v1",
+            group=CRD_GROUP,
+            version=CRD_VERSION,
             namespace=target_namespace,
-            plural="devservers",
+            plural=CRD_PLURAL_DEVSERVER,
             name=name,
         )
 
         custom_objects_api.delete_namespaced_custom_object(
-            group="devserver.io",
-            version="v1",
+            group=CRD_GROUP,
+            version=CRD_VERSION,
             namespace=target_namespace,
-            plural="devservers",
+            plural=CRD_PLURAL_DEVSERVER,
             name=name,
         )
 

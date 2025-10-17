@@ -3,11 +3,9 @@ import pytest
 from kubernetes import client
 from tests.conftest import TEST_NAMESPACE
 from typing import Any, Dict
+from devserver.crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
 
 # Constants from the main test file
-CRD_GROUP: str = "devserver.io"
-CRD_VERSION: str = "v1"
-CRD_PLURAL_DEVSERVER: str = "devservers"
 NAMESPACE: str = TEST_NAMESPACE
 
 

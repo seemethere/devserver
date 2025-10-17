@@ -11,6 +11,7 @@ from kubernetes import client
 from kubernetes.client import ApiException
 
 from devserver.utils.users import compute_user_namespace
+from ...crds.const import CRD_GROUP
 
 from .rbac import build_default_role_body, build_default_rolebinding_body
 
@@ -39,7 +40,7 @@ class DevServerUserReconciler:
 
     async def cleanup(self, logger: logging.Logger) -> None:
         namespace_name = compute_user_namespace(self.username)
-        label_selector = f"devserver.io/user={self.username}"
+        label_selector = f"{CRD_GROUP}/user={self.username}"
         await self._delete_service_account(namespace_name, logger)
         await self._delete_role(namespace_name, logger)
         await self._delete_rolebinding(namespace_name, logger)
@@ -55,8 +56,8 @@ class DevServerUserReconciler:
             metadata=client.V1ObjectMeta(
                 name=namespace_name,
                 labels={
-                    "devserver.io/user": self.username,
-                    "devserver.io/managed": "true",
+                    f"{CRD_GROUP}/user": self.username,
+                    f"{CRD_GROUP}/managed": "true",
                 },
             )
         )

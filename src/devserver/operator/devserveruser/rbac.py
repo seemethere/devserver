@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 from typing import Dict
+from ...crds.const import CRD_GROUP, CRD_PLURAL_DEVSERVER
 
 
 DEFAULT_ROLE_RULES = [
     # Allow full management of DevServer resources
     {
-        "apiGroups": ["devserver.io"],
-        "resources": ["devservers"],
+        "apiGroups": [CRD_GROUP],
+        "resources": [CRD_PLURAL_DEVSERVER],
         "verbs": ["get", "list", "watch", "create", "delete"],
     },
     # Allow viewing and debugging of core workload resources
