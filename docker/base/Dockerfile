@@ -31,6 +31,7 @@ RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     cmake \
     curl \
     git \
+    file \
     lsb-release \
     ninja-build \
     openssh-client \

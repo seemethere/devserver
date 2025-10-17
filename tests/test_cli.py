@@ -296,7 +296,7 @@ class TestCliParser:
         
         # Mock the handler to avoid actual Kubernetes interaction
         with patch("devserver.cli.handlers.delete_devserver") as mock_delete:
-            result = runner.invoke(cli_main.main, ["delete", "my-server"])
+            result = runner.invoke(cli_main.main, ["delete", "--name", "my-server"])
             
             # Check that the command succeeded
             assert result.exit_code == 0
@@ -313,7 +313,7 @@ class TestCliParser:
 
         # Mock the handler to avoid actual Kubernetes interaction
         with patch("devserver.cli.handlers.describe_devserver") as mock_describe:
-            result = runner.invoke(cli_main.main, ["describe", "my-server"])
+            result = runner.invoke(cli_main.main, ["describe", "--name", "my-server"])
 
             # Check that the command succeeded
             assert result.exit_code == 0
@@ -335,6 +335,67 @@ class TestCliParser:
         
         # Click should report the missing required option in the output
         assert "flavor" in result.output.lower() or "required" in result.output.lower()
+
+    def test_ssh_command_parsing(self, test_config: Configuration) -> None:
+        """Tests that 'ssh' command arguments are parsed correctly."""
+        runner = CliRunner()
+
+        # Mock the handler to avoid actual Kubernetes interaction
+        with patch("devserver.cli.handlers.ssh_devserver") as mock_ssh:
+            result = runner.invoke(
+                cli_main.main,
+                [
+                    "ssh",
+                    "--name",
+                    "my-server",
+                    "-i",
+                    "my-key",
+                    "--no-proxy",
+                    "remote",
+                    "command",
+                ],
+            )
+
+            # Check that the command succeeded
+            assert result.exit_code == 0
+
+            # Verify the handler was called with correct arguments
+            mock_ssh.assert_called_once()
+            call_kwargs = mock_ssh.call_args.kwargs
+            assert isinstance(call_kwargs["configuration"], Configuration)
+            assert call_kwargs["name"] == "my-server"
+            assert call_kwargs["ssh_private_key_file"] == "my-key"
+            assert call_kwargs["no_proxy"] is True
+            assert call_kwargs["remote_command"] == ("remote", "command")
+
+    def test_ssh_proxy_command_parsing(self) -> None:
+        """Tests that 'ssh-proxy' command arguments are parsed correctly."""
+        runner = CliRunner()
+
+        # Mock the handler to avoid actual Kubernetes interaction
+        with patch("devserver.cli.handlers.ssh_proxy_devserver") as mock_ssh_proxy:
+            result = runner.invoke(
+                cli_main.main,
+                [
+                    "ssh-proxy",
+                    "--name",
+                    "my-server",
+                    "--namespace",
+                    "my-namespace",
+                    "--kubeconfig-path",
+                    "my-kubeconfig",
+                ],
+            )
+
+            # Check that the command succeeded
+            assert result.exit_code == 0
+
+            # Verify the handler was called with correct arguments
+            mock_ssh_proxy.assert_called_once()
+            call_kwargs = mock_ssh_proxy.call_args.kwargs
+            assert call_kwargs["name"] == "my-server"
+            assert call_kwargs["namespace"] == "my-namespace"
+            assert call_kwargs["kubeconfig_path"] == "my-kubeconfig"
 
 
 class TestUserCliIntegration:

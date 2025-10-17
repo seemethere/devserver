@@ -90,7 +90,7 @@ def create(
 
 
 @main.command(help="Delete a DevServer.")
-@click.argument("name", type=str)
+@click.option("--name", type=str, default="dev", help="The name of the DevServer.")
 @click.pass_context
 def delete(ctx, name: str) -> None:
     """Delete a DevServer."""
@@ -98,7 +98,7 @@ def delete(ctx, name: str) -> None:
 
 
 @main.command(help="Describe a DevServer.")
-@click.argument("name", type=str)
+@click.option("--name", type=str, default="dev", help="The name of the DevServer.")
 def describe(name: str) -> None:
     """Describe a DevServer."""
     handlers.describe_devserver(name=name)
@@ -117,7 +117,7 @@ def flavors() -> None:
 
 
 @main.command(help="SSH into a DevServer.")
-@click.argument("name", type=str)
+@click.option("--name", type=str, default="dev", help="The name of the DevServer.")
 @click.option(
     "-i",
     "--identity-file",
@@ -162,7 +162,7 @@ def ssh(
 
 
 @main.command(name="ssh-proxy", help="Run in proxy mode for SSH ProxyCommand.", hidden=True)
-@click.argument("name", type=str)
+@click.option("--name", type=str, default="dev", help="The name of the DevServer.")
 @click.option(
     "-n",
     "--namespace",
