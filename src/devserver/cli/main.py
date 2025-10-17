@@ -110,6 +110,12 @@ def list_command() -> None:
     handlers.list_devservers()
 
 
+@main.command(name="flavors", help="List all DevServer flavors.")
+def flavors() -> None:
+    """List all DevServer flavors."""
+    handlers.list_flavors()
+
+
 @main.command(help="SSH into a DevServer.")
 @click.option("--name", type=str, default="dev", help="The name of the DevServer.")
 @click.option(
@@ -236,16 +242,20 @@ def ssh_include(ctx, action: str):
         if ensure_ssh_config_include(
             config.ssh_config_dir, assume_yes=assume_yes
         ):
-            console.print("[green]✅ Enabled SSH config Include directive.[/green]")
+            console.print(
+                "[green]✅ Enabled SSH config Include directive.[/green]")
             console.print(
                 f"[cyan]Added 'Include {config.ssh_config_dir}/*.sshconfig' to ~/.ssh/config[/cyan]"
             )
         else:
-            console.print("[yellow]SSH config Include was not enabled.[/yellow]")
+            console.print(
+                "[yellow]SSH config Include was not enabled.[/yellow]")
     elif action.lower() == "disable":
         set_ssh_config_permission(config.ssh_config_dir, False)
-        console.print("[yellow]✅ Disabled automatic SSH config Include.[/yellow]")
-        console.print("[dim]Note: Existing Include directive in ~/.ssh/config not removed.[/dim]")
+        console.print(
+            "[yellow]✅ Disabled automatic SSH config Include.[/yellow]")
+        console.print(
+            "[dim]Note: Existing Include directive in ~/.ssh/config not removed.[/dim]")
         console.print(
             "[dim]You can manually remove the 'Include ~/.config/devserver/*.sshconfig' line if desired.[/dim]"
         )
