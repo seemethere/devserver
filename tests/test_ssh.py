@@ -206,7 +206,7 @@ async def test_ssh_config_file_management(
         python_executable = sys.executable
         namespace_arg = f"--namespace {TEST_NAMESPACE}"
         expected_proxy_command = (
-            f"ProxyCommand sh -c '{python_executable} -m devserver.cli.main ssh-proxy {devserver_name} {namespace_arg}'"
+            f"ProxyCommand sh -c '{python_executable} -m devserver.cli.main ssh-proxy --name {devserver_name} {namespace_arg}'"
         )
         assert f"Host {hostname}" in content
         assert expected_proxy_command in content
@@ -383,7 +383,7 @@ async def test_ssh_config_with_kubeconfig_path(
         assert f"Host {hostname}" in content
         python_executable = sys.executable
         expected_proxy_command = (
-            f"ProxyCommand sh -c '{python_executable} -m devserver.cli.main ssh-proxy {devserver_name} "
+            f"ProxyCommand sh -c '{python_executable} -m devserver.cli.main ssh-proxy --name {devserver_name} "
             f"--namespace {TEST_NAMESPACE} --kubeconfig-path {kubeconfig_file}'"
         )
         assert expected_proxy_command in content
