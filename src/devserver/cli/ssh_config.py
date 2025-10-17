@@ -161,6 +161,7 @@ def create_ssh_config_for_devserver(
         "-m",
         "devserver.cli.main",
         "ssh-proxy",
+        "--name",
         name,
     ]
     if namespace:
