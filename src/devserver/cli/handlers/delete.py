@@ -1,4 +1,4 @@
-from kubernetes import client, config
+from kubernetes import client
 from rich.console import Console
 from typing import Optional
 
@@ -11,7 +11,6 @@ def delete_devserver(
     configuration: Configuration, name: str, namespace: Optional[str] = None
 ) -> None:
     """Delete a DevServer."""
-    config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
 

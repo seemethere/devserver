@@ -1,5 +1,5 @@
 import yaml
-from kubernetes import client, config
+from kubernetes import client
 from rich.console import Console
 from rich.table import Table
 from typing import Optional
@@ -9,7 +9,6 @@ from ..utils import get_current_context
 
 def list_devservers(namespace: Optional[str] = None) -> None:
     """Lists all DevServers in a given namespace."""
-    config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
 
@@ -53,7 +52,6 @@ def list_devservers(namespace: Optional[str] = None) -> None:
 
 def list_flavors() -> None:
     """Lists all DevServerFlavors from the cluster."""
-    config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
     table = Table(show_header=True, header_style="bold magenta")

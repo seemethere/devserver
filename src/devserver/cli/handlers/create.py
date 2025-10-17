@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from kubernetes import client, config, watch
+from kubernetes import client, watch
 from rich.console import Console
 from rich.status import Status
 
@@ -102,7 +102,6 @@ def create_devserver(
     wait: bool = False,
 ) -> None:
     """Creates a new DevServer resource."""
-    config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
 

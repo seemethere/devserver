@@ -18,7 +18,6 @@ class KubeConfig:
 
 def create_user(username: str) -> None:
     """Creates a new DevServerUser resource."""
-    config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
 
@@ -46,7 +45,6 @@ def create_user(username: str) -> None:
 
 def delete_user(username: str) -> None:
     """Deletes a DevServerUser resource."""
-    config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
 
@@ -67,7 +65,6 @@ def delete_user(username: str) -> None:
 
 def list_users() -> None:
     """Lists all DevServerUser resources."""
-    config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     console = Console()
 
@@ -104,7 +101,6 @@ def list_users() -> None:
 
 def generate_user_kubeconfig(username: str) -> None:
     """Generates a kubeconfig file for a DevServerUser."""
-    config.load_kube_config()
     custom_objects_api = client.CustomObjectsApi()
     core_v1_api = client.CoreV1Api()
     console = Console()
@@ -131,7 +127,6 @@ def generate_user_kubeconfig(username: str) -> None:
         ).status.token
 
         # Load the current kubeconfig to extract cluster details
-        config.load_kube_config()
         api_client_config = client.Configuration.get_default_copy()
         
         contexts, active_context = config.list_kube_config_contexts()
