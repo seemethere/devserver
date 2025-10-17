@@ -281,6 +281,15 @@ class TestCliParser:
             # Verify the handler was called
             mock_list.assert_called_once()
 
+    def test_flavors_command_parsing(self) -> None:
+        """Tests that 'flavors' command is recognized."""
+        runner = CliRunner()
+
+        with patch("devserver.cli.handlers.list_flavors") as mock_list_flavors:
+            result = runner.invoke(cli_main.main, ["flavors"])
+            assert result.exit_code == 0
+            mock_list_flavors.assert_called_once()
+
     def test_delete_command_parsing(self, test_config: Configuration) -> None:
         """Tests that 'delete' command arguments are parsed correctly."""
         runner = CliRunner()
