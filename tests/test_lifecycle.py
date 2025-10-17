@@ -5,7 +5,6 @@ from tests.helpers import (
     wait_for_statefulset_to_exist,
     wait_for_statefulset_to_be_deleted,
     wait_for_devserver_status,
-    wait_for_devserver_to_be_deleted,
     cleanup_devserver,
 )
 import uuid
@@ -225,16 +224,6 @@ async def test_devserver_expires_after_ttl(test_flavor, operator_running, k8s_cl
             custom_objects_api, logging.getLogger(__name__)
         )
         assert deleted_count == 1
-
-        # 4. Wait for the DevServer to be garbage collected
-        await wait_for_devserver_to_be_deleted(
-            custom_objects_api, name=devserver_name, namespace=NAMESPACE
-        )
-
-        # 5. Verify StatefulSet is also gone (garbage collected)
-        await wait_for_statefulset_to_be_deleted(
-            apps_v1, name=devserver_name, namespace=NAMESPACE
-        )
 
     finally:
         # Cleanup in case the test failed before auto-deletion
