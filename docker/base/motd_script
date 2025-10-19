@@ -1,0 +1,185 @@
+#!/bin/bash
+# Custom MOTD for dev servers
+
+# Color Definitions
+if [ -z "$DEVSERVER_TEST_MODE" ]; then
+    C_RESET=$(printf '\033[0m')
+    C_RED=$(printf '\033[0;31m')
+    C_GREEN=$(printf '\033[0;32m')
+    C_YELLOW=$(printf '\033[0;33m')
+    C_BLUE=$(printf '\033[0;34m')
+    C_MAGENTA=$(printf '\033[0;35m')
+    C_CYAN=$(printf '\033[0;36m')
+    C_BOLD=$(printf '\033[1m')
+else
+    # In test mode, disable colors
+    C_RESET=""
+    C_RED=""
+    C_GREEN=""
+    C_YELLOW=""
+    C_BLUE=""
+    C_MAGENTA=""
+    C_CYAN=""
+    C_BOLD=""
+fi
+
+# Array of random messages
+MESSAGES="Happy coding!
+Have you committed your changes?
+Don't forget to take a break.
+The caffeine is strong with this one."
+
+# Select a random message
+NUM_MESSAGES=$(printf "%s" "$MESSAGES" | grep -c '^')
+RANDOM_INDEX=$(awk -v n="$NUM_MESSAGES" 'BEGIN{srand(); print int(rand()*n)+1}')
+RANDOM_MESSAGE=$(printf "%s" "$MESSAGES" | sed -n "${RANDOM_INDEX}p")
+
+# Define message width and wrap the message
+MESSAGE_WIDTH=20
+WRAPPED_MESSAGE=$(printf "%s" "$RANDOM_MESSAGE" | fold -s -w "$MESSAGE_WIDTH")
+
+# System Information Gathering
+OS_INFO=$(lsb_release -ds 2>/dev/null || echo "Linux")
+KERNEL=$(uname -r)
+if command -v lscpu >/dev/null 2>&1; then
+    CPU_INFO=$(lscpu | grep "Model name:" | sed 's/Model name:[[:space:]]*//')
+else
+    CPU_INFO=$(grep "model name" /proc/cpuinfo | head -n 1 | cut -d: -f2 | sed 's/^\s*//')
+fi
+CPU_CORES=$(grep -c ^processor /proc/cpuinfo)
+MEM_INFO=$(free -h | awk '/^Mem:/ {print $3 "/" $2}')
+DISK_INFO=$(df -h / | awk 'NR==2 {print $3 "/" $2 " (" $5 " used)"}')
+UPTIME=$(uptime -p)
+
+# ASCII Art and Message Display
+printf "%s\n" "${C_BOLD}${C_YELLOW}|￣￣￣￣￣￣￣￣￣￣￣|${C_RESET}"
+printf "%s\n" "$WRAPPED_MESSAGE" | while IFS= read -r line; do
+    printf "${C_BOLD}${C_YELLOW}< ${C_CYAN}%-${MESSAGE_WIDTH}s${C_YELLOW} >${C_RESET}\n" "$line"
+done
+printf "%s\n" "${C_BOLD}${C_YELLOW}|＿＿＿＿＿＿＿＿＿＿＿|${C_RESET}"
+printf "%s\n" "   (\__/)  ||"
+printf "%s\n" "   (•ㅅ•)  ||"
+printf "%s\n" "   /  　  づ"
+
+printf "%s\n" "   ${C_BOLD}${C_YELLOW}dMMMMb  dMMMMMP dMP dMP${C_MAGENTA} .dMMMb   dMMMMMP dMMMMb  dMP dMP dMMMMMP dMMMMb ${C_RESET}  "
+printf "%s\n" "   ${C_BOLD}${C_YELLOW}dMP VMP dMP     dMP dMP${C_MAGENTA} dMP\" VP dMP     dMP.dMP dMP dMP dMP     dMP.dMP ${C_RESET}  "
+printf "%s\n" "  ${C_BOLD}${C_YELLOW}dMP dMP dMMMP   dMP dMP${C_MAGENTA}  VMMMb  dMMMP   dMMMMK\" dMP dMP dMMMP   dMMMMK\" ${C_RESET}"
+printf "%s\n" " ${C_BOLD}${C_YELLOW}dMP.aMP dMP      YMvAP\"${C_MAGENTA} dP .dMP dMP     dMP\"AMF  YMvAP\" dMP     dMP\"AMF ${C_RESET}"
+printf "%s\n" "${C_BOLD}${C_YELLOW}dMMMMP\" dMMMMMP    VP\"${C_MAGENTA}   VMMMP\" dMMMMMP dMP dMP    VP\"  dMMMMMP dMP dMP ${C_RESET}"
+
+# System Info Display
+echo
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "OS" "$OS_INFO"
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Kernel" "$KERNEL"
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "CPU" "$CPU_INFO ($CPU_CORES cores)"
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Memory" "$MEM_INFO"
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Disk" "$DISK_INFO"
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Uptime" "$UPTIME"
+echo
+
+# --- GPU and OSDC specific section ---
+
+# Read dynamic flags from Lambda setup (if available)
+TEMPORARY_DISK_WARNING="false"
+USE_PERSISTENT_DISK="false"
+GPU_DEV_CONTAINER_IMAGE="pytorch-gpu-devserver:latest"
+if [ -f "/etc/gpu-dev-flags" ]; then
+    source /etc/gpu-dev-flags
+fi
+
+# Get container info
+CONTAINER_IMAGE="$GPU_DEV_CONTAINER_IMAGE"
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "Container" "$CONTAINER_IMAGE"
+
+
+# Get CUDA toolkit info - show all available versions
+CUDA_INFO="CUDA toolkit unavailable"
+if command -v nvcc >/dev/null 2>&1; then
+    DEFAULT_CUDA_VERSION=$(nvcc --version | grep "release" | sed 's/.*release \([0-9.]*\).*/\1/' 2>/dev/null)
+    
+    # Find all CUDA installations in /usr/local/
+    CUDA_VERSIONS=""
+    for cuda_dir in /usr/local/cuda-*; do
+        if [ -d "$cuda_dir" ] && [ ! -L "$cuda_dir" ]; then  # Real directory, not symlink
+            version=$(basename "$cuda_dir" | sed 's/cuda-//')
+            if [ -z "$CUDA_VERSIONS" ]; then
+                CUDA_VERSIONS="$version"
+            else
+                CUDA_VERSIONS="$CUDA_VERSIONS, $version"
+            fi
+        fi
+    done
+    
+    if [ -n "$DEFAULT_CUDA_VERSION" ] && [ -n "$CUDA_VERSIONS" ]; then
+        CUDA_INFO="CUDA $DEFAULT_CUDA_VERSION (default), also available: $CUDA_VERSIONS"
+    elif [ -n "$DEFAULT_CUDA_VERSION" ]; then
+        CUDA_INFO="CUDA $DEFAULT_CUDA_VERSION (nvcc available)"
+    else
+        CUDA_INFO="CUDA toolkit installed (nvcc available)"
+    fi
+elif [ -d "/usr/local/cuda" ]; then
+    CUDA_INFO="CUDA toolkit installed (nvcc not in PATH)"
+fi
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "CUDA" "$CUDA_INFO"
+
+
+# Get GPU info with error handling
+GPU_INFO="GPU detection unavailable"
+if command -v nvidia-smi >/dev/null 2>&1; then
+    # Parse nvidia-smi output to get GPU count and model
+    GPU_DATA=$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits 2>/dev/null)
+    if [ $? -eq 0 ] && [ -n "$GPU_DATA" ]; then
+        # Count GPUs and get first GPU model/memory
+        GPU_COUNT=$(echo "$GPU_DATA" | wc -l)
+        FIRST_GPU=$(echo "$GPU_DATA" | head -1)
+        GPU_NAME=$(echo "$FIRST_GPU" | cut -d',' -f1 | xargs)
+        GPU_MEMORY=$(echo "$FIRST_GPU" | cut -d',' -f2 | xargs)
+
+        if [ "$GPU_COUNT" -eq 1 ]; then
+            GPU_INFO="1x $GPU_NAME, ${GPU_MEMORY}MiB"
+        else
+            GPU_INFO="${GPU_COUNT}x $GPU_NAME, ${GPU_MEMORY}MiB each"
+        fi
+    fi
+fi
+printf "${C_GREEN}${C_BOLD}%-8s${C_RESET}: %s\n" "GPUs" "$GPU_INFO"
+echo
+
+# Storage information
+# Add dynamic storage section based on Lambda flags
+if [ "$USE_PERSISTENT_DISK" = "true" ]; then
+    cat << STORAGE_EOF
+${C_BOLD}Storage:${C_RESET}
+  • /home/dev: Your home directory (persistent EBS disk)
+  • /shared-personal: Shared persistent EFS storage across all reservations  
+  • /workspace: Temporary workspace for current session
+  ✅ Your files from previous sessions are available and will persist
+
+STORAGE_EOF
+elif [ "$TEMPORARY_DISK_WARNING" = "true" ]; then
+    cat << STORAGE_EOF
+${C_BOLD}Storage:${C_RESET}
+  • /home/dev: Your home directory (temporary - will be LOST)
+  • /shared-personal: Shared persistent EFS storage across all reservations
+  • /workspace: Temporary workspace for current session
+  ⚠️  Your persistent disk is mounted to another reservation
+  ⚠️  Use /shared-personal for files you want to keep
+
+STORAGE_EOF
+else
+    cat << STORAGE_EOF
+${C_BOLD}Storage:${C_RESET}
+  • /home/dev: Your home directory (temporary - will be lost when reservation ends)
+  • /shared-personal: Shared persistent EFS storage across all reservations
+  • /workspace: Temporary workspace for current session
+  💾 Fresh environment with clean temporary storage
+
+STORAGE_EOF
+fi
+
+cat << FOOTER_EOF
+For support, reach out to: oncall:pytorch_release_engineering
+
+Happy coding! 🐍⚡
+
+FOOTER_EOF
