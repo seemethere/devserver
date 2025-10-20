@@ -61,6 +61,13 @@ def build_statefulset(
                                 "readOnly": True,
                             },
                             {
+                                "name": "login-script",
+                                "mountPath": "/devserver-login/user_login.sh",
+                                "mode": 0o755,
+                                "subPath": "user_login.sh",
+                                "readOnly": True,
+                            },
+                            {
                                 "name": "sshd-config",
                                 "mountPath": "/opt/ssh/sshd_config",
                                 "subPath": "sshd_config",
@@ -87,6 +94,13 @@ def build_statefulset(
                         "name": "startup-script",
                         "configMap": {
                             "name": f"{name}-startup-script",
+                            "defaultMode": 0o755,
+                        },
+                    },
+                    {
+                        "name": "login-script",
+                        "configMap": {
+                            "name": f"{name}-login-script",
                             "defaultMode": 0o755,
                         },
                     },

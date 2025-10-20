@@ -72,7 +72,3 @@ COPY --from=uv /root/.local/bin/uvx /usr/local/bin/uvx
 
 # Copy profile.sh
 COPY profile.sh /etc/profile
-
-# Copy MOTD script
-COPY generate_motd.sh /usr/local/bin/generate_motd.sh
-RUN chmod +x /usr/local/bin/generate_motd.sh
