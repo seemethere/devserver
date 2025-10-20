@@ -49,9 +49,17 @@ display_devserver_banner() {
         CPU_INFO=$(grep "model name" /proc/cpuinfo | head -n 1 | cut -d: -f2 | sed 's/^\s*//')
     fi
     CPU_CORES=$(grep -c ^processor /proc/cpuinfo)
-    MEM_INFO=$(free -h | awk '/^Mem:/ {print $3 "/" $2}')
+    if command -v free >/dev/null 2>&1; then
+        MEM_INFO=$(free -h | awk '/^Mem:/ {print $3 "/" $2}')
+    else
+        MEM_INFO="N/A"
+    fi
     DISK_INFO=$(df -h / | awk 'NR==2 {print $3 "/" $2 " (" $5 " used)"}')
-    UPTIME=$(uptime -p)
+    if command -v uptime >/dev/null 2>&1; then
+        UPTIME=$(uptime -p)
+    else
+        UPTIME="N/A"
+    fi
 
     # ASCII Art and Message Display
     printf "%s\n" "${C_BOLD}${C_YELLOW}|￣￣￣￣￣￣￣￣￣￣￣|${C_RESET}"
