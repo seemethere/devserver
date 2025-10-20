@@ -27,13 +27,6 @@ log_error() {
 
 log_info "Configuring container..."
 
-log_step "Generating MOTD..."
-if [ -x "/usr/local/bin/generate_motd.sh" ]; then
-    /usr/local/bin/generate_motd.sh > /etc/motd
-else
-    echo "Welcome to your DevServer!" > /etc/motd
-fi
-
 log_step "Ensuring 'dev' user and group exist with UID/GID 1000"
 
 # --- Group management ---

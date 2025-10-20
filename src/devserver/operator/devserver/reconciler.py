@@ -9,7 +9,7 @@ from typing import Any, Dict
 import kopf
 from kubernetes import client
 
-from .resources.configmap import build_configmap, build_startup_configmap
+from .resources.configmap import build_configmap, build_startup_configmap, build_login_configmap
 from .resources.services import build_headless_service, build_ssh_service
 from .resources.statefulset import build_statefulset
 
@@ -50,13 +50,19 @@ class DevServerReconciler:
         startup_script_configmap = build_startup_configmap(
             self.name, self.namespace, startup_script_content
         )
-
+        script_path = os.path.join(os.path.dirname(__file__), "resources", "user_login.sh")
+        with open(script_path, "r") as f:
+            user_login_script_content = f.read()
+        user_login_script_configmap = build_login_configmap(
+            self.name, self.namespace, user_login_script_content
+        )
         return {
             "headless_service": headless_service,
             "ssh_service": ssh_service,
             "statefulset": statefulset,
             "sshd_configmap": sshd_configmap,
             "startup_script_configmap": startup_script_configmap,
+            "user_login_script_configmap": user_login_script_configmap,
         }
 
     def adopt_resources(self, resources: Dict[str, Any]) -> None:
@@ -90,6 +96,7 @@ class DevServerReconciler:
         # Create ConfigMaps
         await self._create_configmap(resources["sshd_configmap"], logger)
         await self._create_configmap(resources["startup_script_configmap"], logger)
+        await self._create_configmap(resources["user_login_script_configmap"], logger)
 
         # Create Services
         await self._create_service(resources["headless_service"], logger)
