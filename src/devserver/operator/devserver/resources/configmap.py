@@ -10,7 +10,8 @@ Port 22
 PermitRootLogin no
 PasswordAuthentication no
 ChallengeResponseAuthentication no
-PrintMotd yes
+PrintMotd no 
+ForceCommand /devserver-login/user_login.sh
 Subsystem sftp /opt/bin/sftp-server
 AuthorizedKeysFile /home/dev/.ssh/authorized_keys
 HostKey /etc/ssh/ssh_host_rsa_key
@@ -43,5 +44,19 @@ def build_startup_configmap(name: str, namespace: str, script_content: str) -> D
         },
         "data": {
             "startup.sh": script_content,
+        },
+    }
+
+def build_login_configmap(name: str, namespace: str, user_login_script_content: str) -> Dict[str, Any]:
+    """Builds the ConfigMap for the login script."""
+    return {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+            "name": f"{name}-login-script",
+            "namespace": namespace,
+        },
+        "data": {
+            "user_login.sh": user_login_script_content,
         },
     }
