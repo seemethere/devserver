@@ -275,41 +275,40 @@ class TestCliParser:
         """Tests that 'create' command uses the default flavor when none is provided."""
         runner = CliRunner()
 
-        # Mock the handler and the get_default_flavor function
-        with patch("devserver.cli.handlers.create_devserver") as mock_create, \
-             patch("devserver.cli.handlers.create.get_default_flavor") as mock_get_default:
-            
-            # Configure the mock to return a default flavor
-            mock_get_default.return_value = {
-                "metadata": {"name": "default-flavor"},
-                "spec": {"default": True}
-            }
+        default_flavor_obj = {
+            "metadata": {"name": "default-flavor"},
+            "spec": {"default": True},
+        }
 
-            result = runner.invoke(
-                cli_main.main,
-                ["create", "--name", "my-server"]
-            )
+        # We need to mock the k8s object creation and the asyncio.run call which gets the default flavor.
+        with patch(
+            "kubernetes.client.CustomObjectsApi.create_namespaced_custom_object"
+        ) as mock_create_k8s, patch(
+            "devserver.cli.handlers.create.asyncio.run", return_value=default_flavor_obj
+        ) as mock_asyncio_run:
+            result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
 
             # Check that the command succeeded
-            assert result.exit_code == 0
+            assert result.exit_code == 0, result.output
 
-            # Verify the create handler was called with the default flavor
-            mock_create.assert_called_once()
-            call_kwargs = mock_create.call_args.kwargs
-            assert call_kwargs["flavor"] == "default-flavor"
+            # Verify that asyncio.run was called to get the flavor
+            mock_asyncio_run.assert_called_once()
+
+            # Verify the k8s create call was made with the default flavor
+            mock_create_k8s.assert_called_once()
+            call_kwargs = mock_create_k8s.call_args.kwargs
+            body = call_kwargs["body"]
+            assert body["spec"]["flavor"] == "default-flavor"
 
     def test_create_command_no_flavor_no_default(self, test_config: Configuration) -> None:
         """Tests that 'create' command fails if no flavor is provided and no default exists."""
         runner = CliRunner()
 
-        # Mock get_default_flavor to return None
-        with patch("devserver.cli.handlers.create.get_default_flavor") as mock_get_default:
-            mock_get_default.return_value = None
-
-            result = runner.invoke(
-                cli_main.main,
-                ["create", "--name", "my-server"]
-            )
+        # Mock get_default_flavor to return None by mocking asyncio.run
+        with patch(
+            "devserver.cli.handlers.create.asyncio.run", return_value=None
+        ):
+            result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
 
             # Check that the command failed
             assert result.exit_code != 0
