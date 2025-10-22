@@ -21,6 +21,8 @@ spec:
             spec:
               type: object
               properties:
+                default:
+                  type: boolean
                 resources:
                   type: object
                   properties:

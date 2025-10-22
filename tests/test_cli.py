@@ -271,6 +271,50 @@ class TestCliParser:
             assert call_kwargs["flavor"] == "cpu-small"
             assert call_kwargs["image"] == "ubuntu:22.04"
 
+    def test_create_command_no_flavor_uses_default(self, test_config: Configuration) -> None:
+        """Tests that 'create' command uses the default flavor when none is provided."""
+        runner = CliRunner()
+
+        # Mock the handler and the get_default_flavor function
+        with patch("devserver.cli.handlers.create_devserver") as mock_create, \
+             patch("devserver.utils.flavors.get_default_flavor") as mock_get_default:
+            
+            # Configure the mock to return a default flavor
+            mock_get_default.return_value = {
+                "metadata": {"name": "default-flavor"},
+                "spec": {"default": True}
+            }
+
+            result = runner.invoke(
+                cli_main.main,
+                ["create", "--name", "my-server"]
+            )
+
+            # Check that the command succeeded
+            assert result.exit_code == 0
+
+            # Verify the create handler was called with the default flavor
+            mock_create.assert_called_once()
+            call_kwargs = mock_create.call_args.kwargs
+            assert call_kwargs["flavor"] == "default-flavor"
+
+    def test_create_command_no_flavor_no_default(self, test_config: Configuration) -> None:
+        """Tests that 'create' command fails if no flavor is provided and no default exists."""
+        runner = CliRunner()
+
+        # Mock get_default_flavor to return None
+        with patch("devserver.utils.flavors.get_default_flavor") as mock_get_default:
+            mock_get_default.return_value = None
+
+            result = runner.invoke(
+                cli_main.main,
+                ["create", "--name", "my-server"]
+            )
+
+            # Check that the command failed
+            assert result.exit_code != 0
+            assert "No default flavor found" in result.output
+
     def test_list_command_parsing(self) -> None:
         """Tests that 'list' command is recognized."""
         runner = CliRunner()
@@ -326,19 +370,6 @@ class TestCliParser:
             mock_describe.assert_called_once()
             call_kwargs = mock_describe.call_args.kwargs
             assert call_kwargs["name"] == "my-server"
-
-    def test_create_command_missing_flavor(self) -> None:
-        """Tests that 'create' command fails without a required flavor."""
-        runner = CliRunner()
-        
-        # Click exits with non-zero code when required option is missing
-        result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
-        
-        # Check that the command failed
-        assert result.exit_code != 0
-        
-        # Click should report the missing required option in the output
-        assert "flavor" in result.output.lower() or "required" in result.output.lower()
 
     def test_ssh_command_parsing(self, test_config: Configuration) -> None:
         """Tests that 'ssh' command arguments are parsed correctly."""
