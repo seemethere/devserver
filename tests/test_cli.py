@@ -277,7 +277,7 @@ class TestCliParser:
 
         # Mock the handler and the get_default_flavor function
         with patch("devserver.cli.handlers.create_devserver") as mock_create, \
-             patch("devserver.utils.flavors.get_default_flavor") as mock_get_default:
+             patch("devserver.cli.handlers.create.get_default_flavor") as mock_get_default:
             
             # Configure the mock to return a default flavor
             mock_get_default.return_value = {
@@ -303,7 +303,7 @@ class TestCliParser:
         runner = CliRunner()
 
         # Mock get_default_flavor to return None
-        with patch("devserver.utils.flavors.get_default_flavor") as mock_get_default:
+        with patch("devserver.cli.handlers.create.get_default_flavor") as mock_get_default:
             mock_get_default.return_value = None
 
             result = runner.invoke(
