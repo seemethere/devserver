@@ -55,7 +55,7 @@ def main(ctx, config_path, assume_yes) -> None:
 
 @main.command(help="Create a new DevServer.")
 @click.option("--name", type=str, default="dev", help="The name of the DevServer.")
-@click.option("--flavor", type=str, required=True, help="The flavor of the DevServer.")
+@click.option("--flavor", type=str, required=False, help="The flavor of the DevServer.")
 @click.option("--image", type=str, help="The container image to use.")
 @click.option(
     "--ssh-public-key-file",

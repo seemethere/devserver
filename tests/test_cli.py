@@ -35,6 +35,13 @@ NAMESPACE: str = TEST_NAMESPACE
 TEST_DEVSERVER_NAME: str = "test-cli-devserver"
 
 
+@pytest.fixture(autouse=True)
+def mock_config_from_file(test_config: Configuration) -> None:
+    """Mocks the config loading to return the test_config fixture."""
+    with patch("devserver.cli.main.load_config", return_value=test_config):
+        yield
+
+
 class TestCliIntegration:
     """
     Integration tests for the CLI that interact with a Kubernetes cluster.
@@ -271,6 +278,90 @@ class TestCliParser:
             assert call_kwargs["flavor"] == "cpu-small"
             assert call_kwargs["image"] == "ubuntu:22.04"
 
+    def test_create_command_with_flavor(self, test_config: Configuration) -> None:
+        """Tests that 'create' command with a flavor creates a DevServer object."""
+        runner = CliRunner()
+
+        # Mock the k8s object creation
+        with patch(
+            "kubernetes.client.CustomObjectsApi.create_namespaced_custom_object"
+        ) as mock_create_k8s:
+            result = runner.invoke(
+                cli_main.main,
+                [
+                    "create",
+                    "--name",
+                    "my-server",
+                    "--flavor",
+                    "cpu-small",
+                ],
+            )
+
+            # Check that the command succeeded
+            assert result.exit_code == 0, result.output
+            assert "created successfully" in result.output
+
+            # Check that the k8s object was created with the correct parameters
+            mock_create_k8s.assert_called_once()
+            _, kwargs = mock_create_k8s.call_args
+            assert kwargs["body"]["metadata"]["name"] == "my-server"
+            assert kwargs["body"]["spec"]["flavor"] == "cpu-small"
+
+    def test_create_command_no_flavor_uses_default(
+        self, test_config: Configuration
+    ) -> None:
+        """Tests that 'create' command uses the default flavor when none is provided."""
+        runner = CliRunner()
+
+        default_flavor_obj = {
+            "metadata": {"name": "default-flavor"},
+            "spec": {"default": True},
+        }
+
+        async def mock_get_default_flavor():
+            return default_flavor_obj
+
+        # We need to mock the k8s object creation and the get_default_flavor function.
+        with patch(
+            "kubernetes.client.CustomObjectsApi.create_namespaced_custom_object"
+        ) as mock_create_k8s, patch(
+            "devserver.cli.handlers.create.get_default_flavor",
+            side_effect=mock_get_default_flavor,
+        ) as mock_get_default:
+            result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
+
+            # Check that the command succeeded
+            assert result.exit_code == 0, result.output
+            assert "created successfully" in result.output
+
+            # Check that the k8s object was created with the correct parameters
+            mock_create_k8s.assert_called_once()
+            _, kwargs = mock_create_k8s.call_args
+            assert kwargs["body"]["metadata"]["name"] == "my-server"
+            assert kwargs["body"]["spec"]["flavor"] == "default-flavor"
+
+            # Check that the get_default_flavor was called
+            assert mock_get_default.call_count == 1
+
+    def test_create_command_no_flavor_no_default(self, test_config: Configuration) -> None:
+        """Tests that 'create' command fails if no flavor is provided and no default exists."""
+        runner = CliRunner()
+
+        async def mock_get_default_flavor_none():
+            return None
+
+        # Mock get_default_flavor to return None
+        with patch(
+            "devserver.cli.handlers.create.get_default_flavor",
+            side_effect=mock_get_default_flavor_none,
+        ) as mock_get_default:
+            result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
+
+            # Check that the command failed
+            assert result.exit_code != 0
+            assert "No default flavor found" in result.output
+            mock_get_default.assert_called_once()
+
     def test_list_command_parsing(self) -> None:
         """Tests that 'list' command is recognized."""
         runner = CliRunner()
@@ -326,19 +417,6 @@ class TestCliParser:
             mock_describe.assert_called_once()
             call_kwargs = mock_describe.call_args.kwargs
             assert call_kwargs["name"] == "my-server"
-
-    def test_create_command_missing_flavor(self) -> None:
-        """Tests that 'create' command fails without a required flavor."""
-        runner = CliRunner()
-        
-        # Click exits with non-zero code when required option is missing
-        result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
-        
-        # Check that the command failed
-        assert result.exit_code != 0
-        
-        # Click should report the missing required option in the output
-        assert "flavor" in result.output.lower() or "required" in result.output.lower()
 
     def test_ssh_command_parsing(self, test_config: Configuration) -> None:
         """Tests that 'ssh' command arguments are parsed correctly."""
