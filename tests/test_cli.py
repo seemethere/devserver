@@ -280,19 +280,23 @@ class TestCliParser:
             "spec": {"default": True},
         }
 
-        # We need to mock the k8s object creation and the asyncio.run call which gets the default flavor.
+        async def mock_get_default_flavor():
+            return default_flavor_obj
+
+        # We need to mock the k8s object creation and the get_default_flavor function.
         with patch(
             "kubernetes.client.CustomObjectsApi.create_namespaced_custom_object"
         ) as mock_create_k8s, patch(
-            "devserver.cli.handlers.create.asyncio.run", return_value=default_flavor_obj
-        ) as mock_asyncio_run:
+            "devserver.cli.handlers.create.get_default_flavor",
+            side_effect=mock_get_default_flavor,
+        ) as mock_get_default:
             result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
 
             # Check that the command succeeded
             assert result.exit_code == 0, result.output
 
-            # Verify that asyncio.run was called to get the flavor
-            mock_asyncio_run.assert_called_once()
+            # Verify that get_default_flavor was called
+            mock_get_default.assert_called_once()
 
             # Verify the k8s create call was made with the default flavor
             mock_create_k8s.assert_called_once()
@@ -304,15 +308,20 @@ class TestCliParser:
         """Tests that 'create' command fails if no flavor is provided and no default exists."""
         runner = CliRunner()
 
-        # Mock get_default_flavor to return None by mocking asyncio.run
+        async def mock_get_default_flavor_none():
+            return None
+
+        # Mock get_default_flavor to return None
         with patch(
-            "devserver.cli.handlers.create.asyncio.run", return_value=None
-        ):
+            "devserver.cli.handlers.create.get_default_flavor",
+            side_effect=mock_get_default_flavor_none,
+        ) as mock_get_default:
             result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
 
             # Check that the command failed
             assert result.exit_code != 0
             assert "No default flavor found" in result.output
+            mock_get_default.assert_called_once()
 
     def test_list_command_parsing(self) -> None:
         """Tests that 'list' command is recognized."""
