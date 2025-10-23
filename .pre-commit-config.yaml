@@ -3,13 +3,13 @@ repos:
     hooks:
       - id: ruff
         name: Run ruff
-        entry: uvx -p 3.13 ruff check --fix
+        entry: uvx -p 3.13 ruff@0.14.1 check --fix
         language: system
         types: [python]
         pass_filenames: false
       - id: ty
         name: Run ty
-        entry: uvx -p 3.13 ty check src/
+        entry: uvx -p 3.13 ty@0.0.1a23 check src/
         language: system
         types: [python]
         pass_filenames: false
