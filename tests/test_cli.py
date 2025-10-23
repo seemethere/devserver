@@ -35,6 +35,13 @@ NAMESPACE: str = TEST_NAMESPACE
 TEST_DEVSERVER_NAME: str = "test-cli-devserver"
 
 
+@pytest.fixture(autouse=True)
+def mock_config_from_file(test_config: Configuration) -> None:
+    """Mocks the config loading to return the test_config fixture."""
+    with patch("devserver.cli.main.load_config", return_value=test_config):
+        yield
+
+
 class TestCliIntegration:
     """
     Integration tests for the CLI that interact with a Kubernetes cluster.
@@ -271,7 +278,41 @@ class TestCliParser:
             assert call_kwargs["flavor"] == "cpu-small"
             assert call_kwargs["image"] == "ubuntu:22.04"
 
-    def test_create_command_no_flavor_uses_default(self, test_config: Configuration) -> None:
+    def test_create_command_with_flavor(self, test_config: Configuration) -> None:
+        """Tests that 'create' command with a flavor creates a DevServer object."""
+        runner = CliRunner()
+
+        # Mock the k8s object creation
+        with patch(
+            "kubernetes.client.CustomObjectsApi.create_namespaced_custom_object"
+        ) as mock_create_k8s, patch(
+            "devserver.cli.handlers.create.get_flavor",
+            return_value={"metadata": {"name": "cpu-small"}},
+        ):
+            result = runner.invoke(
+                cli_main.main,
+                [
+                    "create",
+                    "--name",
+                    "my-server",
+                    "--flavor",
+                    "cpu-small",
+                ],
+            )
+
+            # Check that the command succeeded
+            assert result.exit_code == 0, result.output
+            assert "Devserver 'my-server' is being created" in result.output
+
+            # Check that the k8s object was created with the correct parameters
+            mock_create_k8s.assert_called_once()
+            _, kwargs = mock_create_k8s.call_args
+            assert kwargs["body"]["metadata"]["name"] == "my-server"
+            assert kwargs["body"]["spec"]["flavor"] == "cpu-small"
+
+    def test_create_command_no_flavor_uses_default(
+        self, test_config: Configuration
+    ) -> None:
         """Tests that 'create' command uses the default flavor when none is provided."""
         runner = CliRunner()
 
@@ -294,15 +335,16 @@ class TestCliParser:
 
             # Check that the command succeeded
             assert result.exit_code == 0, result.output
+            assert "created successfully" in result.output
 
-            # Verify that get_default_flavor was called
-            mock_get_default.assert_called_once()
-
-            # Verify the k8s create call was made with the default flavor
+            # Check that the k8s object was created with the correct parameters
             mock_create_k8s.assert_called_once()
-            call_kwargs = mock_create_k8s.call_args.kwargs
-            body = call_kwargs["body"]
-            assert body["spec"]["flavor"] == "default-flavor"
+            _, kwargs = mock_create_k8s.call_args
+            assert kwargs["body"]["metadata"]["name"] == "my-server"
+            assert kwargs["body"]["spec"]["flavor"] == "default-flavor"
+
+            # Check that the get_default_flavor was called
+            assert mock_get_default.call_count == 1
 
     def test_create_command_no_flavor_no_default(self, test_config: Configuration) -> None:
         """Tests that 'create' command fails if no flavor is provided and no default exists."""
