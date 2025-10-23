@@ -285,10 +285,7 @@ class TestCliParser:
         # Mock the k8s object creation
         with patch(
             "kubernetes.client.CustomObjectsApi.create_namespaced_custom_object"
-        ) as mock_create_k8s, patch(
-            "devserver.cli.handlers.create.get_flavor",
-            return_value={"metadata": {"name": "cpu-small"}},
-        ):
+        ) as mock_create_k8s:
             result = runner.invoke(
                 cli_main.main,
                 [
@@ -302,7 +299,7 @@ class TestCliParser:
 
             # Check that the command succeeded
             assert result.exit_code == 0, result.output
-            assert "Devserver 'my-server' is being created" in result.output
+            assert "created successfully" in result.output
 
             # Check that the k8s object was created with the correct parameters
             mock_create_k8s.assert_called_once()
