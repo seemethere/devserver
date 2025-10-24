@@ -15,7 +15,7 @@ class DevServer(BaseCustomResource):
     metadata: ObjectMeta
     spec: Dict[str, Any]
     status: Dict[str, Any] = field(default_factory=dict)
-    
+
     def __init__(
         self,
         metadata: ObjectMeta,

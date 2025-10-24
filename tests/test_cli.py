@@ -259,17 +259,17 @@ class TestCliParser:
     def test_create_command_parsing(self, test_config: Configuration) -> None:
         """Tests that 'create' command arguments are parsed correctly."""
         runner = CliRunner()
-        
+
         # Mock the handler to avoid actual Kubernetes interaction
         with patch("devservers.cli.handlers.create_devserver") as mock_create:
             result = runner.invoke(
                 cli_main.main,
                 ["create", "--name", "my-server", "--flavor", "cpu-small", "--image", "ubuntu:22.04"]
             )
-            
+
             # Check that the command succeeded
             assert result.exit_code == 0
-            
+
             # Verify the handler was called with correct arguments
             mock_create.assert_called_once()
             call_kwargs = mock_create.call_args.kwargs
@@ -365,14 +365,14 @@ class TestCliParser:
     def test_list_command_parsing(self) -> None:
         """Tests that 'list' command is recognized."""
         runner = CliRunner()
-        
+
         # Mock the handler to avoid actual Kubernetes interaction
         with patch("devservers.cli.handlers.list_devservers") as mock_list:
             result = runner.invoke(cli_main.main, ["list"])
-            
+
             # Check that the command succeeded
             assert result.exit_code == 0
-            
+
             # Verify the handler was called
             mock_list.assert_called_once()
 
@@ -388,14 +388,14 @@ class TestCliParser:
     def test_delete_command_parsing(self, test_config: Configuration) -> None:
         """Tests that 'delete' command arguments are parsed correctly."""
         runner = CliRunner()
-        
+
         # Mock the handler to avoid actual Kubernetes interaction
         with patch("devservers.cli.handlers.delete_devserver") as mock_delete:
             result = runner.invoke(cli_main.main, ["delete", "--name", "my-server"])
-            
+
             # Check that the command succeeded
             assert result.exit_code == 0
-            
+
             # Verify the handler was called with correct arguments
             mock_delete.assert_called_once()
             call_kwargs = mock_delete.call_args.kwargs
