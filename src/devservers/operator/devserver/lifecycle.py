@@ -72,7 +72,7 @@ async def cleanup_expired_devservers(
     #   - Histogram: expiration_check_duration_seconds
     #   - Gauge: active_devservers
     #   - Counter: expiration_check_errors_total
-    
+
     while True:
         try:
             await check_and_expire_devservers(custom_objects_api, logger)
@@ -130,20 +130,20 @@ async def _delete_devserver(
     # TODO: Consider updating the DevServer status to "Expiring" before deletion
     # to give users visibility into why it was deleted. Could also emit a
     # Kubernetes Event for audit trail.
-    
+
     # TODO: Add graceful deletion options:
     #   - Allow users to configure grace periods
     #   - Send notifications before expiration
     #   - Allow "snooze" via annotation to extend TTL
-    
+
     meta = ds.get("metadata", {})
     name = meta["name"]
     namespace = meta["namespace"]
-    
+
     logger.info(
         f"DevServer '{name}' in namespace '{namespace}' has expired. Deleting."
     )
-    
+
     try:
         await asyncio.to_thread(
             custom_objects_api.delete_namespaced_custom_object,

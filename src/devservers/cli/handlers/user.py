@@ -133,7 +133,7 @@ def generate_user_kubeconfig(username: str) -> None:
 
         # Load the current kubeconfig to extract cluster details
         api_client_config = client.Configuration.get_default_copy()
-        
+
         contexts, active_context = config.list_kube_config_contexts()
         cluster_name = active_context["context"]["cluster"]
 
@@ -190,7 +190,7 @@ def generate_user_kubeconfig(username: str) -> None:
                 if '\n' in value:
                     style = '|'
                 return super().represent_scalar(tag, value, style)
-        
+
         # When printing to stdout for piping, we don't want Rich's markup
         print(yaml.dump(kubeconfig, Dumper=MyDumper))
 

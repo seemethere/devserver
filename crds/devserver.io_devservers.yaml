@@ -63,7 +63,7 @@ spec:
                     timeToLive:
                       type: string
                       description: |
-                        Time-to-live duration for the DevServer. The DevServer will be automatically 
+                        Time-to-live duration for the DevServer. The DevServer will be automatically
                         deleted after this duration from creation. Format: e.g., "30m", "2h", "1h30m".
                         Maximum allowed: 24h.
                       pattern: '^(\d+h)?(\d+m)?(\d+s)?$'
