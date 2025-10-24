@@ -22,7 +22,7 @@ async def generate_host_keys() -> Dict[str, str]:
     # TODO: Consider using the `stringData` field in the Secret spec instead
     # of manually base64-encoding. Kubernetes will automatically encode
     # stringData values, avoiding potential double-encoding issues.
-    
+
     with tempfile.TemporaryDirectory() as temp_dir:
         key_types = ["rsa", "ecdsa", "ed25519"]
         key_data = {}
@@ -68,7 +68,7 @@ async def ensure_host_keys_secret(
     # after all validation passes. Currently it's called after TTL validation
     # and flavor fetching, which means if key generation fails, we've already
     # done unnecessary work. Consider reordering operations.
-    
+
     secret_name = f"{name}-host-keys"
     core_v1 = client.CoreV1Api()
 

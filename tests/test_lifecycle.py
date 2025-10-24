@@ -212,10 +212,10 @@ async def test_devserver_expires_after_ttl(test_flavor, operator_running, k8s_cl
 
         # 1. Verify StatefulSet is created
         await wait_for_statefulset_to_exist(apps_v1, name=devserver_name, namespace=NAMESPACE)
-        
+
         # 2. Wait for TTL to pass
         await asyncio.sleep(ttl_seconds + 1)
-        
+
         # 3. Manually trigger the cleanup logic
         print("⚡️ Manually triggering expiration check...")
         deleted_count = await lifecycle.check_and_expire_devservers(
