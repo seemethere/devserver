@@ -9,15 +9,28 @@ The `devctl` command-line interface provides a simple way to manage your DevServ
 Create a new DevServer.
 
 ```bash
+# Create with explicit name
 devctl create --name my-server --flavor cpu-small
+
+# Create with auto-generated name (uses username-based default)
+devctl create --flavor cpu-small
+
+# Create with default flavor if cluster admin has configured one
+devctl create
 ```
+
+The `--name` flag is optional. If not provided, a default name based on your username will be used. If your cluster has a default flavor configured, you can omit the `--flavor` flag as well.
 
 ### `delete`
 
 Delete a DevServer.
 
 ```bash
+# Delete by name
 devctl delete my-server
+
+# Delete your default server (omit name)
+devctl delete
 ```
 
 ### `describe`
@@ -41,16 +54,22 @@ devctl list
 Connect to a DevServer with SSH.
 
 ```bash
+# Connect by name
 devctl ssh my-server
+
+# Connect to your default server (omit name)
+devctl ssh
 ```
 
 This command also provides a seamless SSH integration. On first use, it will ask for permission to add an `Include` directive to your `~/.ssh/config` file. Once approved, you can connect to any devserver using the standard `ssh` command, which also enables integration with tools like VS Code Remote-SSH.
 
 It also supports SSH agent forwarding, which can be enabled by adding `--forward-agent` to the `devctl ssh` command or by configuring it in your `~/.ssh/config`.
 
+The SSH hostname format is `devserver-<user>-<devserver-name>`, which ensures uniqueness across different users and prevents conflicts. The username is sanitized by replacing `@` symbols with hyphens.
+
 ```bash
 # After the one-time setup, this just works:
-ssh my-server
+ssh devserver-user-my-server
 ```
 
 ### `ssh-proxy`
@@ -59,6 +78,14 @@ Connect to a DevServer via an SSH proxy. This is useful for environments where d
 
 ```bash
 devctl ssh-proxy my-server
+```
+
+### `flavors`
+
+List available DevServer flavors.
+
+```bash
+devctl flavors
 ```
 
 ### `user`

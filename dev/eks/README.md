@@ -56,7 +56,7 @@ devctl ssh fedora-gpu -- nvidia-smi
 
 ## ARM64 CPU Nodepool
 
-The `cpu-arm64-nodepool.yml` configures a nodepool for ARM64 CPU instances, enabling you to run ARM-based workloads on your cluster.
+The `cpu-arm64-nodepool.yml` configures a nodepool for ARM64 CPU instances using Karpenter, enabling you to run ARM-based workloads on your cluster. This is particularly useful for cost-effective development environments or for testing ARM-specific code.
 
 ## TODO
 - [ ] Add some sample EFS storage to this setup for shared folders
