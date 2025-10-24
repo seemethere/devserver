@@ -124,12 +124,20 @@ class DevServerUserReconciler:
             logger.info("Default Role patched for user '%s'", self.username)
         except ApiException as exc:
             if exc.status == 404:
-                await asyncio.to_thread(
-                    self.rbac_v1.create_namespaced_role,
-                    namespace=namespace,
-                    body=role_body,
-                )
-                logger.info("Default Role created for user '%s'", self.username)
+                try:
+                    await asyncio.to_thread(
+                        self.rbac_v1.create_namespaced_role,
+                        namespace=namespace,
+                        body=role_body,
+                    )
+                    logger.info("Default Role created for user '%s'", self.username)
+                except ApiException as create_exc:
+                    if create_exc.status != 409:
+                        raise
+                    logger.info(
+                        "Default Role for user '%s' already exists (race condition).",
+                        self.username,
+                    )
             else:
                 raise
 
@@ -156,12 +164,20 @@ class DevServerUserReconciler:
             logger.info("Default RoleBinding patched for user '%s'", self.username)
         except ApiException as exc:
             if exc.status == 404:
-                await asyncio.to_thread(
-                    self.rbac_v1.create_namespaced_role_binding,
-                    namespace=namespace,
-                    body=rolebinding_body,
-                )
-                logger.info("Default RoleBinding created for user '%s'", self.username)
+                try:
+                    await asyncio.to_thread(
+                        self.rbac_v1.create_namespaced_role_binding,
+                        namespace=namespace,
+                        body=rolebinding_body,
+                    )
+                    logger.info("Default RoleBinding created for user '%s'", self.username)
+                except ApiException as create_exc:
+                    if create_exc.status != 409:
+                        raise
+                    logger.info(
+                        "Default RoleBinding for user '%s' already exists (race condition).",
+                        self.username,
+                    )
             else:
                 raise
 
