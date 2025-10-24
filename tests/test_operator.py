@@ -72,7 +72,7 @@ async def test_devserver_user_reconciler_creates_namespace(monkeypatch):
 
     monkeypatch.setattr(reconciler, "core_v1", namespace_api)
     monkeypatch.setattr(reconciler, "rbac_v1", rbac_api)
-    
+
     # Mock the methods called within the reconciler
     namespace_api.create_namespace = MagicMock()
     namespace_api.create_namespaced_service_account = MagicMock()

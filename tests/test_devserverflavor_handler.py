@@ -47,7 +47,7 @@ async def test_ensure_single_default_flavor_with_conflict(monkeypatch):
     # The handler should raise a PermanentError
     with pytest.raises(kopf.PermanentError):
         await ensure_single_default_flavor(spec=spec, name=name, logger=logger)
-    
+
     get_default_flavor_mock.assert_called_once()
 
 
