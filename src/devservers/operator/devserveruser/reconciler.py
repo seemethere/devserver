@@ -10,7 +10,7 @@ from typing import Dict, cast
 from kubernetes import client
 from kubernetes.client import ApiException
 
-from devserver.utils.users import compute_user_namespace
+from devservers.utils.users import compute_user_namespace
 from ...crds.const import CRD_GROUP
 
 from .rbac import build_default_role_body, build_default_rolebinding_body

@@ -28,7 +28,7 @@ install-crds: crds/*.yaml
 .PHONY: run
 run: install-crds sync
 	@echo "🏃 Running operator in namespace $(NAMESPACE)..."
-	$(KOPF) run --dev -m devserver.operator --namespace $(NAMESPACE)
+	$(KOPF) run --dev -m devservers.operator --namespace $(NAMESPACE)
 
 .PHONY: lint
 lint: pre-commit

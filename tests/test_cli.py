@@ -9,8 +9,8 @@ import tempfile
 import uuid
 
 from click.testing import CliRunner
-from devserver.cli import main as cli_main
-from devserver.cli import handlers
+from devservers.cli import main as cli_main
+from devservers.cli import handlers
 from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
 from typing import Any, Dict
@@ -20,8 +20,8 @@ from tests.helpers import (
     wait_for_cluster_custom_object_to_be_deleted,
     wait_for_devserveruser_status,
 )
-from devserver.cli.config import Configuration
-from devserver.crds.const import (
+from devservers.cli.config import Configuration
+from devservers.crds.const import (
     CRD_GROUP,
     CRD_VERSION,
     CRD_PLURAL_DEVSERVER,
@@ -38,7 +38,7 @@ TEST_DEVSERVER_NAME: str = "test-cli-devserver"
 @pytest.fixture(autouse=True)
 def mock_config_from_file(test_config: Configuration) -> None:
     """Mocks the config loading to return the test_config fixture."""
-    with patch("devserver.cli.main.load_config", return_value=test_config):
+    with patch("devservers.cli.main.load_config", return_value=test_config):
         yield
 
 
@@ -261,7 +261,7 @@ class TestCliParser:
         runner = CliRunner()
         
         # Mock the handler to avoid actual Kubernetes interaction
-        with patch("devserver.cli.handlers.create_devserver") as mock_create:
+        with patch("devservers.cli.handlers.create_devserver") as mock_create:
             result = runner.invoke(
                 cli_main.main,
                 ["create", "--name", "my-server", "--flavor", "cpu-small", "--image", "ubuntu:22.04"]
@@ -325,7 +325,7 @@ class TestCliParser:
         with patch(
             "kubernetes.client.CustomObjectsApi.create_namespaced_custom_object"
         ) as mock_create_k8s, patch(
-            "devserver.cli.handlers.create.get_default_flavor",
+            "devservers.cli.handlers.create.get_default_flavor",
             side_effect=mock_get_default_flavor,
         ) as mock_get_default:
             result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
@@ -352,7 +352,7 @@ class TestCliParser:
 
         # Mock get_default_flavor to return None
         with patch(
-            "devserver.cli.handlers.create.get_default_flavor",
+            "devservers.cli.handlers.create.get_default_flavor",
             side_effect=mock_get_default_flavor_none,
         ) as mock_get_default:
             result = runner.invoke(cli_main.main, ["create", "--name", "my-server"])
@@ -367,7 +367,7 @@ class TestCliParser:
         runner = CliRunner()
         
         # Mock the handler to avoid actual Kubernetes interaction
-        with patch("devserver.cli.handlers.list_devservers") as mock_list:
+        with patch("devservers.cli.handlers.list_devservers") as mock_list:
             result = runner.invoke(cli_main.main, ["list"])
             
             # Check that the command succeeded
@@ -380,7 +380,7 @@ class TestCliParser:
         """Tests that 'flavors' command is recognized."""
         runner = CliRunner()
 
-        with patch("devserver.cli.handlers.list_flavors") as mock_list_flavors:
+        with patch("devservers.cli.handlers.list_flavors") as mock_list_flavors:
             result = runner.invoke(cli_main.main, ["flavors"])
             assert result.exit_code == 0
             mock_list_flavors.assert_called_once()
@@ -390,7 +390,7 @@ class TestCliParser:
         runner = CliRunner()
         
         # Mock the handler to avoid actual Kubernetes interaction
-        with patch("devserver.cli.handlers.delete_devserver") as mock_delete:
+        with patch("devservers.cli.handlers.delete_devserver") as mock_delete:
             result = runner.invoke(cli_main.main, ["delete", "--name", "my-server"])
             
             # Check that the command succeeded
@@ -407,7 +407,7 @@ class TestCliParser:
         runner = CliRunner()
 
         # Mock the handler to avoid actual Kubernetes interaction
-        with patch("devserver.cli.handlers.describe_devserver") as mock_describe:
+        with patch("devservers.cli.handlers.describe_devserver") as mock_describe:
             result = runner.invoke(cli_main.main, ["describe", "--name", "my-server"])
 
             # Check that the command succeeded
@@ -423,7 +423,7 @@ class TestCliParser:
         runner = CliRunner()
 
         # Mock the handler to avoid actual Kubernetes interaction
-        with patch("devserver.cli.handlers.ssh_devserver") as mock_ssh:
+        with patch("devservers.cli.handlers.ssh_devserver") as mock_ssh:
             result = runner.invoke(
                 cli_main.main,
                 [
@@ -455,7 +455,7 @@ class TestCliParser:
         runner = CliRunner()
 
         # Mock the handler to avoid actual Kubernetes interaction
-        with patch("devserver.cli.handlers.ssh_proxy_devserver") as mock_ssh_proxy:
+        with patch("devservers.cli.handlers.ssh_proxy_devserver") as mock_ssh_proxy:
             result = runner.invoke(
                 cli_main.main,
                 [

@@ -159,7 +159,7 @@ def create_ssh_config_for_devserver(
     proxy_command_parts = [
         str(python_executable),
         "-m",
-        "devserver.cli.main",
+        "devservers.cli.main",
         "ssh-proxy",
         "--name",
         name,

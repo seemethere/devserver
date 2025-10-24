@@ -13,9 +13,9 @@ import os
 from typing import cast
 import subprocess
 from typing import Any
-from devserver.cli.config import Configuration
+from devservers.cli.config import Configuration
 from pathlib import Path
-from devserver.crds.const import (
+from devservers.crds.const import (
     CRD_GROUP,
     CRD_PLURAL_DEVSERVER,
     CRD_PLURAL_DEVSERVERFLAVOR,
@@ -251,7 +251,7 @@ def operator_runner():
     os.environ["DEVSERVER_EXPIRATION_INTERVAL"] = "5"
 
     # Import the operator module to ensure handlers are registered
-    import devserver.operator.operator  # noqa: F401
+    import devservers.operator.operator  # noqa: F401
 
     def run_operator():
         """Run the operator in a separate event loop."""

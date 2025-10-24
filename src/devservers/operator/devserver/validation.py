@@ -6,7 +6,7 @@ from datetime import timedelta
 
 import kopf
 
-from devserver.utils.time import parse_duration
+from devservers.utils.time import parse_duration
 
 
 def validate_and_normalize_ttl(

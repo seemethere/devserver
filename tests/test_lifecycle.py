@@ -8,13 +8,13 @@ from tests.helpers import (
     cleanup_devserver,
 )
 import uuid
-from devserver.operator.devserver import lifecycle
-from devserver.operator.devserver.resources.statefulset import DEFAULT_DEVSERVER_IMAGE
+from devservers.operator.devserver import lifecycle
+from devservers.operator.devserver.resources.statefulset import DEFAULT_DEVSERVER_IMAGE
 from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime, timedelta, timezone
 import logging
 import asyncio
-from devserver.crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
+from devservers.crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
 
 # Constants from the main test file
 NAMESPACE = TEST_NAMESPACE
