@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
-from devserver.crds import DevServer
-from devserver.crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
+from devservers.crds import DevServer
+from devservers.crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
 
 
 def test_devserver_get():

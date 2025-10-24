@@ -6,12 +6,12 @@ import io
 import sys
 from pathlib import Path
 
-from devserver.cli import handlers
+from devservers.cli import handlers
 from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
 from tests.helpers import async_wait_for, wait_for_devserver_to_exist
-from devserver.cli.config import Configuration
-from devserver.cli.utils import get_current_context
+from devservers.cli.config import Configuration
+from devservers.cli.utils import get_current_context
 
 
 @pytest.mark.parametrize("image", ["ubuntu:latest", "fedora:latest"])
@@ -156,10 +156,10 @@ async def test_ssh_config_file_management(
 
     mock_user = "test@example.com"
     monkeypatch.setattr(
-        "devserver.cli.handlers.ssh.get_current_context", lambda: (mock_user, "default")
+        "devservers.cli.handlers.ssh.get_current_context", lambda: (mock_user, "default")
     )
     monkeypatch.setattr(
-        "devserver.cli.handlers.delete.get_current_context",
+        "devservers.cli.handlers.delete.get_current_context",
         lambda: (mock_user, "default"),
     )
     monkeypatch.setattr("tests.test_ssh.get_current_context", lambda: (mock_user, "default"))
@@ -206,7 +206,7 @@ async def test_ssh_config_file_management(
         python_executable = sys.executable
         namespace_arg = f"--namespace {TEST_NAMESPACE}"
         expected_proxy_command = (
-            f"ProxyCommand sh -c '{python_executable} -m devserver.cli.main ssh-proxy --name {devserver_name} {namespace_arg}'"
+            f"ProxyCommand sh -c '{python_executable} -m devservers.cli.main ssh-proxy --name {devserver_name} {namespace_arg}'"
         )
         assert f"Host {hostname}" in content
         assert expected_proxy_command in content
@@ -341,10 +341,10 @@ async def test_ssh_config_with_kubeconfig_path(
 
     mock_user = "test@example.com"
     monkeypatch.setattr(
-        "devserver.cli.handlers.ssh.get_current_context", lambda: (mock_user, "default")
+        "devservers.cli.handlers.ssh.get_current_context", lambda: (mock_user, "default")
     )
     monkeypatch.setattr(
-        "devserver.cli.handlers.delete.get_current_context",
+        "devservers.cli.handlers.delete.get_current_context",
         lambda: (mock_user, "default"),
     )
 
@@ -383,7 +383,7 @@ async def test_ssh_config_with_kubeconfig_path(
         assert f"Host {hostname}" in content
         python_executable = sys.executable
         expected_proxy_command = (
-            f"ProxyCommand sh -c '{python_executable} -m devserver.cli.main ssh-proxy --name {devserver_name} "
+            f"ProxyCommand sh -c '{python_executable} -m devservers.cli.main ssh-proxy --name {devserver_name} "
             f"--namespace {TEST_NAMESPACE} --kubeconfig-path {kubeconfig_file}'"
         )
         assert expected_proxy_command in content

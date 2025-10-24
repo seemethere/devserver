@@ -2,7 +2,7 @@ import pytest
 import kopf
 from unittest.mock import MagicMock, AsyncMock
 
-from devserver.operator.devserverflavor.handler import ensure_single_default_flavor
+from devservers.operator.devserverflavor.handler import ensure_single_default_flavor
 
 @pytest.mark.asyncio
 async def test_ensure_single_default_flavor_no_conflict(monkeypatch):
@@ -16,7 +16,7 @@ async def test_ensure_single_default_flavor_no_conflict(monkeypatch):
     # Mock get_default_flavor to return None, indicating no default flavor exists
     get_default_flavor_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "devserver.operator.devserverflavor.handler.get_default_flavor", get_default_flavor_mock
+        "devservers.operator.devserverflavor.handler.get_default_flavor", get_default_flavor_mock
     )
 
     # The handler should run without raising an exception
@@ -41,7 +41,7 @@ async def test_ensure_single_default_flavor_with_conflict(monkeypatch):
     # Mock get_default_flavor to return an existing default flavor
     get_default_flavor_mock = AsyncMock(return_value=existing_default_flavor)
     monkeypatch.setattr(
-        "devserver.operator.devserverflavor.handler.get_default_flavor", get_default_flavor_mock
+        "devservers.operator.devserverflavor.handler.get_default_flavor", get_default_flavor_mock
     )
 
     # The handler should raise a PermanentError
@@ -67,7 +67,7 @@ async def test_ensure_single_default_flavor_self_update(monkeypatch):
     # Mock get_default_flavor to return the same flavor
     get_default_flavor_mock = AsyncMock(return_value=existing_default_flavor)
     monkeypatch.setattr(
-        "devserver.operator.devserverflavor.handler.get_default_flavor", get_default_flavor_mock
+        "devservers.operator.devserverflavor.handler.get_default_flavor", get_default_flavor_mock
     )
 
     # The handler should run without raising an exception
@@ -87,7 +87,7 @@ async def test_ensure_single_default_flavor_not_default(monkeypatch):
     # We don't need to mock get_default_flavor as it should not be called
     get_default_flavor_mock = AsyncMock()
     monkeypatch.setattr(
-        "devserver.operator.devserverflavor.handler.get_default_flavor", get_default_flavor_mock
+        "devservers.operator.devserverflavor.handler.get_default_flavor", get_default_flavor_mock
     )
 
     await ensure_single_default_flavor(spec=spec, name=name, logger=logger)

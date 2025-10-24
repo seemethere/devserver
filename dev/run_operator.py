@@ -74,7 +74,7 @@ async def run_operator(namespaces=None):
     print("🚀 Starting DevServer Operator...")
 
     # Import the operator module to register handlers
-    import devserver.operator.operator  # noqa: F401
+    import devservers.operator.operator  # noqa: F401
 
     if namespaces:
         print(f"👀 Watching namespace(s): {', '.join(namespaces)}")
