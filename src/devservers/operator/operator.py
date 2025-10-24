@@ -44,7 +44,7 @@ async def on_startup(
 ) -> None:
     """
     Handle the startup of the operator.
-    
+
     This sets operator-wide settings and starts background tasks.
     """
     try:
@@ -59,18 +59,18 @@ async def on_startup(
             raise kopf.PermanentError("Could not configure Kubernetes client.")
 
     logger.info("Operator started.")
-    
+
     # The default worker limit is unbounded which means you can EASILY flood
     # your API server on restart unless you limit it. 1-5 are the generally
     # accepted common sense defaults. This is intentionally conservative and
     # can be tuned based on your cluster's capabilities.
     # TODO: Make this configurable via environment variable
     settings.batching.worker_limit = 1
-    
+
     # All logs by default go to the k8s event api making api server flooding
     # even more likely. Disable event posting to reduce API load.
     settings.posting.enabled = False
-    
+
     # Start the background cleanup task for TTL expiration
     loop = asyncio.get_running_loop()
     custom_objects_api = client.CustomObjectsApi()

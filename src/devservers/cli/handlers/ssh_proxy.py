@@ -44,10 +44,10 @@ def ssh_proxy_devserver(
             # Validate that stdin/stdout have buffer attributes
             if not hasattr(sys.stdin, "buffer") or not hasattr(sys.stdout, "buffer"):
                 sys.exit(1)  # Silent failure for SSH ProxyCommand
-            
+
             stdin_buffer = cast(io.BufferedIOBase, sys.stdin.buffer)
             stdout_buffer = cast(io.BufferedIOBase, sys.stdout.buffer)
-            
+
             try:
                 with socket.create_connection(("localhost", local_port)) as sock:
                     while True:
@@ -55,11 +55,11 @@ def ssh_proxy_devserver(
                         r, _, x = select.select(
                             [sys.stdin, sock], [], [sys.stdin, sock], 1.0
                         )
-                        
+
                         # Handle exceptional conditions
                         if x:
                             return
-                        
+
                         for readable in r:
                             if readable is sys.stdin:
                                 data = stdin_buffer.read1(4096)
