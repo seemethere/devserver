@@ -261,16 +261,16 @@ async def test_ssh_direct_connection(
     Tests the --no-proxy (direct) SSH connection via port-forwarding.
     """
     devserver_name = f"ssh-direct-test-{uuid.uuid4().hex[:6]}"
-    
+
     # We will patch subprocess.run to verify it's called with the correct port-forward command
     # and to prevent it from hanging in a non-interactive test.
     called_ssh_command = None
     def mock_subprocess_run(command, *args, **kwargs):
         nonlocal called_ssh_command
         called_ssh_command = command
-    
+
     monkeypatch.setattr("subprocess.run", mock_subprocess_run)
-    
+
     try:
         # 1. Create a devserver
         await asyncio.to_thread(
@@ -300,7 +300,7 @@ async def test_ssh_direct_connection(
         assert "ssh" in called_ssh_command[0]
         assert "localhost" in "".join(called_ssh_command)
         assert "-p" in called_ssh_command
-        
+
     finally:
         # 4. Cleanup
         await asyncio.to_thread(

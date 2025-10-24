@@ -43,7 +43,7 @@ class DevServerReconciler:
 
         # Build ConfigMaps
         sshd_configmap = build_configmap(self.name, self.namespace)
-        
+
         script_path = os.path.join(os.path.dirname(__file__), "resources", "startup.sh")
         with open(script_path, "r") as f:
             startup_script_content = f.read()
@@ -100,7 +100,7 @@ class DevServerReconciler:
 
         # Create Services
         await self._create_service(resources["headless_service"], logger)
-        
+
         if self.spec.get("enableSSH", False):
             await self._create_service(resources["ssh_service"], logger)
 
@@ -178,14 +178,14 @@ async def reconcile_devserver(
         Status message indicating success
     """
     reconciler = DevServerReconciler(name, namespace, spec, flavor)
-    
+
     # Build all resources
     resources = reconciler.build_resources()
-    
+
     # Set owner references
     reconciler.adopt_resources(resources)
-    
+
     # Create resources
     await reconciler.create_resources(resources, logger)
-    
+
     return f"StatefulSet '{name}' created successfully."
