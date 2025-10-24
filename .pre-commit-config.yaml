@@ -1,15 +1,21 @@
 repos:
   - repo: local
     hooks:
+      - id: uv-sync
+        name: uv sync
+        entry: uv sync
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: ruff
-        name: Run ruff
-        entry: uvx -p 3.13 ruff check --fix
+        name: ruff (lint)
+        entry: uv run ruff check --fix
         language: system
         types: [python]
         pass_filenames: false
       - id: ty
-        name: Run ty
-        entry: uvx -p 3.13 ty check src/
+        name: ty (typececking)
+        entry: uv run ty check src/
         language: system
         types: [python]
         pass_filenames: false
