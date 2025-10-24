@@ -1,6 +1,7 @@
+import asyncio
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from kubernetes import client, watch
 from rich.console import Console
@@ -9,6 +10,7 @@ from rich.status import Status
 from ..config import Configuration
 from ..utils import get_current_context
 from ...crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
+from ...utils.flavors import get_default_flavor
 
 
 def _wait_for_crd_running(name: str, namespace: str, status: Status) -> None:
@@ -95,7 +97,7 @@ def _wait_for_devserver_ready(name: str, namespace: str, console: Console) -> No
 def create_devserver(
     configuration: Configuration,
     name: str,
-    flavor: str,
+    flavor: Optional[str] = None,
     image: Optional[str] = None,
     ssh_public_key_file: Optional[str] = None,
     namespace: Optional[str] = None,
@@ -110,6 +112,19 @@ def create_devserver(
     if namespace:
         target_namespace = namespace
 
+    # If flavor is not specified, try to find the default flavor
+    if not flavor:
+        console.print("No flavor specified, searching for a default flavor...")
+        default_flavor = asyncio.run(get_default_flavor())
+        if default_flavor:
+            flavor = default_flavor["metadata"]["name"]
+            console.print(f"Using default flavor: '{flavor}'")
+        else:
+            console.print(
+                "Error: No default flavor found. Please specify a flavor with --flavor."
+            )
+            sys.exit(1)
+
     key_path_str = ssh_public_key_file or configuration.ssh_public_key_file
     try:
         key_path = Path(key_path_str).expanduser()
@@ -123,17 +138,17 @@ def create_devserver(
         sys.exit(1)
 
     # Construct the DevServer manifest
+    spec: Dict[str, Any] = {
+        "flavor": flavor,
+        "ssh": {"publicKey": ssh_public_key},
+        "lifecycle": {"timeToLive": time_to_live},
+        "enableSSH": True,
+    }
     manifest = {
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
         "kind": "DevServer",
         "metadata": {"name": name, "namespace": target_namespace},
-        "spec": {
-            "flavor": flavor,
-            "image": image,
-            "ssh": {"publicKey": ssh_public_key},
-            "lifecycle": {"timeToLive": time_to_live},
-            "enableSSH": True,
-        },
+        "spec": spec,
     }
 
     # If an image is provided, use it, otherwise use the default from the operator

@@ -23,6 +23,7 @@ from .devserver.lifecycle import cleanup_expired_devservers
 # ruff: noqa: F401
 from . import devserver
 from . import devserveruser
+from . import devserverflavor
 from ..crds.const import CRD_GROUP
 
 
