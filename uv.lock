@@ -336,7 +336,7 @@ wheels = [
 ]
 
 [[package]]
-name = "devserver-operator"
+name = "devservers"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [

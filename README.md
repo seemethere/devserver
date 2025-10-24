@@ -73,8 +73,8 @@ uv run devctl delete mydev
 For more detailed documentation, please see the following `README.md` files:
 
 -   **[Source Code & Architecture](./src/README.md)**
--   **[Operator & CRDs](./src/devserver/operator/README.md)**
--   **[CLI Reference](./src/devserver/cli/README.md)**
+-   **[Operator & CRDs](./src/devservers/operator/README.md)**
+-   **[CLI Reference](./src/devservers/cli/README.md)**
 -   **[Testing](./tests/README.md)**
 
 ## 🤝 Contributing

@@ -13,7 +13,7 @@ The project is divided into two main components:
 
 ```
 src/
-└── devserver/
+└── devservers/
     ├── operator/                  # Kubernetes operator implementation
     │   ├── devserver/             # Logic for the DevServer CRD
     │   │   ├── handler.py         # Kopf handlers for DevServer
