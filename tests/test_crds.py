@@ -1,6 +1,6 @@
 import yaml
 import pathlib
-from devserver.crds.const import CRD_GROUP, CRD_PLURAL_DEVSERVER, CRD_PLURAL_DEVSERVERFLAVOR
+from devservers.crds.const import CRD_GROUP, CRD_PLURAL_DEVSERVER, CRD_PLURAL_DEVSERVERFLAVOR
 
 
 # Path to the CRD directory

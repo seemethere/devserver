@@ -36,7 +36,7 @@ def test_startup_script_on_various_images(image):
     Tests that the startup.sh script runs to completion on different base images,
     creating the user and setting up the environment correctly.
     """
-    script_path = "src/devserver/operator/devserver/resources/startup.sh"
+    script_path = "src/devservers/operator/devserver/resources/startup.sh"
 
     command = [
         "docker",

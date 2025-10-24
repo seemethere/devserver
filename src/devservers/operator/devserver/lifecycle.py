@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from kubernetes import client
 
-from devserver.utils.time import parse_duration
+from devservers.utils.time import parse_duration
 from ...crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
 
 

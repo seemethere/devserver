@@ -3,7 +3,7 @@ import time
 import pytest
 from kubernetes import client
 from typing import Any, Callable, Coroutine, TypeVar
-from devserver.crds.const import (
+from devservers.crds.const import (
     CRD_GROUP,
     CRD_VERSION,
     CRD_PLURAL_DEVSERVER,

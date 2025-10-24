@@ -18,7 +18,7 @@ from kubernetes import client, config
 
 from .devserver.lifecycle import cleanup_expired_devservers
 # NOTE: This is what registers our operator's function with kopf so that
-#       `kopf.run -m devserver.operator` can work. If you add more functions
+#       `kopf.run -m devservers.operator` can work. If you add more functions
 #       to the operator, you must add them here.
 # ruff: noqa: F401
 from . import devserver
