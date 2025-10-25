@@ -29,7 +29,7 @@ class BaseCustomResource:
         namespace: Optional[str] = None,
         api: Optional[client.CustomObjectsApi] = None,
     ) -> "BaseCustomResource":
-        
+
         api_instance = api or client.CustomObjectsApi()
         if cls.namespaced:
             if not namespace:
@@ -50,7 +50,7 @@ class BaseCustomResource:
                 plural=cls.plural,
                 name=name,
             )
-        
+
         meta = ObjectMeta(**data["metadata"])
         return cls(metadata=meta, spec=data["spec"], status=data.get("status", {}), api=api)
 

@@ -2,7 +2,7 @@ from typing import Any, Dict
 
 def build_configmap(name: str, namespace: str) -> Dict[str, Any]:
     """Builds the ConfigMap for the DevServer's sshd_config."""
-    
+
     sshd_config = """
 # This file is managed by the devserver operator
 
@@ -10,7 +10,7 @@ Port 22
 PermitRootLogin no
 PasswordAuthentication no
 ChallengeResponseAuthentication no
-PrintMotd no 
+PrintMotd no
 ForceCommand /devserver-login/user_login.sh
 Subsystem sftp /opt/bin/sftp-server
 AuthorizedKeysFile /home/dev/.ssh/authorized_keys
