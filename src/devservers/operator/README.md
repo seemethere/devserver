@@ -52,6 +52,8 @@ spec:
 
 Tolerations can also be specified to allow DevServers to be scheduled on nodes with matching taints, such as GPU nodes.
 
+Cluster administrators can mark a flavor as the default by setting `spec.default: true`. When a default flavor is configured, users can create DevServers without explicitly specifying a flavor. Only one flavor can be marked as default at a time.
+
 **Example `DevServerFlavor`:**
 
 ```yaml
@@ -60,6 +62,7 @@ kind: DevServerFlavor
 metadata:
   name: cpu-small
 spec:
+  default: true  # Optional: mark this as the default flavor
   resources:
     requests:
       cpu: "500m"
@@ -114,7 +117,8 @@ The operator is now fully asynchronous to improve performance and scalability. A
 
 The codebase is structured to separate concerns for each Custom Resource Definition (CRD) it manages. The logic for each CRD is contained within its own directory:
 
--   `src/devserver/operator/devserver/`: Contains the handlers and reconciliation logic for the `DevServer` CRD.
--   `src/devserver/operator/devserveruser/`: Contains the handlers and reconciliation logic for the `DevServerUser` CRD.
+-   `src/devservers/operator/devserver/`: Contains the handlers and reconciliation logic for the `DevServer` CRD.
+-   `src/devservers/operator/devserveruser/`: Contains the handlers and reconciliation logic for the `DevServerUser` CRD.
+-   `src/devservers/operator/devserverflavor/`: Contains the handlers for the `DevServerFlavor` CRD, including support for default flavors.
 
 This structure makes it easier to extend the operator with new CRDs in the future.

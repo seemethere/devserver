@@ -45,6 +45,10 @@ make test MAX_JOBS=8
 
 A dedicated test, `test_startup_script.py`, ensures that the container's entrypoint script (`startup.sh`) works correctly across different base Docker images (e.g., `ubuntu:latest`, `fedora:latest`). This test runs the script in isolation within Docker containers to verify that user creation and environment setup are compatible with various Linux distributions.
 
-### MOTD Testing
+### DevServerFlavor Testing
 
-The `test_motd.py` test verifies that the custom message of the day is correctly generated and mounted into the devserver container.
+The `test_devserverflavor_handler.py` test verifies the behavior of `DevServerFlavor` CRDs, including the ability to set default flavors for the cluster. This ensures that cluster administrators can configure a default flavor that users can automatically use when creating DevServers without explicitly specifying one.
+
+### CRD Object Testing
+
+The `test_devserver_crd_object.py` test validates the Python classes and constants used for interacting with DevServer CRDs programmatically, ensuring that the object-oriented interface for CRDs works correctly.
