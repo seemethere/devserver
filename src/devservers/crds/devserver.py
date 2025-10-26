@@ -14,16 +14,16 @@ class DevServer(BaseCustomResource):
 
     metadata: ObjectMeta
     spec: Dict[str, Any]
-    status: Dict[str, Any] = field(default_factory=dict)
+    status: Dict[str, Any] = field(default_factory=dict, init=False)
 
     def __init__(
         self,
         metadata: ObjectMeta,
         spec: Dict[str, Any],
-        status: Dict[str, Any] = field(default_factory=dict),
+        status: Optional[Dict[str, Any]] = None,
         api: Optional[client.CustomObjectsApi] = None,
     ) -> None:
         super().__init__(api)
         self.metadata = metadata
         self.spec = spec
-        self.status = status
+        self.status = status or {}
