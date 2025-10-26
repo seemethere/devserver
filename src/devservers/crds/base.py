@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass, field, fields
-from typing import Any, Dict, List, Optional, Type, TypeVar
-
+from typing import Any, Dict, List, Optional, Type, TypeVar, Generator
+import time
 from kubernetes import client, config, watch
 
 from .errors import KubeConfigError
@@ -257,7 +257,7 @@ class BaseCustomResource:
         self.spec = obj.spec
         self.status = obj.status
 
-    def watch(self: T):
+    def watch(self: T, timeout_seconds: Optional[int] = None):
         """
         Watches the custom resource for events.
 
@@ -274,6 +274,7 @@ class BaseCustomResource:
                 namespace=self.metadata.namespace,
                 plural=self.plural,
                 field_selector=f"metadata.name={self.metadata.name}",
+                timeout_seconds=timeout_seconds,
             )
         else:
             raise NotImplementedError("Watching cluster-scoped resources is not yet implemented.")
@@ -296,3 +297,33 @@ class BaseCustomResource:
             body["status"] = self.status
 
         return body
+
+    def wait_for_status(self: T, status: Dict[str, Any], timeout: int = 30) -> Generator[Dict[str, Any], None, None]:
+        """Waits for the custom resource to reach the desired status, yielding events along the way."""
+        start_time = time.time()
+
+        # First, check the current state of the object. It might already be in the desired state.
+        self.refresh()
+        if self.status == status:
+            return
+
+        remaining_timeout = int(timeout - (time.time() - start_time))
+        if remaining_timeout <= 0:
+            raise TimeoutError(
+                f"Custom resource {self.metadata.name} did not reach status {status} within {timeout} seconds."
+            )
+
+        for event in self.watch(timeout_seconds=remaining_timeout):
+            yield event
+            obj = event["object"]
+            if "status" in obj and obj["status"] == status:
+                return
+
+        # After the watch times out, refresh and check one last time.
+        self.refresh()
+        if self.status == status:
+            return
+
+        raise TimeoutError(
+            f"Custom resource {self.metadata.name} did not reach status {status} within {timeout} seconds."
+        )
