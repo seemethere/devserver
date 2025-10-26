@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
 from kubernetes import client, config
@@ -34,6 +34,16 @@ class ObjectMeta:
     namespace: Optional[str] = None
     labels: Dict[str, str] = field(default_factory=dict)
     annotations: Dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ObjectMeta":
+        """
+        Constructs an ObjectMeta from a dictionary, ignoring unknown fields.
+        This makes it robust to extra metadata from the Kubernetes API.
+        """
+        known_field_names = {f.name for f in fields(cls)}
+        filtered_data = {k: v for k, v in data.items() if k in known_field_names}
+        return cls(**filtered_data)
 
 
 class BaseCustomResource:
@@ -81,7 +91,7 @@ class BaseCustomResource:
                 name=name,
             )
 
-        meta = ObjectMeta(**data["metadata"])
+        meta = ObjectMeta.from_dict(data["metadata"])
         return cls(
             metadata=meta, spec=data["spec"], status=data.get("status", {}), api=api
         )
@@ -149,7 +159,7 @@ class BaseCustomResource:
 
         return [
             cls(
-                metadata=ObjectMeta(**item["metadata"]),
+                metadata=ObjectMeta.from_dict(item["metadata"]),
                 spec=item["spec"],
                 status=item.get("status", {}),
                 api=api_instance,
