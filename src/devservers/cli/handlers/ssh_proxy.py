@@ -4,11 +4,11 @@ import select
 from typing import Optional, cast
 import io
 
-from kubernetes import client, config
+from kubernetes import config
 
 from ...utils.network import kubernetes_port_forward
 from ..utils import get_current_context
-from ...crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
+from ...crds.devserver import DevServer
 
 
 def ssh_proxy_devserver(
@@ -18,21 +18,16 @@ def ssh_proxy_devserver(
 ) -> None:
     """Proxy SSH connection to a DevServer."""
     config.load_kube_config(config_file=kubeconfig_path)
-    custom_objects_api = client.CustomObjectsApi()
 
     _, target_namespace = get_current_context()
     if namespace:
         target_namespace = namespace
 
+    assert target_namespace is not None
+
     try:
         # Check if DevServer exists
-        custom_objects_api.get_namespaced_custom_object(
-            group=CRD_GROUP,
-            version=CRD_VERSION,
-            namespace=target_namespace,
-            plural=CRD_PLURAL_DEVSERVER,
-            name=name,
-        )
+        DevServer.get(name=name, namespace=target_namespace)
 
         # TODO: The pod name should be dynamically retrieved
         pod_name = f"{name}-0"
