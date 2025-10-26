@@ -8,27 +8,23 @@ from ..utils import get_current_context
 from ...crds.const import (
     CRD_GROUP,
     CRD_VERSION,
-    CRD_PLURAL_DEVSERVER,
     CRD_PLURAL_DEVSERVERFLAVOR,
 )
+from ...crds.devserver import DevServer
 
 
 def list_devservers(namespace: Optional[str] = None) -> None:
     """Lists all DevServers in a given namespace."""
-    custom_objects_api = client.CustomObjectsApi()
     console = Console()
 
     _, target_namespace = get_current_context()
     if namespace:
         target_namespace = namespace
 
+    assert target_namespace is not None
+
     try:
-        devservers = custom_objects_api.list_namespaced_custom_object(
-            group=CRD_GROUP,
-            version=CRD_VERSION,
-            namespace=target_namespace,
-            plural=CRD_PLURAL_DEVSERVER,
-        )
+        devservers = DevServer.list(namespace=target_namespace)
 
         table = Table(title=f"DevServers in namespace [bold]{target_namespace}[/bold]")
         table.add_column("Name", style="cyan")
@@ -37,18 +33,18 @@ def list_devservers(namespace: Optional[str] = None) -> None:
         table.add_column("Flavor", style="yellow")
         table.add_column("TTL", style="red")
 
-        if not devservers["items"]:
+        if not devservers:
             console.print(f"No DevServers found in namespace '{target_namespace}'.")
             return
 
-        for devserver in devservers["items"]:
-            status = devserver.get("status", {})
+        for devserver in devservers:
+            status = devserver.status
             table.add_row(
-                devserver["metadata"]["name"],
+                devserver.metadata.name,
                 status.get("phase", "Unknown"),
-                devserver["spec"].get("image", "default"),
-                devserver["spec"]["flavor"],
-                devserver["spec"]["lifecycle"]["timeToLive"],
+                devserver.spec.get("image", "default"),
+                devserver.spec["flavor"],
+                devserver.spec["lifecycle"]["timeToLive"],
             )
         console.print(table)
 

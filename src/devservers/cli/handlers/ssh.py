@@ -14,7 +14,7 @@ from ..ssh_config import (
 from ...utils.network import PortForwardError, kubernetes_port_forward
 from ..config import Configuration
 from ..utils import get_current_context
-from ...crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
+from ...crds.devserver import DevServer
 
 
 def warn_if_agent_forwarding_is_disabled(configuration: Configuration):
@@ -34,7 +34,6 @@ def ssh_devserver(
     no_proxy: bool = False,
 ) -> None:
     """SSH into a DevServer."""
-    custom_objects_api = client.CustomObjectsApi()
     console = Console()
 
     user, target_namespace = get_current_context()
@@ -42,15 +41,11 @@ def ssh_devserver(
         target_namespace = namespace
     key_path_str = ssh_private_key_file or configuration.ssh_private_key_file
 
+    assert target_namespace is not None
+
     try:
         # Check if DevServer exists
-        custom_objects_api.get_namespaced_custom_object(
-            group=CRD_GROUP,
-            version=CRD_VERSION,
-            namespace=target_namespace,
-            plural=CRD_PLURAL_DEVSERVER,
-            name=name,
-        )
+        DevServer.get(name=name, namespace=target_namespace)
 
         # TODO: The pod name should be dynamically retrieved
         pod_name = f"{name}-0"
