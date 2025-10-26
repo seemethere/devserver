@@ -17,7 +17,8 @@ from ...crds.const import (
 
 
 @kopf.on.create(CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER)
-async def create_devserver(
+@kopf.on.update(CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER)
+async def create_or_update_devserver(
     spec: Dict[str, Any],
     name: str,
     namespace: str,
@@ -27,7 +28,7 @@ async def create_devserver(
     **kwargs: Any,
 ) -> None:
     """
-    Handle the creation of a new DevServer resource.
+    Handle the creation or update of a DevServer resource.
 
     This handler orchestrates:
     1. TTL validation and normalization
@@ -36,7 +37,7 @@ async def create_devserver(
     4. Kubernetes resource creation
     5. Status updates
     """
-    logger.info(f"Creating DevServer '{name}' in namespace '{namespace}'...")
+    logger.info(f"Reconciling DevServer '{name}' in namespace '{namespace}'...")
 
     # Step 1: Validate TTL
     ttl_str = spec.get("lifecycle", {}).get("timeToLive")
@@ -76,7 +77,6 @@ async def create_devserver(
         "phase": "Running",
         "message": status_message,
     }
-
 
 @kopf.on.delete(CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER)
 async def delete_devserver(

@@ -97,6 +97,98 @@ async def test_devserver_creates_statefulset(test_flavor, operator_running, k8s_
 
 
 @pytest.mark.asyncio
+async def test_devserver_update_changes_image(test_flavor, operator_running, k8s_clients):
+    """
+    Tests if updating a DevServer's spec.image triggers the operator to
+    update the underlying StatefulSet's container image.
+    """
+    apps_v1 = k8s_clients["apps_v1"]
+    custom_objects_api = k8s_clients["custom_objects_api"]
+    devserver_name = f"test-update-{uuid.uuid4().hex[:6]}"
+
+    initial_image = "ubuntu:22.04"
+    updated_image = "fedora:latest"
+
+    # 1. Create a DevServer manifest
+    manifest = {
+        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
+        "kind": "DevServer",
+        "metadata": {"name": devserver_name, "namespace": NAMESPACE},
+        "spec": {
+            "flavor": test_flavor,
+            "image": initial_image,
+            "ssh": {"publicKey": "ssh-rsa AAAA..."},
+            "lifecycle": {"timeToLive": "5m"},
+        },
+    }
+
+    try:
+        # 2. Create the DevServer resource using the raw API
+        await asyncio.to_thread(
+            custom_objects_api.create_namespaced_custom_object,
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            namespace=NAMESPACE,
+            plural=CRD_PLURAL_DEVSERVER,
+            body=manifest,
+        )
+
+        # 3. Wait for the StatefulSet and verify the initial image
+        statefulset = await wait_for_statefulset_to_exist(
+            apps_v1, name=devserver_name, namespace=NAMESPACE
+        )
+        assert statefulset.spec.template.spec.containers[0].image == initial_image
+
+        # 4. Get the created DevServer to retrieve its resourceVersion
+        created_devserver = await asyncio.to_thread(
+            custom_objects_api.get_namespaced_custom_object,
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            namespace=NAMESPACE,
+            plural=CRD_PLURAL_DEVSERVER,
+            name=devserver_name,
+        )
+
+        # 5. Update the spec and replace the object
+        created_devserver["spec"]["image"] = updated_image
+        await asyncio.to_thread(
+            custom_objects_api.replace_namespaced_custom_object,
+            group=CRD_GROUP,
+            version=CRD_VERSION,
+            namespace=NAMESPACE,
+            plural=CRD_PLURAL_DEVSERVER,
+            name=devserver_name,
+            body=created_devserver,
+        )
+
+        # 6. Poll the StatefulSet until the image is updated
+        for _ in range(30): # Poll for up to 60 seconds
+            await asyncio.sleep(2)
+            updated_sts = await asyncio.to_thread(
+                apps_v1.read_namespaced_stateful_set,
+                name=devserver_name,
+                namespace=NAMESPACE,
+            )
+            if updated_sts.spec.template.spec.containers[0].image == updated_image:
+                break
+        else:
+            pytest.fail("StatefulSet image was not updated in time.")
+
+        # 7. Final assertion to be sure
+        final_sts = await asyncio.to_thread(
+            apps_v1.read_namespaced_stateful_set, name=devserver_name, namespace=NAMESPACE
+        )
+        assert final_sts.spec.template.spec.containers[0].image == updated_image
+
+    finally:
+        # 8. Cleanup
+        await cleanup_devserver(custom_objects_api, name=devserver_name, namespace=NAMESPACE)
+        await wait_for_statefulset_to_be_deleted(
+            apps_v1, name=devserver_name, namespace=NAMESPACE
+        )
+
+
+@pytest.mark.asyncio
 async def test_multiple_devservers(test_flavor, operator_running, k8s_clients):
     """
     Tests that the operator can handle multiple DevServer resources simultaneously,
