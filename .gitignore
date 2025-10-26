@@ -91,3 +91,6 @@ reference/**/package
 *.kubeconfig
 
 .pymon
+
+# Scratch files for random experiments / test scripts
+.scratch
