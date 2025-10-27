@@ -17,6 +17,7 @@ import kopf
 from kubernetes import client, config
 
 from .devserver.lifecycle import cleanup_expired_devservers
+from .devserverflavor.lifecycle import reconcile_flavors_periodically
 # NOTE: This is what registers our operator's function with kopf so that
 #       `kopf.run -m devservers.operator` can work. If you add more functions
 #       to the operator, you must add them here.
@@ -36,6 +37,7 @@ FINALIZER = f"finalizer.{CRD_GROUP}"
 
 # Operator settings
 EXPIRATION_INTERVAL = int(os.environ.get("DEVSERVER_EXPIRATION_INTERVAL", 60))
+FLAVOR_RECONCILIATION_INTERVAL = int(os.environ.get("DEVSERVER_FLAVOR_RECONCILIATION_INTERVAL", 60))
 
 
 @kopf.on.startup()
@@ -79,5 +81,13 @@ async def on_startup(
             custom_objects_api=custom_objects_api,
             logger=logger,
             interval_seconds=EXPIRATION_INTERVAL,
+        )
+    )
+
+    # Start the background task for flavor status reconciliation
+    loop.create_task(
+        reconcile_flavors_periodically(
+            logger=logger,
+            interval_seconds=FLAVOR_RECONCILIATION_INTERVAL,
         )
     )

@@ -58,7 +58,8 @@ def list_flavors() -> None:
     console = Console()
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("NAME", width=20)
-    table.add_column("RESOURCES", width=80)
+    table.add_column("RESOURCES", width=60)
+    table.add_column("SCHEDULABLE", width=20)
 
     try:
         flavors = custom_objects_api.list_cluster_custom_object(
@@ -75,7 +76,16 @@ def list_flavors() -> None:
         for flavor in flavors["items"]:
             name = flavor["metadata"]["name"]
             resources = flavor["spec"]["resources"]
-            table.add_row(f"[cyan]{name}[/cyan]", yaml.dump(resources))
+            status = flavor.get("status", {})
+            schedulability = status.get("schedulable", "Unknown")
+
+            color = "white"
+            if schedulability == "AUTOSCALED" or schedulability == "Yes":
+                color = "green"
+            elif schedulability == "No":
+                color = "red"
+
+            table.add_row(f"[cyan]{name}[/cyan]", yaml.dump(resources), f"[{color}]{schedulability}[/{color}]")
 
         console.print(table)
     except client.ApiException as e:
