@@ -38,7 +38,7 @@ async def test_persistent_storage_retains_on_recreation(
         "metadata": {"name": devserver_name, "namespace": NAMESPACE},
         "spec": {
             "flavor": test_flavor,
-            "persistentHomeSize": storage_size,
+            "persistentHome": {"enabled": True, "size": storage_size},
             "ssh": {"publicKey": "ssh-rsa AAAA..."},
             "lifecycle": {"timeToLive": "1h"},
         },

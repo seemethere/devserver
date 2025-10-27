@@ -36,6 +36,7 @@ spec = {
     "image": "ubuntu:22.04",
     "ssh": {"publicKey": "ssh-rsa AAAA..."},
     "lifecycle": {"timeToLive": "1h"},
+    "persistentHome": {"enabled": True, "size": "20Gi"},
 }
 
 # 2. Create the resource on the cluster
@@ -48,6 +49,25 @@ except Exception as e:
     # Handle other potential Kubernetes API errors
     print(f"An API error occurred: {e}")
 
+```
+
+#### Typed Spec Access
+
+For fields that have a defined structure, like `persistentHome`, the `DevServer` class provides typed properties for easier access and modification.
+
+```python
+from devservers.crds.devserver import PersistentHomeSpec
+
+# Get the DevServer object
+server = DevServer.get(name="my-test-server", namespace="default")
+
+# Read persistent home settings
+if server.persistent_home and server.persistent_home.enabled:
+    print(f"Persistent home is enabled with size: {server.persistent_home.size}")
+
+# Disable persistence using the typed property
+server.persistent_home = None
+server.update()
 ```
 
 #### Getting and Listing DevServers

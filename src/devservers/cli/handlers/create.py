@@ -95,6 +95,7 @@ def create_devserver(
     namespace: Optional[str] = None,
     time_to_live: str = "4h",
     wait: bool = False,
+    persistent_home_size: str = "10Gi",
 ) -> None:
     """Creates a new DevServer resource."""
     console = Console()
@@ -134,6 +135,11 @@ def create_devserver(
         "ssh": {"publicKey": ssh_public_key},
         "lifecycle": {"timeToLive": time_to_live},
         "enableSSH": True,
+    }
+
+    spec["persistentHome"] = {
+        "enabled": True,
+        "size": persistent_home_size,
     }
 
     # If an image is provided, use it, otherwise use the default from the operator

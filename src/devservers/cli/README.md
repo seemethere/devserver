@@ -8,9 +8,11 @@ The `devctl` command-line interface provides a simple way to manage your DevServ
 
 Create a new DevServer.
 
+By default, DevServers are created with a persistent home directory of `10Gi`. You can control the size of this volume with the `--persistent-home-size` flag.
+
 ```bash
-# Create with explicit name
-devctl create --name my-server --flavor cpu-small
+# Create with explicit name and a larger 50Gi home directory
+devctl create --name my-server --flavor cpu-small --persistent-home-size 50Gi
 
 # Create with auto-generated name (uses username-based default)
 devctl create --flavor cpu-small
@@ -23,11 +25,11 @@ The `--name` flag is optional. If not provided, a default name based on your use
 
 ### `delete`
 
-Delete a DevServer.
+Delete a DevServer. Note that deleting the DevServer does not delete the associated `PersistentVolumeClaim` for the home directory. This must be cleaned up manually.
 
 ```bash
 # Delete by name
-devctl delete my-server
+devctl delete --name my-server
 
 # Delete your default server (omit name)
 devctl delete
