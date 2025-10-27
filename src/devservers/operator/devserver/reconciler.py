@@ -75,84 +75,109 @@ class DevServerReconciler:
         for resource in resources.values():
             kopf.adopt(resource)
 
-    async def create_resources(self, resources: Dict[str, Any], logger: logging.Logger) -> None:
+    async def reconcile_resources(self, resources: Dict[str, Any], logger: logging.Logger) -> None:
         """
-        Create all Kubernetes resources.
+        Create or update all Kubernetes resources.
 
         Args:
             resources: Dictionary of resource objects from build_resources()
             logger: Logger instance
         """
-        # TODO: The current error handling silently ignores 409 (Conflict) errors,
-        # which means if a resource exists with different specs, we won't update it.
-        # This makes the operator non-idempotent. Consider:
-        #   1. Implementing proper "create or update" semantics
-        #   2. Comparing existing resources and updating if different
-        #   3. At minimum, logging when we skip due to existing resource
-        #
-        # This is especially problematic for partial failures - if creation fails
-        # halfway through, retrying won't fix the issue.
+        # Reconcile ConfigMaps
+        await self._reconcile_configmap(resources["sshd_configmap"], logger)
+        await self._reconcile_configmap(resources["startup_script_configmap"], logger)
+        await self._reconcile_configmap(resources["user_login_script_configmap"], logger)
 
-        # Create ConfigMaps
-        await self._create_configmap(resources["sshd_configmap"], logger)
-        await self._create_configmap(resources["startup_script_configmap"], logger)
-        await self._create_configmap(resources["user_login_script_configmap"], logger)
-
-        # Create Services
-        await self._create_service(resources["headless_service"], logger)
+        # Reconcile Services
+        await self._reconcile_service(resources["headless_service"], logger)
 
         if self.spec.get("enableSSH", False):
-            await self._create_service(resources["ssh_service"], logger)
+            await self._reconcile_service(resources["ssh_service"], logger)
+        else:
+            # TODO: Handle disabling SSH on an existing DevServer by deleting the service
+            pass
 
-        # Create StatefulSet
-        await self._create_statefulset(resources["statefulset"], logger)
+        # Reconcile StatefulSet
+        await self._reconcile_statefulset(resources["statefulset"], logger)
 
-    async def _create_configmap(self, configmap: Dict[str, Any], logger: logging.Logger) -> None:
-        """Create a ConfigMap, ignoring if it already exists."""
+    async def _reconcile_configmap(self, configmap: Dict[str, Any], logger: logging.Logger) -> None:
+        """Create or update a ConfigMap."""
+        name = configmap["metadata"]["name"]
         try:
             await asyncio.to_thread(
-                self.core_v1.create_namespaced_config_map,
+                self.core_v1.read_namespaced_config_map, name=name, namespace=self.namespace
+            )
+            # It exists, so we patch it
+            await asyncio.to_thread(
+                self.core_v1.patch_namespaced_config_map,
+                name=name,
                 namespace=self.namespace,
                 body=configmap,
             )
-            logger.info(f"ConfigMap '{configmap['metadata']['name']}' created.")
+            logger.info(f"ConfigMap '{name}' patched.")
         except client.ApiException as e:
-            if e.status == 409:
-                logger.info(
-                    f"ConfigMap '{configmap['metadata']['name']}' already exists, skipping."
+            if e.status == 404:
+                # It does not exist, so we create it
+                await asyncio.to_thread(
+                    self.core_v1.create_namespaced_config_map,
+                    namespace=self.namespace,
+                    body=configmap,
                 )
+                logger.info(f"ConfigMap '{name}' created.")
             else:
                 raise
 
-    async def _create_service(self, service: Dict[str, Any], logger: logging.Logger) -> None:
-        """Create a Service, ignoring if it already exists."""
+    async def _reconcile_service(self, service: Dict[str, Any], logger: logging.Logger) -> None:
+        """Create or update a Service."""
+        name = service["metadata"]["name"]
         try:
             await asyncio.to_thread(
-                self.core_v1.create_namespaced_service,
+                self.core_v1.read_namespaced_service, name=name, namespace=self.namespace
+            )
+            # It exists, so we patch it
+            await asyncio.to_thread(
+                self.core_v1.patch_namespaced_service,
+                name=name,
                 namespace=self.namespace,
                 body=service,
             )
-            logger.info(f"Service '{service['metadata']['name']}' created.")
+            logger.info(f"Service '{name}' patched.")
         except client.ApiException as e:
-            if e.status == 409:
-                logger.info(
-                    f"Service '{service['metadata']['name']}' already exists, skipping."
+            if e.status == 404:
+                # It does not exist, so we create it
+                await asyncio.to_thread(
+                    self.core_v1.create_namespaced_service,
+                    namespace=self.namespace,
+                    body=service,
                 )
+                logger.info(f"Service '{name}' created.")
             else:
                 raise
 
-    async def _create_statefulset(self, statefulset: Dict[str, Any], logger: logging.Logger) -> None:
-        """Create a StatefulSet, ignoring if it already exists."""
+    async def _reconcile_statefulset(self, statefulset: Dict[str, Any], logger: logging.Logger) -> None:
+        """Create or update a StatefulSet."""
+        name = statefulset["metadata"]["name"]
         try:
             await asyncio.to_thread(
-                self.apps_v1.create_namespaced_stateful_set,
-                body=statefulset,
-                namespace=self.namespace,
+                self.apps_v1.read_namespaced_stateful_set, name=name, namespace=self.namespace
             )
-            logger.info(f"StatefulSet '{self.name}' created for DevServer.")
+            # It exists, so we patch it
+            await asyncio.to_thread(
+                self.apps_v1.patch_namespaced_stateful_set,
+                name=name,
+                namespace=self.namespace,
+                body=statefulset,
+            )
+            logger.info(f"StatefulSet '{name}' patched.")
         except client.ApiException as e:
-            if e.status == 409:
-                logger.info(f"StatefulSet '{self.name}' already exists, skipping.")
+            if e.status == 404:
+                # It does not exist, so we create it
+                await asyncio.to_thread(
+                    self.apps_v1.create_namespaced_stateful_set,
+                    body=statefulset,
+                    namespace=self.namespace,
+                )
+                logger.info(f"StatefulSet '{name}' created for DevServer.")
             else:
                 raise
 
@@ -185,7 +210,7 @@ async def reconcile_devserver(
     # Set owner references
     reconciler.adopt_resources(resources)
 
-    # Create resources
-    await reconciler.create_resources(resources, logger)
+    # Create or update resources
+    await reconciler.reconcile_resources(resources, logger)
 
-    return f"StatefulSet '{name}' created successfully."
+    return f"StatefulSet '{name}' reconciled successfully."
