@@ -22,6 +22,7 @@ from devservers.crds.const import (
     CRD_PLURAL_DEVSERVERUSER,
     CRD_VERSION,
 )
+from unittest.mock import MagicMock
 
 # Generate a unique test namespace for each test session
 # This prevents conflicts between concurrent test runs
@@ -383,3 +384,10 @@ def devserver_user(k8s_clients: dict[str, Any]) -> str:
     except client.ApiException as exc:
         if exc.status != 404:
             raise
+
+@pytest.fixture
+def mock_k8s_api() -> MagicMock:
+    """
+    Provides a MagicMock for the Kubernetes CustomObjectsApi, suitable for unit tests.
+    """
+    return MagicMock(spec=client.CustomObjectsApi)

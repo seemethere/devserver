@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass, field, fields
-from typing import Any, Dict, List, Optional, Type, TypeVar
-
+from typing import Any, Dict, List, Optional, Type, TypeVar, Generator
+import time
 from kubernetes import client, config, watch
 
 from .errors import KubeConfigError
@@ -257,7 +257,7 @@ class BaseCustomResource:
         self.spec = obj.spec
         self.status = obj.status
 
-    def watch(self: T):
+    def watch(self: T, timeout_seconds: Optional[int] = None):
         """
         Watches the custom resource for events.
 
@@ -274,6 +274,7 @@ class BaseCustomResource:
                 namespace=self.metadata.namespace,
                 plural=self.plural,
                 field_selector=f"metadata.name={self.metadata.name}",
+                timeout_seconds=timeout_seconds,
             )
         else:
             raise NotImplementedError("Watching cluster-scoped resources is not yet implemented.")
@@ -296,3 +297,47 @@ class BaseCustomResource:
             body["status"] = self.status
 
         return body
+
+    def wait_for_status(self: T, status: Dict[str, Any], timeout: int = 30) -> Generator[Dict[str, Any], None, None]:
+        """Waits for the custom resource to reach the desired status, yielding events along the way."""
+        start_time = time.time()
+
+        # First, check the current state of the object. It might already be in the desired state.
+        self.refresh()
+        if self.status == status:
+            return
+
+        while time.time() - start_time < timeout:
+            remaining_timeout = int(timeout - (time.time() - start_time))
+            if remaining_timeout <= 0:
+                break
+
+            # The watch will time out and the for loop will complete.
+            # The outer while loop will then re-establish the watch if there's time remaining.
+            watch_had_events = False
+            for event in self.watch(timeout_seconds=remaining_timeout):
+                watch_had_events = True
+                yield event
+                obj = event["object"]
+                if "status" in obj and obj["status"] == status:
+                    # The event indicates we might be in the desired state.
+                    # Refresh the object to get the absolute latest state and confirm.
+                    self.refresh()
+                    if self.status == status:
+                        return
+
+            # If the watch stream was empty, it may have timed out.
+            # We should refresh and check the status before potentially re-watching.
+            if not watch_had_events:
+                self.refresh()
+                if self.status == status:
+                    return
+
+        # After the while loop (due to timeout), do one last refresh and check.
+        self.refresh()
+        if self.status == status:
+            return
+
+        raise TimeoutError(
+            f"Custom resource {self.metadata.name} did not reach status {status} within {timeout} seconds."
+        )

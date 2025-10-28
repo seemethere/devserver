@@ -107,3 +107,42 @@ server = DevServer.get(name="my-test-server", namespace="default")
 server.refresh()
 print(f"Current status phase is: {server.status.get('phase')}")
 ```
+
+#### Waiting for a Specific Status
+
+The `wait_for_status` method provides a robust way to block program execution until a resource reaches a desired state. It now functions as a generator, streaming events from the Kubernetes API as they occur.
+
+This is useful when you need to wait for an operator to finish processing a resource, such as waiting for a `DevServer` to become "Ready".
+
+##### Example: Streaming Status Events
+
+You can iterate over the generator to process events in real-time while you wait. The loop will exit once the desired status is reached or a timeout occurs.
+
+```python
+server = DevServer.get(name="my-test-server", namespace="default")
+desired_status = {"phase": "Running"}
+
+print(f"Waiting for '{server.metadata.name}' to reach phase: Running...")
+try:
+    for event in server.wait_for_status(status=desired_status, timeout=180):
+        phase = event.get("object", {}).get("status", {}).get("phase", "Unknown")
+        print(f" -> Received event: {event['type']}, current phase: {phase}")
+
+    print(f"Server is now running.")
+except TimeoutError:
+    print("Timed out waiting for the server to become running.")
+```
+
+##### Example: Blocking Until Ready
+
+If you don't need to process the intermediate events and simply want to block until the status is met, you can consume the generator with an empty loop or by converting it to a list.
+
+```python
+# This will block until the server is 'Running' or timeout is reached
+try:
+    for _ in server.wait_for_status(status={"phase": "Running"}, timeout=180):
+        pass # The events are ignored, we just wait for completion
+    print("Server is ready to be used.")
+except TimeoutError:
+    print("Timed out waiting for the server to become ready.")
+```

@@ -1,8 +1,7 @@
 import unittest.mock
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from kubernetes import client
 from kubernetes.config import ConfigException
 
 from devservers.crds.base import ObjectMeta, _get_k8s_api
@@ -11,12 +10,6 @@ from devservers.crds.errors import KubeConfigError
 
 NAMESPACE = "test-namespace"
 DEVSERVER_NAME = "test-devserver"
-
-
-@pytest.fixture
-def mock_k8s_api():
-    """Fixture to mock the Kubernetes CustomObjectsApi."""
-    return MagicMock(spec=client.CustomObjectsApi)
 
 
 def test_devserver_create(mock_k8s_api):
