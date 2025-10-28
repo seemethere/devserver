@@ -87,17 +87,11 @@ def create_default_config(path: Path):
         config = copy.deepcopy(DEFAULT_CONFIG)
 
         private_key, public_key = _discover_default_ssh_keys()
-        if private_key and public_key:
-            config["ssh"]["private_key_file"] = private_key
-            config["ssh"]["public_key_file"] = public_key
-            console.print(
-                f"[green]Detected SSH key pair:[/green] [cyan]{public_key}[/cyan]"
-            )
-        else:
-            console.print(
-                "[yellow]⚠️ No complete SSH key pair detected in ~/.ssh. Update ssh.private_key_file and ssh.public_key_file after generating one.[/yellow]"
-            )
-            exit(1)
+        config["ssh"]["private_key_file"] = private_key
+        config["ssh"]["public_key_file"] = public_key
+        console.print(
+            f"[green]Detected SSH key pair:[/green] [cyan]{public_key}[/cyan]"
+        )
 
         with open(path, "w") as f:
             yaml.safe_dump(config, f, default_flow_style=False)
