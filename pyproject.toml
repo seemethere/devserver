@@ -60,4 +60,5 @@ dev = [
     "ruff==0.14.1",
     "pytest-sugar>=1.1.1",
     "ty==0.0.1a23",
+    "pytest-timeout",
 ]

@@ -55,6 +55,62 @@ def test_build_statefulset_without_node_selector():
     assert "nodeSelector" not in statefulset["spec"]["template"]["spec"]
 
 
+def test_build_statefulset_with_persistent_home_enabled():
+    name = "test-server"
+    namespace = "test-ns"
+    spec = {"persistentHome": {"enabled": True}}
+    flavor = {"spec": {"resources": {}}}
+
+    statefulset = build_statefulset(name, namespace, spec, flavor)
+
+    assert "volumeClaimTemplates" in statefulset["spec"]
+    vct = statefulset["spec"]["volumeClaimTemplates"][0]
+    assert vct["metadata"]["name"] == "home"
+    assert vct["spec"]["resources"]["requests"]["storage"] == "10Gi"
+
+    volumes = statefulset["spec"]["template"]["spec"]["volumes"]
+    assert not any(v.get("name") == "home" and "emptyDir" in v for v in volumes)
+
+
+def test_build_statefulset_with_persistent_home_enabled_and_size():
+    name = "test-server"
+    namespace = "test-ns"
+    spec = {"persistentHome": {"enabled": True, "size": "20Gi"}}
+    flavor = {"spec": {"resources": {}}}
+
+    statefulset = build_statefulset(name, namespace, spec, flavor)
+
+    assert "volumeClaimTemplates" in statefulset["spec"]
+    vct = statefulset["spec"]["volumeClaimTemplates"][0]
+    assert vct["spec"]["resources"]["requests"]["storage"] == "20Gi"
+
+
+def test_build_statefulset_with_persistent_home_disabled():
+    name = "test-server"
+    namespace = "test-ns"
+    spec = {"persistentHome": {"enabled": False}}
+    flavor = {"spec": {"resources": {}}}
+
+    statefulset = build_statefulset(name, namespace, spec, flavor)
+
+    assert "volumeClaimTemplates" not in statefulset["spec"]
+    volumes = statefulset["spec"]["template"]["spec"]["volumes"]
+    assert any(v.get("name") == "home" and "emptyDir" in v for v in volumes)
+
+
+def test_build_statefulset_with_persistent_home_unspecified():
+    name = "test-server"
+    namespace = "test-ns"
+    spec = {}
+    flavor = {"spec": {"resources": {}}}
+
+    statefulset = build_statefulset(name, namespace, spec, flavor)
+
+    assert "volumeClaimTemplates" not in statefulset["spec"]
+    volumes = statefulset["spec"]["template"]["spec"]["volumes"]
+    assert any(v.get("name") == "home" and "emptyDir" in v for v in volumes)
+
+
 def test_compute_user_namespace_default():
     spec = {"username": "alice"}
     reconciler = DevServerUserReconciler(spec=spec, metadata={})

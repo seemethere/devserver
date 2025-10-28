@@ -8,9 +8,11 @@ The `devctl` command-line interface provides a simple way to manage your DevServ
 
 Create a new DevServer.
 
+By default, DevServers are created with a persistent home directory of `10Gi`. You can control the size of this volume with the `--persistent-home-size` flag.
+
 ```bash
-# Create with explicit name
-devctl create --name my-server --flavor cpu-small
+# Create with explicit name and a larger 50Gi home directory
+devctl create --name my-server --flavor cpu-small --persistent-home-size 50Gi
 
 # Create with auto-generated name (uses username-based default)
 devctl create --flavor cpu-small
@@ -23,11 +25,11 @@ The `--name` flag is optional. If not provided, a default name based on your use
 
 ### `delete`
 
-Delete a DevServer.
+Delete a DevServer. Note that deleting the DevServer does not delete the associated `PersistentVolumeClaim` for the home directory. This must be cleaned up manually.
 
 ```bash
 # Delete by name
-devctl delete my-server
+devctl delete --name my-server
 
 # Delete your default server (omit name)
 devctl delete
@@ -88,6 +90,13 @@ List available DevServer flavors.
 devctl flavors
 ```
 
+The output will include a `SCHEDULABLE` column, which indicates if a flavor can likely be scheduled on the cluster. The possible values are:
+
+-   **AUTOSCALED**: A matching autoscaler `NodePool` (e.g., Karpenter) is ready.
+-   **Yes**: A non-autoscaled node with sufficient resources is available.
+-   **No**: No nodes or `NodePool`s are currently available to satisfy the flavor's requirements.
+-   **Unknown**: The operator has not yet determined the status.
+
 ### `user`
 
 Manage DevServer users.
@@ -107,7 +116,6 @@ Removes a user.
 ```bash
 devctl user remove --name test-user
 ```
-
 **`user list`**
 
 Lists all users.
@@ -141,7 +149,6 @@ You can specify the Kubernetes namespace for most commands using the `--namespac
 ```bash
 devctl list --namespace dev-team
 ```
-
 ## Configuration
 
 `devctl` can be configured via a YAML file located at `~/.config/devctl/config.yaml`. The first time you run `devctl`, a default configuration file will be created if one does not already exist.
