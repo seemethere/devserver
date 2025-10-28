@@ -90,6 +90,13 @@ List available DevServer flavors.
 devctl flavors
 ```
 
+The output will include a `SCHEDULABLE` column, which indicates if a flavor can likely be scheduled on the cluster. The possible values are:
+
+-   **AUTOSCALED**: A matching autoscaler `NodePool` (e.g., Karpenter) is ready.
+-   **Yes**: A non-autoscaled node with sufficient resources is available.
+-   **No**: No nodes or `NodePool`s are currently available to satisfy the flavor's requirements.
+-   **Unknown**: The operator has not yet determined the status.
+
 ### `user`
 
 Manage DevServer users.
@@ -109,7 +116,6 @@ Removes a user.
 ```bash
 devctl user remove --name test-user
 ```
-
 **`user list`**
 
 Lists all users.
@@ -143,7 +149,6 @@ You can specify the Kubernetes namespace for most commands using the `--namespac
 ```bash
 devctl list --namespace dev-team
 ```
-
 ## Configuration
 
 `devctl` can be configured via a YAML file located at `~/.config/devctl/config.yaml`. The first time you run `devctl`, a default configuration file will be created if one does not already exist.

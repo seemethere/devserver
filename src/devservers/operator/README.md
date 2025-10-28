@@ -78,7 +78,11 @@ spec:
     - key: "nvidia.com/gpu"
       operator: "Exists"
       effect: "NoSchedule"
+status:
+  schedulable: "Yes"
 ```
+
+The operator will periodically update the `status.schedulable` field to indicate if a flavor can likely be scheduled on the cluster. This status is used by `devctl` to provide users with scheduling hints.
 
 ### Adding New Flavors
 
@@ -104,7 +108,6 @@ metadata:
 spec:
   username: test-user
 ```
-
 ## Lifecycle Management
 
 The operator automatically handles the expiration of `DevServer` resources based on the `spec.lifecycle.timeToLive` field. When a DevServer expires, the operator deletes the corresponding `DevServer` resource, and Kubernetes garbage collection removes the associated objects.
