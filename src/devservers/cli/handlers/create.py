@@ -144,16 +144,14 @@ def create_devserver(
         "lifecycle": {"timeToLive": time_to_live},
         "enableSSH": True,
     }
+    if image:
+        spec["image"] = image
     manifest = {
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
         "kind": "DevServer",
         "metadata": {"name": name, "namespace": target_namespace},
         "spec": spec,
     }
-
-    # If an image is provided, use it, otherwise use the default from the operator
-    if image:
-        manifest["spec"]["image"] = image
 
     try:
         custom_objects_api.create_namespaced_custom_object(

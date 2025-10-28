@@ -1,16 +1,22 @@
 import asyncio
-import pytest
-from typing import Any, Dict
-import uuid
 import io
 import sys
+import uuid
 from pathlib import Path
+from typing import Any, Dict
+
+import pytest
+import yaml
 
 from devservers.cli import handlers
 from tests.conftest import TEST_NAMESPACE
 from kubernetes import client
 from tests.helpers import async_wait_for, wait_for_devserver_to_exist
-from devservers.cli.config import Configuration
+from devservers.cli.config import (
+    Configuration,
+    _discover_default_ssh_keys,
+    create_default_config,
+)
 from devservers.cli.utils import get_current_context
 
 
@@ -395,3 +401,56 @@ async def test_ssh_config_with_kubeconfig_path(
             name=devserver_name,
             namespace=TEST_NAMESPACE,
         )
+
+
+def test_configuration_auto_discovers_preferred_ssh_keys(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """
+    Ensure the key discovery logic prefers the highest ranked complete key pair.
+    """
+    fake_home = tmp_path / "fake_home"
+    ssh_dir = fake_home / ".ssh"
+    ssh_dir.mkdir(parents=True)
+
+    # Lower priority pair
+    (ssh_dir / "id_rsa").write_text("rsa-private")
+    (ssh_dir / "id_rsa.pub").write_text("rsa-public")
+    # Highest priority pair
+    (ssh_dir / "id_ed25519").write_text("ed25519-private")
+    (ssh_dir / "id_ed25519.pub").write_text("ed25519-public")
+
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    private_key, public_key = _discover_default_ssh_keys()
+
+    assert private_key == str(ssh_dir / "id_ed25519")
+    assert public_key == str(ssh_dir / "id_ed25519.pub")
+
+
+def test_create_default_config_writes_discovered_key_pair(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """
+    During initial config creation we persist the preferred discovered key pair.
+    """
+    fake_home = tmp_path / "fake_home_config_creation"
+    ssh_dir = fake_home / ".ssh"
+    ssh_dir.mkdir(parents=True)
+
+    # Provide multiple candidate keys; the function should pick the most preferred complete pair.
+    (ssh_dir / "id_rsa").write_text("rsa-private")
+    (ssh_dir / "id_rsa.pub").write_text("rsa-public")
+    (ssh_dir / "id_ed25519").write_text("ed25519-private")
+    (ssh_dir / "id_ed25519.pub").write_text("ed25519-public")
+
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    config_path = tmp_path / "config.yml"
+    create_default_config(config_path)
+
+    config_data = yaml.safe_load(config_path.read_text())
+    assert config_data["ssh"]["private_key_file"] == str(ssh_dir / "id_ed25519")
+    assert config_data["ssh"]["public_key_file"] == str(ssh_dir / "id_ed25519.pub")
