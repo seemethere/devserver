@@ -11,6 +11,11 @@ def build_statefulset(
 
     # Get the public key from the spec
     ssh_public_key = spec.get("ssh", {}).get("publicKey", "")
+
+    persistent_home = spec.get("persistentHome", {})
+    persistent_home_enabled = persistent_home.get("enabled", False)
+    persistent_home_size = persistent_home.get("size", "10Gi")
+
     statefulset_spec = {
         "replicas": 1,
         "serviceName": f"{name}-headless",
@@ -118,23 +123,27 @@ def build_statefulset(
                 ],
             },
         },
-        "volumeClaimTemplates": [
-            {
-                "metadata": {"name": "home"},
-                "spec": {
-                    "accessModes": ["ReadWriteOnce"],
-                    "resources": {
-                        "requests": {"storage": spec.get("persistentHomeSize", "10Gi")}
-                    },
-                },
-            }
-        ],
     }
 
     template = statefulset_spec["template"]
     assert isinstance(template, dict)
     pod_spec = template["spec"]
     assert isinstance(pod_spec, dict)
+    volumes = pod_spec.get("volumes")
+    assert isinstance(volumes, list)
+
+    if persistent_home_enabled:
+        statefulset_spec["volumeClaimTemplates"] = [
+            {
+                "metadata": {"name": "home"},
+                "spec": {
+                    "accessModes": ["ReadWriteOnce"],
+                    "resources": {"requests": {"storage": persistent_home_size}},
+                },
+            }
+        ]
+    else:
+        volumes.append({"name": "home", "emptyDir": {}})
 
     # Remove nodeSelector if it is None
     if not pod_spec.get("nodeSelector"):
