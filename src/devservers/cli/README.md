@@ -106,7 +106,7 @@ Manage DevServer users.
 Adds a new user with their public SSH key.
 
 ```bash
-devctl user add --name test-user --public-key-file ~/.ssh/id_rsa.pub
+devctl user add --name test-user [--public-key-file ~/.ssh/id_rsa.pub]
 ```
 
 **`user remove --name <user-name>`**
@@ -155,14 +155,14 @@ devctl list --namespace dev-team
 
 ### Default Configuration
 
-Here is the default configuration:
+When `devctl` generates the file it detects your existing SSH key pair (preferring `id_ed25519`, then `id_ecdsa`, `id_ecdsa_sk`, and finally `id_rsa`) and writes those paths into the config. A typical generated configuration looks like this:
 
 ```yaml
 ssh:
-  public_key_file: "~/.ssh/id_rsa.pub"
-  private_key_file: "~/.ssh/id_rsa"
+  public_key_file: "~/.ssh/id_ed25519.pub"
+  private_key_file: "~/.ssh/id_ed25519"
   forward_agent: false
-devctl_ssh_config_dir: "~/.config/devctl/ssh/"
+devctl-ssh-config-dir: "~/.config/devctl/ssh/"
 ```
 
 ### Options
@@ -170,4 +170,4 @@ devctl_ssh_config_dir: "~/.config/devctl/ssh/"
 *   `ssh.public_key_file`: Path to your SSH public key.
 *   `ssh.private_key_file`: Path to your SSH private key.
 *   `ssh.forward_agent`: Whether to enable SSH agent forwarding by default.
-*   `devctl_ssh_config_dir`: Directory where `devctl` stores its generated SSH configuration files.
+*   `devctl-ssh-config-dir`: Directory where `devctl` stores its generated SSH configuration files.
