@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
-from kubernetes import client, config
+from kubernetes import client, config, watch
 
 from .errors import KubeConfigError
 
@@ -256,6 +256,27 @@ class BaseCustomResource:
         )
         self.spec = obj.spec
         self.status = obj.status
+
+    def watch(self: T):
+        """
+        Watches the custom resource for events.
+
+        Returns:
+            A watch object that can be iterated to get events.
+        """
+        if self.namespaced:
+            if not self.metadata.namespace:
+                raise ValueError("Namespace is required for namespaced resources")
+            return watch.Watch().stream(
+                self.api.list_namespaced_custom_object,
+                group=self.group,
+                version=self.version,
+                namespace=self.metadata.namespace,
+                plural=self.plural,
+                field_selector=f"metadata.name={self.metadata.name}",
+            )
+        else:
+            raise NotImplementedError("Watching cluster-scoped resources is not yet implemented.")
 
     def to_dict(self) -> Dict[str, Any]:
         # Clean up metadata from asdict, removing None values and empty collections
