@@ -9,29 +9,20 @@ from rich.status import Status
 
 from ..config import Configuration
 from ..utils import get_current_context
-from ...crds.const import CRD_GROUP, CRD_VERSION, CRD_PLURAL_DEVSERVER
+from ...crds.devserver import DevServer
+from ...crds.base import ObjectMeta
 from ...utils.flavors import get_default_flavor
 
 
-def _wait_for_crd_running(name: str, namespace: str, status: Status) -> None:
+def _wait_for_crd_running(devserver: DevServer, status: Status) -> None:
     """Watches the DevServer CR until its phase is 'Running'."""
-    custom_objects_api = client.CustomObjectsApi()
-    w = watch.Watch()
-    for event in w.stream(
-        custom_objects_api.list_namespaced_custom_object,
-        group=CRD_GROUP,
-        version=CRD_VERSION,
-        namespace=namespace,
-        plural=CRD_PLURAL_DEVSERVER,
-        field_selector=f"metadata.name={name}",
-    ):
-        devserver = event["object"]
-        if "status" in devserver and "phase" in devserver["status"]:
-            phase = devserver["status"]["phase"]
+    for event in devserver.watch():
+        devserver_obj = event["object"]
+        if "status" in devserver_obj and "phase" in devserver_obj["status"]:
+            phase = devserver_obj["status"]["phase"]
             if phase == "Running":
-                w.stop()
                 return
-            status.update(f"DevServer '{name}' is in phase: {phase}")
+            status.update(f"DevServer '{devserver.metadata.name}' is in phase: {phase}")
 
 
 def _get_pod_status_message(pod_name: str, pod_status: client.V1PodStatus) -> str:
@@ -78,20 +69,21 @@ def _wait_for_pod_ready(pod_name: str, namespace: str, status: Status) -> None:
         status.update(message)
 
 
-def _wait_for_devserver_ready(name: str, namespace: str, console: Console) -> None:
+def _wait_for_devserver_ready(devserver: DevServer, console: Console) -> None:
     """Waits for the DevServer to become ready by watching the CRD and the pod."""
-    pod_name = f"{name}-0"
+    pod_name = f"{devserver.metadata.name}-0"
     with Status(
-        f"Waiting for DevServer '{name}' to be provisioned...", console=console
+        f"Waiting for DevServer '{devserver.metadata.name}' to be provisioned...", console=console
     ) as status:
-        _wait_for_crd_running(name, namespace, status)
+        _wait_for_crd_running(devserver, status)
 
         status.update(
-            f"DevServer '{name}' is running. Waiting for pod '{pod_name}' to be ready..."
+            f"DevServer '{devserver.metadata.name}' is running. Waiting for pod '{pod_name}' to be ready..."
         )
-        _wait_for_pod_ready(pod_name, namespace, status)
+        assert devserver.metadata.namespace is not None
+        _wait_for_pod_ready(pod_name, devserver.metadata.namespace, status)
 
-    console.print(f"✅ DevServer '{name}' is ready.")
+    console.print(f"✅ DevServer '{devserver.metadata.name}' is ready.")
 
 
 def create_devserver(
@@ -105,7 +97,6 @@ def create_devserver(
     wait: bool = False,
 ) -> None:
     """Creates a new DevServer resource."""
-    custom_objects_api = client.CustomObjectsApi()
     console = Console()
 
     _, target_namespace = get_current_context()
@@ -144,29 +135,18 @@ def create_devserver(
         "lifecycle": {"timeToLive": time_to_live},
         "enableSSH": True,
     }
-    manifest = {
-        "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
-        "kind": "DevServer",
-        "metadata": {"name": name, "namespace": target_namespace},
-        "spec": spec,
-    }
 
     # If an image is provided, use it, otherwise use the default from the operator
     if image:
-        manifest["spec"]["image"] = image
+        spec["image"] = image
 
     try:
-        custom_objects_api.create_namespaced_custom_object(
-            group=CRD_GROUP,
-            version=CRD_VERSION,
-            namespace=target_namespace,
-            plural=CRD_PLURAL_DEVSERVER,
-            body=manifest,
-        )
+        metadata = ObjectMeta(name=name, namespace=target_namespace)
+        devserver = DevServer.create(metadata=metadata, spec=spec)
         console.print(f"DevServer '{name}' created successfully in namespace '{target_namespace}'.")
         if wait:
             assert target_namespace is not None
-            _wait_for_devserver_ready(name, target_namespace, console)
+            _wait_for_devserver_ready(devserver, console)
     except client.ApiException as e:
         if e.status == 409:  # Conflict
             console.print(f"Error: DevServer '{name}' already exists.")
