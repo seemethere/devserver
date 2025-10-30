@@ -30,6 +30,11 @@ run: install-crds sync
 	@echo "🏃 Running operator in namespace $(NAMESPACE)..."
 	$(KOPF) run --dev -m devservers.operator --namespace $(NAMESPACE)
 
+.PHONY: dev-bootstrap
+dev-bootstrap: sync
+	@echo "🚀 Bootstrapping remote dev environment..."
+	$(PYTHON) dev/bootstrap_operator.py
+
 .PHONY: lint
 lint: pre-commit
 

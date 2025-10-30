@@ -96,3 +96,38 @@ make pre-commit
 ## 📄 License
 
 This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.
+
+## Remote Development
+
+For a faster development loop, you can run the operator inside your Kubernetes cluster and sync your local changes to it.
+
+### Prerequisites
+
+1.  **Install `kubectl-rsync`:** This `kubectl` plugin is required for syncing files. You can install it via `krew`:
+    ```bash
+    kubectl krew install rsync
+    ```
+
+2.  **Docker Image:** The remote development setup uses the `ghcr.io/seemethere/devservers:main` image, which is built from the `main` branch.
+
+### Usage
+
+Run the following command to bootstrap the remote development environment:
+
+```bash
+make dev-bootstrap
+```
+
+This will:
+1.  Create a namespace `default` if it doesn't exist (you can override with `-n <namespace>`).
+2.  Set up the necessary RBAC (ServiceAccount, Role, RoleBinding).
+3.  Create a Deployment for the operator.
+4.  Sync your local `src/` directory to the pod.
+5.  Restart the `kopf` process in the pod to apply changes.
+
+You can then view the operator logs with:
+```bash
+kubectl logs -f -n <namespace> -l app=devserver-operator-dev
+```
+
+Any subsequent changes you make locally can be synced by running `make dev-bootstrap` again.
