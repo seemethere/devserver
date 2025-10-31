@@ -27,8 +27,15 @@ from .config import (
 @click.option(
     "--assume-yes", is_flag=True, help="Automatically answer yes to all prompts."
 )
+@click.option(
+    "-n",
+    "--namespace",
+    type=str,
+    default=None,
+    help="The namespace to use for DevServer operations.",
+)
 @click.pass_context
-def main(ctx, config_path, assume_yes) -> None:
+def main(ctx, config_path, assume_yes, namespace) -> None:
     """A CLI to manage DevServers."""
     ctx.ensure_object(dict)
     console = Console()
@@ -50,6 +57,7 @@ def main(ctx, config_path, assume_yes) -> None:
 
     ctx.obj["CONFIG"] = load_config(effective_config_path)
     ctx.obj["ASSUME_YES"] = assume_yes
+    ctx.obj["NAMESPACE"] = namespace
     kube_config.load_kube_config()
 
 
@@ -100,6 +108,7 @@ def create(
         flavor=flavor,
         image=image,
         ssh_public_key_file=ssh_public_key_file,
+        namespace=ctx.obj["NAMESPACE"],
         time_to_live=time_to_live,
         wait=wait,
         persistent_home_size=persistent_home_size,
@@ -111,14 +120,19 @@ def create(
 @click.pass_context
 def delete(ctx, name: str) -> None:
     """Delete a DevServer."""
-    handlers.delete_devserver(configuration=ctx.obj["CONFIG"], name=name)
+    handlers.delete_devserver(
+        configuration=ctx.obj["CONFIG"],
+        name=name,
+        namespace=ctx.obj["NAMESPACE"],
+    )
 
 
 @main.command(help="Describe a DevServer.")
 @click.option("--name", type=str, default="dev", help="The name of the DevServer.")
-def describe(name: str) -> None:
+@click.pass_context
+def describe(ctx, name: str) -> None:
     """Describe a DevServer."""
-    handlers.describe_devserver(name=name)
+    handlers.describe_devserver(name=name, namespace=ctx.obj["NAMESPACE"])
 
 
 @main.command(name="list", help="List all DevServers.")
@@ -144,14 +158,6 @@ def flavors() -> None:
     help="Path to the SSH private key file.",
 )
 @click.option(
-    "-n",
-    "--namespace",
-    type=str,
-    default=None,
-    help="The namespace to use.",
-    hidden=True,
-)  # Hidden from user help
-@click.option(
     "--no-proxy",
     is_flag=True,
     help="Connect directly to the DevServer without using SSH config.",
@@ -162,7 +168,6 @@ def ssh(
     ctx,
     name: str,
     ssh_private_key_file: str,
-    namespace: Optional[str],
     no_proxy: bool,
     remote_command: tuple[str, ...],
 ) -> None:
@@ -171,7 +176,7 @@ def ssh(
         configuration=ctx.obj["CONFIG"],
         name=name,
         ssh_private_key_file=ssh_private_key_file,
-        namespace=namespace,
+        namespace=ctx.obj["NAMESPACE"],
         no_proxy=no_proxy,
         remote_command=remote_command,
         assume_yes=ctx.obj["ASSUME_YES"],
