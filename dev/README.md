@@ -8,15 +8,11 @@ For a faster and more realistic development loop, you can run the operator direc
 
 ### Purpose
 
-Instead of running the operator locally with `make run`, which might not perfectly replicate the in-cluster environment, this script deploys the operator to your current Kubernetes context. It then uses `kubectl rsync` to sync your local `src/` directory into the running pod and restarts the process, allowing for rapid iteration without rebuilding a container image for every change.
+Instead of running the operator locally with `make run`, which might not perfectly replicate the in-cluster environment, this script deploys the operator to your current Kubernetes context. It then uses `kubectl cp` to sync your local `src/` directory into the running pod and restarts the process, allowing for rapid iteration without rebuilding a container image for every change.
 
 ### Prerequisites
 
-You must have the `rsync` plugin for `kubectl` installed. You can install it via `krew`:
-
-```bash
-kubectl krew install rsync
-```
+You must have `kubectl` installed and configured to connect to a Kubernetes cluster.
 
 ### Usage
 

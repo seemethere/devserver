@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+import getpass
 
 from kubernetes import client, config
 
@@ -23,16 +24,15 @@ def get_current_context():
         print(f"❌ Failed to get current kubeconfig context: {e}")
         sys.exit(1)
 
-def get_current_namespace(context):
-    """Get the default namespace for the current context."""
-    try:
-        contexts, active_context = config.list_kube_config_contexts()
-        if 'namespace' in active_context['context']:
-            return active_context['context']['namespace']
-        return 'default'
-    except Exception as e:
-        print(f"❌ Failed to get namespace for context '{context}': {e}")
-        return 'default'
+def get_default_namespace():
+    """Gets the default namespace for the current user."""
+    user = getpass.getuser().lower()
+    # Sanitize username to be a valid DNS-1123 label
+    sanitized_user = ''.join(c for c in user if c.isalnum() or c == '-')
+    if not sanitized_user:
+        print("❌ Could not determine a valid username for the namespace.")
+        sys.exit(1)
+    return f"dev-{sanitized_user}"
 
 def main():
     """Main entry point."""
@@ -46,12 +46,12 @@ def main():
     parser.add_argument(
         "--namespace",
         "-n",
-        help="Namespace to deploy to (defaults to current context's namespace or 'default').",
+        help="Namespace to deploy to (defaults to 'dev-<username>').",
     )
     args = parser.parse_args()
 
     context = args.context or get_current_context()
-    namespace = args.namespace or get_current_namespace(context)
+    namespace = args.namespace or get_default_namespace()
 
     print(f"Targeting context: {context}, namespace: {namespace}")
 
@@ -66,7 +66,7 @@ def main():
     rbac_v1 = client.RbacAuthorizationV1Api()
 
     ensure_namespace(core_v1, namespace)
-    ensure_rbac(rbac_v1, namespace)
+    ensure_rbac(core_v1, rbac_v1, namespace)
     ensure_deployment(apps_v1, namespace)
 
     pod_name = get_operator_pod(core_v1, namespace)
@@ -93,7 +93,7 @@ def ensure_namespace(api: client.CoreV1Api, namespace: str):
         else:
             raise
 
-def ensure_rbac(api: client.RbacAuthorizationV1Api, namespace: str):
+def ensure_rbac(core_api: client.CoreV1Api, rbac_api: client.RbacAuthorizationV1Api, namespace: str):
     # Simplified RBAC for dev purposes.
     # In a real scenario, this would be more granular.
     service_account_name = "devserver-operator-dev"
@@ -102,34 +102,44 @@ def ensure_rbac(api: client.RbacAuthorizationV1Api, namespace: str):
 
     # Service Account
     try:
-        api.read_namespaced_service_account(name=service_account_name, namespace=namespace)
+        core_api.read_namespaced_service_account(name=service_account_name, namespace=namespace)
     except client.ApiException as e:
         if e.status == 404:
             sa = client.V1ServiceAccount(metadata=client.V1ObjectMeta(name=service_account_name))
-            api.create_namespaced_service_account(namespace=namespace, body=sa)
+            core_api.create_namespaced_service_account(namespace=namespace, body=sa)
 
     # Role
     try:
-        api.read_namespaced_role(name=role_name, namespace=namespace)
+        rbac_api.read_namespaced_role(name=role_name, namespace=namespace)
     except client.ApiException as e:
         if e.status == 404:
             role = client.V1Role(
                 metadata=client.V1ObjectMeta(name=role_name),
                 rules=[client.V1PolicyRule(api_groups=["*"], resources=["*"], verbs=["*"])]
             )
-            api.create_namespaced_role(namespace=namespace, body=role)
+            rbac_api.create_namespaced_role(namespace=namespace, body=role)
 
     # Role Binding
     try:
-        api.read_namespaced_role_binding(name=role_binding_name, namespace=namespace)
+        rbac_api.read_namespaced_role_binding(name=role_binding_name, namespace=namespace)
     except client.ApiException as e:
         if e.status == 404:
             rb = client.V1RoleBinding(
                 metadata=client.V1ObjectMeta(name=role_binding_name),
-                subjects=[client.V1Subject(kind="ServiceAccount", name=service_account_name, namespace=namespace)],
-                role_ref=client.V1RoleRef(kind="Role", name=role_name, api_group="rbac.authorization.k8s.io")
+                subjects=[
+                    {
+                        "kind": "ServiceAccount",
+                        "name": service_account_name,
+                        "namespace": namespace,
+                    }
+                ],
+                role_ref={
+                    "kind": "Role",
+                    "name": role_name,
+                    "api_group": "rbac.authorization.k8s.io",
+                },
             )
-            api.create_namespaced_role_binding(namespace=namespace, body=rb)
+            rbac_api.create_namespaced_role_binding(namespace=namespace, body=rb)
 
 def ensure_deployment(api: client.AppsV1Api, namespace: str):
     deployment_name = "devserver-operator-dev"
@@ -177,34 +187,47 @@ def ensure_deployment(api: client.AppsV1Api, namespace: str):
 
 def get_operator_pod(api: client.CoreV1Api, namespace: str) -> str:
     print("🔎 Finding operator pod...")
-    for i in range(30): # Wait up to 30 seconds
+    for i in range(60): # Wait up to 60 seconds
         pods = api.list_namespaced_pod(namespace, label_selector="app=devserver-operator-dev")
-        if pods.items and pods.items[0].status.phase == "Running":
-            pod_name = pods.items[0].metadata.name
-            print(f"✅ Found running pod: {pod_name}")
-            return pod_name
+        if pods.items:
+            pod = pods.items[0]
+            if pod.status.phase == "Running":
+                # Check if containers are ready
+                if all(cs.ready for cs in pod.status.container_statuses):
+                    pod_name = pod.metadata.name
+                    print(f"✅ Found running and ready pod: {pod_name}")
+                    return pod_name
         time.sleep(1)
+    print("❌ Timed out waiting for operator pod to be ready.")
     return ""
 
 def sync_files(namespace: str, pod_name: str):
     print("🔄 Syncing files to pod...")
-    # This assumes `kubectl rsync` plugin is installed.
-    # We sync the entire repo, excluding .git and other ignored files by default.
-    # Adjust exclude list as needed.
-    source_path = Path(__file__).parent.parent.resolve()
-    dest_path = f"{pod_name}:/app"
-    cmd = [
-        "kubectl", "rsync",
-        "--namespace", namespace,
-        f"{source_path}/",
-        dest_path,
-        "--exclude=.git",
-        "--exclude=.idea",
-        "--exclude=.vscode",
-        "--exclude=__pycache__",
-        "--exclude=.venv"
-    ]
-    subprocess.run(cmd, check=True)
+
+    project_root = Path(__file__).parent.parent
+    source_path = project_root / "src"
+    dest_path = f"{namespace}/{pod_name}:/app"
+
+    # To ensure a clean sync, we first remove the old src directory in the pod
+    # and then copy the new one over.
+    rm_cmd = ["kubectl", "exec", "-n", namespace, pod_name, "--", "rm", "-rf", "/app/src"]
+    cp_cmd = ["kubectl", "cp", str(source_path.resolve()), dest_path]
+
+    try:
+        print("   > Removing old source directory in pod...")
+        subprocess.run(rm_cmd, check=True, capture_output=True, text=True)
+
+        print(f"   > Copying '{source_path.name}' to '{dest_path}'...")
+        subprocess.run(cp_cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        print("\n❌ An error occurred while syncing files:")
+        print(f"   Command: {' '.join(e.cmd)}")
+        print(f"   Stderr: {e.stderr}")
+        sys.exit(1)
+    except FileNotFoundError:
+        print("\n❌ 'kubectl' command not found. Is it installed and in your PATH?")
+        sys.exit(1)
+
     print("✅ Files synced.")
 
 def restart_operator(namespace: str, pod_name: str):
