@@ -5,7 +5,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y \
     openssh-client \
-    rsync \
+    procps \
     --no-install-recommends
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
