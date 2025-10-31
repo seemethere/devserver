@@ -42,6 +42,11 @@ dev-logs:
 	echo " tailed logs for $$NAMESPACE"; \
 	kubectl logs -f -n "$$NAMESPACE" -l app=devserver-operator-dev
 
+.PHONY: dev
+dev: dev-bootstrap
+	$(PYTHON) dev/dev_watch.py
+
+
 .PHONY: lint
 lint: pre-commit
 

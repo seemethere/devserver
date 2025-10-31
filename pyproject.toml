@@ -61,4 +61,5 @@ dev = [
     "pytest-sugar>=1.1.1",
     "ty==0.0.1a23",
     "pytest-timeout",
+    "watchdog>=3.0.0",
 ]
