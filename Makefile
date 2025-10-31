@@ -35,6 +35,13 @@ dev-bootstrap: sync
 	@echo "🚀 Bootstrapping remote dev environment..."
 	$(PYTHON) dev/bootstrap_operator.py
 
+.PHONY: dev-logs
+dev-logs:
+	@USER=$$(whoami); \
+	NAMESPACE="dev-$${USER}"; \
+	echo " tailed logs for $$NAMESPACE"; \
+	kubectl logs -f -n "$$NAMESPACE" -l app=devserver-operator-dev
+
 .PHONY: lint
 lint: pre-commit
 

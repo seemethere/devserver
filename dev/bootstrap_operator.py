@@ -99,6 +99,8 @@ def ensure_rbac(core_api: client.CoreV1Api, rbac_api: client.RbacAuthorizationV1
     service_account_name = "devserver-operator-dev"
     role_name = "devserver-operator-dev-role"
     role_binding_name = "devserver-operator-dev-rb"
+    cluster_role_name = "devserver-operator-dev-cluster-role"
+    cluster_role_binding_name = "devserver-operator-dev-crb"
 
     # Service Account
     try:
@@ -108,7 +110,7 @@ def ensure_rbac(core_api: client.CoreV1Api, rbac_api: client.RbacAuthorizationV1
             sa = client.V1ServiceAccount(metadata=client.V1ObjectMeta(name=service_account_name))
             core_api.create_namespaced_service_account(namespace=namespace, body=sa)
 
-    # Role
+    # Namespaced Role for namespaced resources (Pods, Services, etc.)
     try:
         rbac_api.read_namespaced_role(name=role_name, namespace=namespace)
     except client.ApiException as e:
@@ -119,7 +121,7 @@ def ensure_rbac(core_api: client.CoreV1Api, rbac_api: client.RbacAuthorizationV1
             )
             rbac_api.create_namespaced_role(namespace=namespace, body=role)
 
-    # Role Binding
+    # Namespaced Role Binding
     try:
         rbac_api.read_namespaced_role_binding(name=role_binding_name, namespace=namespace)
     except client.ApiException as e:
@@ -141,6 +143,40 @@ def ensure_rbac(core_api: client.CoreV1Api, rbac_api: client.RbacAuthorizationV1
             )
             rbac_api.create_namespaced_role_binding(namespace=namespace, body=rb)
 
+    # Cluster Role for cluster-scoped resources (DevServerFlavors, etc.)
+    try:
+        rbac_api.read_cluster_role(name=cluster_role_name)
+    except client.ApiException as e:
+        if e.status == 404:
+            cluster_role = client.V1ClusterRole(
+                metadata=client.V1ObjectMeta(name=cluster_role_name),
+                rules=[client.V1PolicyRule(api_groups=["*"], resources=["*"], verbs=["*"])]
+            )
+            rbac_api.create_cluster_role(body=cluster_role)
+
+    # Cluster Role Binding
+    try:
+        rbac_api.read_cluster_role_binding(name=cluster_role_binding_name)
+    except client.ApiException as e:
+        if e.status == 404:
+            crb = client.V1ClusterRoleBinding(
+                metadata=client.V1ObjectMeta(name=cluster_role_binding_name),
+                subjects=[
+                    {
+                        "kind": "ServiceAccount",
+                        "name": service_account_name,
+                        "namespace": namespace,
+                    }
+                ],
+                role_ref={
+                    "kind": "ClusterRole",
+                    "name": cluster_role_name,
+                    "api_group": "rbac.authorization.k8s.io",
+                },
+            )
+            rbac_api.create_cluster_role_binding(body=crb)
+
+
 def ensure_deployment(api: client.AppsV1Api, namespace: str):
     deployment_name = "devserver-operator-dev"
     image = "ghcr.io/seemethere/devservers:main" # From .github/workflows/docker-build.yml
@@ -149,6 +185,7 @@ def ensure_deployment(api: client.AppsV1Api, namespace: str):
         name="operator",
         image=image,
         image_pull_policy="Always",
+        env=[client.V1EnvVar(name="DEV_MODE", value="true")],
     )
 
     template = client.V1PodTemplateSpec(
@@ -255,9 +292,9 @@ done
 
 # If namespace flag is not set, add it
 if [ "$NAMESPACE_FLAG_SET" = false ]; then
-    uv run python -m devservers.cli.main --namespace {namespace} "$@"
+    exec uv run python -m devservers.cli.main --namespace {namespace} "$@"
 else
-    uv run python -m devservers.cli.main "$@"
+    exec uv run python -m devservers.cli.main "$@"
 fi
 """
     devctl_path = Path(__file__).parent.parent / "devctl"
