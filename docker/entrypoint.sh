@@ -12,7 +12,14 @@ reload_handler() {
 # Function to start the application
 start_app() {
   echo "Starting application..."
-  "$@" &
+  if [ "$DEV_MODE" = "true" ]; then
+    NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+    echo "Running in DEV_MODE. Watching namespace: $NAMESPACE"
+    "$@" --namespace "$NAMESPACE" &
+  else
+    echo "Running in PROD_MODE (cluster-wide)."
+    "$@" &
+  fi
   PID=$!
   echo "Application started with PID $PID"
 }
